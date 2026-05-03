@@ -324,9 +324,14 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
   const [newExtraSchedTime, setNewExtraSchedTime] = useState('');
 
   useEffect(() => { setLang(propLang); }, [propLang]);
-  useEffect(() => { if (!currentUser || currentUser.role !== 'admin') { navigate('/login'); return; } refreshUsers(); }, [currentUser, navigate]);
-  useEffect(() => { if (schedUserId) setSlots(getStudentSchedule(schedUserId)); }, [schedUserId]);
-  useEffect(() => { if (contentUserId) setContentItems(ensureStudentContent(contentUserId)); }, [contentUserId]);
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'admin') { navigate('/login'); return; }
+    loadAllUsers().then(refreshUsers);
+    const unsub = subscribe(refreshUsers);
+    return () => { unsub(); };
+  }, [currentUser, navigate]);
+  useEffect(() => { if (schedUserId) loadStudentSchedule(schedUserId).then(setSlots); else setSlots([]); }, [schedUserId]);
+  useEffect(() => { if (contentUserId) loadStudentContent(contentUserId).then(setContentItems); else setContentItems([]); }, [contentUserId]);
 
   const refreshUsers = () => setUsers(getUsers().filter(u => u.role !== 'admin'));
   const showToast = (msg: string, type: 'success'|'error' = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
