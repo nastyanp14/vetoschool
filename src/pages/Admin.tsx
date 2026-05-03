@@ -359,10 +359,16 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
   const handleLogout = async () => { await logout(); navigate('/'); };
 
   // Schedule
-  const addSlot = () => setSlots(p => [...p, { id:`slot-${Date.now()}`, day:'Monday', time:'15:00', topic:'' }]);
+  const addSlot = () => setSlots(p => [...p, { id: crypto.randomUUID(), day:'Monday', time:'15:00', topic:'' }]);
   const updateSlot = (id: string, f: keyof ScheduleSlot, v: string) => setSlots(p => p.map(s => s.id === id ? { ...s, [f]: v } : s));
   const removeSlot = (id: string) => setSlots(p => p.filter(s => s.id !== id));
-  const saveSchedule = async () => { if (!schedUserId) return; await saveStudentSchedule(schedUserId, slots); showToast(t(lang,'admin_schedule_saved')); };
+  const saveSchedule = async () => {
+    if (!schedUserId) return;
+    await saveStudentSchedule(schedUserId, slots);
+    const fresh = await loadStudentSchedule(schedUserId);
+    setSlots(fresh);
+    showToast(t(lang,'admin_schedule_saved'));
+  };
 
   // Content
   const toggleUnlock = async (itemId: string, cur: boolean) => {
