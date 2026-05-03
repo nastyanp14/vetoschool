@@ -60,25 +60,35 @@ function FileModal({ item, onClose, lang }: { item: ContentItem; onClose: () => 
         </div>
 
         {/* Content */}
-        {dataUrl ? (
+        {hasContent ? (
           <div className="space-y-4">
             {/* Audio player */}
-            {isAudio && <AudioPlayer dataUrl={dataUrl} />}
+            {dataUrl && isAudio && <AudioPlayer dataUrl={dataUrl} />}
 
             {/* Image preview */}
-            {isImage && !isAudio && (
+            {dataUrl && isImage && !isAudio && (
               <div className="rounded-2xl overflow-hidden border border-purple-100 bg-white shadow-sm">
                 <img src={dataUrl} alt={item.title} className="w-full max-h-72 object-contain" />
               </div>
             )}
 
             {/* Other file (PDF, doc etc) */}
-            {!isImage && !isAudio && item.fileName && (
+            {dataUrl && !isImage && !isAudio && item.fileName && (
               <div className="flex items-center gap-3 bg-purple-50 rounded-2xl p-4 border border-purple-100">
                 <span className="text-4xl">📄</span>
                 <div>
                   <p className="font-body font-600 text-purple-700 text-sm">{item.fileName}</p>
                   <p className="font-body text-xs text-purple-400">{t(lang, 'dash_file_click_download')}</p>
+                </div>
+              </div>
+            )}
+
+            {/* External link only */}
+            {!dataUrl && item.externalLink && (
+              <div className="flex items-center gap-3 bg-purple-50 rounded-2xl p-4 border border-purple-100">
+                <span className="text-4xl">🔗</span>
+                <div className="min-w-0">
+                  <p className="font-body font-600 text-purple-700 text-sm truncate">{item.externalLink}</p>
                 </div>
               </div>
             )}

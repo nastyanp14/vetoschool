@@ -50,8 +50,8 @@ function DeleteModal({ name, onConfirm, onCancel, lang }: { name: string; onConf
 }
 
 // ---- Student Profile Modal ----
-function StudentProfileModal({ user, lang, onClose, onCredentialsSaved }: {
-  user: User; lang: Lang; onClose: () => void; onCredentialsSaved: (msg: string) => void;
+function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAnalytics }: {
+  user: User; lang: Lang; onClose: () => void; onCredentialsSaved: (msg: string) => void; onOpenAnalytics: () => void;
 }) {
   const content = ensureStudentContent(user.id);
   const schedule = getStudentSchedule(user.id);
@@ -245,6 +245,14 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved }: {
             </div>
           )}
 
+          {/* Analytics CTA */}
+          <button
+            onClick={onOpenAnalytics}
+            className="w-full glass rounded-2xl px-6 py-4 border border-purple-200 hover:border-pink-300 transition-all flex items-center justify-center gap-2 font-display font-bold text-purple-700 hover:scale-[1.02] hover:shadow-lg"
+            style={{ background: 'linear-gradient(135deg, rgba(255,141,199,0.12), rgba(168,126,255,0.12))' }}>
+            <span className="text-xl">📊</span>
+            <span className="bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">{lbl.openDash}</span>
+          </button>
 
         </div>
       </motion.div>
@@ -301,6 +309,7 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
   const [editStars, setEditStars] = useState(0);
   const [editFileDataUrl, setEditFileDataUrl] = useState('');
   const [editFileName, setEditFileName] = useState('');
+  const [editExternalLink, setEditExternalLink] = useState('');
 
   // New module
   const [showNewModule, setShowNewModule] = useState(false);
@@ -308,6 +317,7 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
   const [newModEmoji, setNewModEmoji] = useState({ lesson:'📚', homework:'✏️', practice:'🎮' });
   const [newModFile, setNewModFile] = useState({ lesson:'', homework:'', practice:'' });
   const [newModFileName, setNewModFileName] = useState({ lesson:'', homework:'', practice:'' });
+  const [newModLink, setNewModLink] = useState({ lesson:'', homework:'', practice:'' });
   const [newModDue, setNewModDue] = useState('');
   const [newModSchedLesson, setNewModSchedLesson] = useState({ date:'', time:'' });
   const [newModSchedPractice, setNewModSchedPractice] = useState({ date:'', time:'' });
@@ -320,6 +330,7 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
   const [newExtraEmoji, setNewExtraEmoji] = useState('📝');
   const [newExtraFile, setNewExtraFile] = useState('');
   const [newExtraFileName, setNewExtraFileName] = useState('');
+  const [newExtraLink, setNewExtraLink] = useState('');
   const [newExtraSchedDate, setNewExtraSchedDate] = useState('');
   const [newExtraSchedTime, setNewExtraSchedTime] = useState('');
 
@@ -363,12 +374,14 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
     setEditingId(item.id); setEditTitle(item.title); setEditEmoji(item.emoji);
     setEditDueDate(item.dueDate||''); setEditSchedDate(item.scheduledDate||''); setEditSchedTime(item.scheduledTime||'');
     setEditStars(item.starRating||0); setEditFileDataUrl(item.fileDataUrl||''); setEditFileName(item.fileName||'');
+    setEditExternalLink(item.externalLink||'');
   };
   const saveEdit = async (itemId: string, type: ContentType) => {
     const updated = contentItems.map(i => i.id === itemId ? {
       ...i, title:editTitle, emoji:editEmoji, dueDate:editDueDate||i.dueDate,
       scheduledDate:editSchedDate, scheduledTime:editSchedTime,
       fileDataUrl:editFileDataUrl, fileName:editFileName,
+      fileUrl:editFileDataUrl, externalLink:editExternalLink || null,
       starRating: type === 'homework' ? editStars : i.starRating,
     } : i);
     setContentItems(updated); await saveStudentContent(contentUserId, updated); setEditingId(null);
@@ -382,13 +395,13 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
   const addModule = async () => {
     const moduleId = getNextModuleId(); const num = moduleId.replace('module-',''); const ts = Date.now();
     const newItems: ContentItem[] = [
-      { id:`l${num}-${ts}`, moduleId, type:'lesson', title:newModTitle.lesson||`Lesson ${num}`, emoji:newModEmoji.lesson, fileDataUrl:newModFile.lesson, fileName:newModFileName.lesson, scheduledDate:newModSchedLesson.date, scheduledTime:newModSchedLesson.time, unlocked:false },
-      { id:`h${num}-${ts}`, moduleId, type:'homework', title:newModTitle.homework||`Home Task ${num}`, emoji:newModEmoji.homework, fileDataUrl:newModFile.homework, fileName:newModFileName.homework, dueDate:newModDue, scheduledDate:newModSchedHW.date, scheduledTime:newModSchedHW.time, unlocked:false },
-      { id:`p${num}-${ts}`, moduleId, type:'practice', title:newModTitle.practice||`Practice ${num}`, emoji:newModEmoji.practice, fileDataUrl:newModFile.practice, fileName:newModFileName.practice, scheduledDate:newModSchedPractice.date, scheduledTime:newModSchedPractice.time, unlocked:false },
+      { id:`l${num}-${ts}`, moduleId, type:'lesson', title:newModTitle.lesson||`Lesson ${num}`, emoji:newModEmoji.lesson, fileDataUrl:newModFile.lesson, fileUrl:newModFile.lesson, fileName:newModFileName.lesson, externalLink:newModLink.lesson||null, scheduledDate:newModSchedLesson.date, scheduledTime:newModSchedLesson.time, unlocked:false },
+      { id:`h${num}-${ts}`, moduleId, type:'homework', title:newModTitle.homework||`Home Task ${num}`, emoji:newModEmoji.homework, fileDataUrl:newModFile.homework, fileUrl:newModFile.homework, fileName:newModFileName.homework, externalLink:newModLink.homework||null, dueDate:newModDue, scheduledDate:newModSchedHW.date, scheduledTime:newModSchedHW.time, unlocked:false },
+      { id:`p${num}-${ts}`, moduleId, type:'practice', title:newModTitle.practice||`Practice ${num}`, emoji:newModEmoji.practice, fileDataUrl:newModFile.practice, fileUrl:newModFile.practice, fileName:newModFileName.practice, externalLink:newModLink.practice||null, scheduledDate:newModSchedPractice.date, scheduledTime:newModSchedPractice.time, unlocked:false },
     ];
     const updated = [...contentItems, ...newItems]; setContentItems(updated); await saveStudentContent(contentUserId, updated);
     setShowNewModule(false); setNewModTitle({lesson:'',homework:'',practice:''}); setNewModEmoji({lesson:'📚',homework:'✏️',practice:'🎮'});
-    setNewModFile({lesson:'',homework:'',practice:''}); setNewModFileName({lesson:'',homework:'',practice:''}); setNewModDue('');
+    setNewModFile({lesson:'',homework:'',practice:''}); setNewModFileName({lesson:'',homework:'',practice:''}); setNewModLink({lesson:'',homework:'',practice:''}); setNewModDue('');
     setNewModSchedLesson({date:'',time:''}); setNewModSchedPractice({date:'',time:''}); setNewModSchedHW({date:'',time:''});
     showToast(`✅ ${t(lang,'admin_module')} ${num}!`);
   };
@@ -397,9 +410,9 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
     // Count existing items of this type to get sequential number
     const existingCount = contentItems.filter(i => i.type === newExtraType).length + 1;
     const extraModuleId = `${newExtraType}-${existingCount}`;
-    const newItem: ContentItem = { id:`${newExtraType[0]}${existingCount}-${ts}`, moduleId:extraModuleId, type:newExtraType, title:newExtraTitle||(newExtraType==='grammar'?`Grammar ${existingCount}`:`Listening ${existingCount}`), emoji:newExtraEmoji, fileDataUrl:newExtraFile, fileName:newExtraFileName, scheduledDate:newExtraSchedDate, scheduledTime:newExtraSchedTime, unlocked:false };
+    const newItem: ContentItem = { id:`${newExtraType[0]}${existingCount}-${ts}`, moduleId:extraModuleId, type:newExtraType, title:newExtraTitle||(newExtraType==='grammar'?`Grammar ${existingCount}`:`Listening ${existingCount}`), emoji:newExtraEmoji, fileDataUrl:newExtraFile, fileUrl:newExtraFile, fileName:newExtraFileName, externalLink:newExtraLink||null, scheduledDate:newExtraSchedDate, scheduledTime:newExtraSchedTime, unlocked:false };
     const updated = [...contentItems, newItem]; setContentItems(updated); await saveStudentContent(contentUserId, updated);
-    setShowNewExtra(false); setNewExtraTitle(''); setNewExtraFile(''); setNewExtraFileName(''); setNewExtraSchedDate(''); setNewExtraSchedTime('');
+    setShowNewExtra(false); setNewExtraTitle(''); setNewExtraFile(''); setNewExtraFileName(''); setNewExtraLink(''); setNewExtraSchedDate(''); setNewExtraSchedTime('');
     showToast(`✅ ${t(lang, newExtraType === 'grammar' ? 'dash_grammar' : 'dash_listening')}!`);
   };
 
@@ -472,6 +485,8 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
     type === 'grammar' ? 'bg-yellow-100 text-yellow-600' : 'bg-green-100 text-green-600';
 
   const langs: Lang[] = ['ru','en','ua'];
+  const linkLabel = lang === 'en' ? 'Attach link' : lang === 'ua' ? 'Прикріпити посилання' : 'Прикрепить ссылку';
+  const linkPlaceholder = lang === 'en' ? 'https://example.com' : 'https://...';
 
   return (
     <div className="min-h-screen" style={{ background:'linear-gradient(135deg,#F5F0FF 0%,#FFF0F6 50%,#F0F8FF 100%)' }}>
@@ -487,6 +502,7 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
             lang={lang}
             onClose={() => setProfileTarget(null)}
             onCredentialsSaved={(msg) => { showToast(msg); setProfileTarget(null); refreshUsers(); }}
+            onOpenAnalytics={() => { const id = profileTarget.id; setProfileTarget(null); navigate(`/analytics/${id}`); }}
           />
         )}
       </AnimatePresence>
@@ -802,6 +818,8 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
                                                 </div>
                                               )}
                                             </div>
+                                            <input type="url" value={editExternalLink} onChange={e => setEditExternalLink(e.target.value)} placeholder={`🔗 ${linkPlaceholder}`}
+                                              className="input-magic text-sm py-2 mt-2" />
                                           </div>
                                           {item.type === 'homework' && (
                                             <div>
@@ -888,6 +906,8 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
                                     </div>
                                   )}
                                 </div>
+                                <input type="url" value={newExtraLink} onChange={e => setNewExtraLink(e.target.value)} placeholder={`🔗 ${linkLabel}`}
+                                  className="input-magic text-sm py-2 mt-2" />
                               </div>
                             </div>
                             <div className="flex gap-3 mt-4">
@@ -956,6 +976,8 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
                                         </div>
                                       )}
                                     </div>
+                                    <input type="url" value={newModLink[type]} onChange={e => setNewModLink(p => ({ ...p, [type]: e.target.value }))} placeholder={`🔗 ${linkLabel}`}
+                                      className="input-magic text-sm py-2 mt-2" />
                                   </div>
                                 </div>
                               );

@@ -63,7 +63,7 @@ export async function saveStudentContent(userId: string, items: ContentItem[]): 
     type: i.type,
     title: i.title,
     emoji: i.emoji,
-    file_url: i.fileUrl ?? null,
+    file_url: i.fileUrl ?? i.fileDataUrl ?? null,
     file_name: i.fileName ?? null,
     external_link: i.externalLink ?? null,
     due_date: i.dueDate || null,
