@@ -485,6 +485,8 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
     type === 'grammar' ? 'bg-yellow-100 text-yellow-600' : 'bg-green-100 text-green-600';
 
   const langs: Lang[] = ['ru','en','ua'];
+  const linkLabel = lang === 'en' ? 'Attach link' : lang === 'ua' ? 'Прикріпити посилання' : 'Прикрепить ссылку';
+  const linkPlaceholder = lang === 'en' ? 'https://example.com' : 'https://...';
 
   return (
     <div className="min-h-screen" style={{ background:'linear-gradient(135deg,#F5F0FF 0%,#FFF0F6 50%,#F0F8FF 100%)' }}>
