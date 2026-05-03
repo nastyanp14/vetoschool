@@ -317,6 +317,7 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
   const [newModEmoji, setNewModEmoji] = useState({ lesson:'📚', homework:'✏️', practice:'🎮' });
   const [newModFile, setNewModFile] = useState({ lesson:'', homework:'', practice:'' });
   const [newModFileName, setNewModFileName] = useState({ lesson:'', homework:'', practice:'' });
+  const [newModLink, setNewModLink] = useState({ lesson:'', homework:'', practice:'' });
   const [newModDue, setNewModDue] = useState('');
   const [newModSchedLesson, setNewModSchedLesson] = useState({ date:'', time:'' });
   const [newModSchedPractice, setNewModSchedPractice] = useState({ date:'', time:'' });
