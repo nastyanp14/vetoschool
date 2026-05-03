@@ -309,6 +309,7 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
   const [editStars, setEditStars] = useState(0);
   const [editFileDataUrl, setEditFileDataUrl] = useState('');
   const [editFileName, setEditFileName] = useState('');
+  const [editExternalLink, setEditExternalLink] = useState('');
 
   // New module
   const [showNewModule, setShowNewModule] = useState(false);
