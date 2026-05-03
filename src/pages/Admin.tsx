@@ -53,6 +53,10 @@ function DeleteModal({ name, onConfirm, onCancel, lang }: { name: string; onConf
 function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAnalytics }: {
   user: User; lang: Lang; onClose: () => void; onCredentialsSaved: (msg: string) => void; onOpenAnalytics: () => void;
 }) {
+  const [, force] = useState(0);
+  useEffect(() => {
+    Promise.all([loadStudentContent(user.id), loadStudentSchedule(user.id)]).then(() => force(n => n + 1));
+  }, [user.id]);
   const content = ensureStudentContent(user.id);
   const schedule = getStudentSchedule(user.id);
   const { avg, count } = getStudentRating(user.id);
@@ -248,10 +252,9 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
           {/* Analytics CTA */}
           <button
             onClick={onOpenAnalytics}
-            className="w-full glass rounded-2xl px-6 py-4 border border-purple-200 hover:border-pink-300 transition-all flex items-center justify-center gap-2 font-display font-bold text-purple-700 hover:scale-[1.02] hover:shadow-lg"
-            style={{ background: 'linear-gradient(135deg, rgba(255,141,199,0.12), rgba(168,126,255,0.12))' }}>
+            className="btn-magic w-full px-6 py-4 text-white font-display font-bold flex items-center justify-center gap-2">
             <span className="text-xl">📊</span>
-            <span className="bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">{lbl.openDash}</span>
+            <span>{lbl.openDash}</span>
           </button>
 
         </div>
@@ -359,10 +362,16 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
   const handleLogout = async () => { await logout(); navigate('/'); };
 
   // Schedule
-  const addSlot = () => setSlots(p => [...p, { id:`slot-${Date.now()}`, day:'Monday', time:'15:00', topic:'' }]);
+  const addSlot = () => setSlots(p => [...p, { id: crypto.randomUUID(), day:'Monday', time:'15:00', topic:'' }]);
   const updateSlot = (id: string, f: keyof ScheduleSlot, v: string) => setSlots(p => p.map(s => s.id === id ? { ...s, [f]: v } : s));
   const removeSlot = (id: string) => setSlots(p => p.filter(s => s.id !== id));
-  const saveSchedule = async () => { if (!schedUserId) return; await saveStudentSchedule(schedUserId, slots); showToast(t(lang,'admin_schedule_saved')); };
+  const saveSchedule = async () => {
+    if (!schedUserId) return;
+    await saveStudentSchedule(schedUserId, slots);
+    const fresh = await loadStudentSchedule(schedUserId);
+    setSlots(fresh);
+    showToast(t(lang,'admin_schedule_saved'));
+  };
 
   // Content
   const toggleUnlock = async (itemId: string, cur: boolean) => {
@@ -378,13 +387,18 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
   };
   const saveEdit = async (itemId: string, type: ContentType) => {
     const updated = contentItems.map(i => i.id === itemId ? {
-      ...i, title:editTitle, emoji:editEmoji, dueDate:editDueDate||i.dueDate,
-      scheduledDate:editSchedDate, scheduledTime:editSchedTime,
-      fileDataUrl:editFileDataUrl, fileName:editFileName,
-      fileUrl:editFileDataUrl, externalLink:editExternalLink || null,
+      ...i, title:editTitle, emoji:editEmoji,
+      dueDate: editDueDate || null,
+      scheduledDate: editSchedDate || null,
+      scheduledTime: editSchedTime || null,
+      fileDataUrl: editFileDataUrl || null, fileName: editFileName || null,
+      fileUrl: editFileDataUrl || null, externalLink: editExternalLink || null,
       starRating: type === 'homework' ? editStars : i.starRating,
     } : i);
-    setContentItems(updated); await saveStudentContent(contentUserId, updated); setEditingId(null);
+    await saveStudentContent(contentUserId, updated);
+    const fresh = await loadStudentContent(contentUserId);
+    setContentItems(fresh);
+    setEditingId(null);
     showToast(t(lang,'admin_content_saved'));
   };
 
@@ -393,25 +407,29 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
     return `module-${(nums.length ? Math.max(...nums) : 0) + 1}`;
   };
   const addModule = async () => {
-    const moduleId = getNextModuleId(); const num = moduleId.replace('module-',''); const ts = Date.now();
+    const moduleId = getNextModuleId(); const num = moduleId.replace('module-','');
     const newItems: ContentItem[] = [
-      { id:`l${num}-${ts}`, moduleId, type:'lesson', title:newModTitle.lesson||`Lesson ${num}`, emoji:newModEmoji.lesson, fileDataUrl:newModFile.lesson, fileUrl:newModFile.lesson, fileName:newModFileName.lesson, externalLink:newModLink.lesson||null, scheduledDate:newModSchedLesson.date, scheduledTime:newModSchedLesson.time, unlocked:false },
-      { id:`h${num}-${ts}`, moduleId, type:'homework', title:newModTitle.homework||`Home Task ${num}`, emoji:newModEmoji.homework, fileDataUrl:newModFile.homework, fileUrl:newModFile.homework, fileName:newModFileName.homework, externalLink:newModLink.homework||null, dueDate:newModDue, scheduledDate:newModSchedHW.date, scheduledTime:newModSchedHW.time, unlocked:false },
-      { id:`p${num}-${ts}`, moduleId, type:'practice', title:newModTitle.practice||`Practice ${num}`, emoji:newModEmoji.practice, fileDataUrl:newModFile.practice, fileUrl:newModFile.practice, fileName:newModFileName.practice, externalLink:newModLink.practice||null, scheduledDate:newModSchedPractice.date, scheduledTime:newModSchedPractice.time, unlocked:false },
+      { id: crypto.randomUUID(), userId: contentUserId, moduleId, type:'lesson',   title:newModTitle.lesson   ||`Lesson ${num}`,    emoji:newModEmoji.lesson,   fileUrl:newModFile.lesson   || null, fileDataUrl:newModFile.lesson   || null, fileName:newModFileName.lesson   || null, externalLink:newModLink.lesson   ||null, scheduledDate:newModSchedLesson.date   || null, scheduledTime:newModSchedLesson.time   || null, unlocked:false },
+      { id: crypto.randomUUID(), userId: contentUserId, moduleId, type:'homework', title:newModTitle.homework ||`Home Task ${num}`, emoji:newModEmoji.homework, fileUrl:newModFile.homework || null, fileDataUrl:newModFile.homework || null, fileName:newModFileName.homework || null, externalLink:newModLink.homework ||null, dueDate:newModDue || null, scheduledDate:newModSchedHW.date || null, scheduledTime:newModSchedHW.time || null, unlocked:false },
+      { id: crypto.randomUUID(), userId: contentUserId, moduleId, type:'practice', title:newModTitle.practice ||`Practice ${num}`,  emoji:newModEmoji.practice, fileUrl:newModFile.practice || null, fileDataUrl:newModFile.practice || null, fileName:newModFileName.practice || null, externalLink:newModLink.practice ||null, scheduledDate:newModSchedPractice.date || null, scheduledTime:newModSchedPractice.time || null, unlocked:false },
     ];
-    const updated = [...contentItems, ...newItems]; setContentItems(updated); await saveStudentContent(contentUserId, updated);
+    const updated = [...contentItems, ...newItems];
+    await saveStudentContent(contentUserId, updated);
+    const fresh = await loadStudentContent(contentUserId);
+    setContentItems(fresh);
     setShowNewModule(false); setNewModTitle({lesson:'',homework:'',practice:''}); setNewModEmoji({lesson:'📚',homework:'✏️',practice:'🎮'});
     setNewModFile({lesson:'',homework:'',practice:''}); setNewModFileName({lesson:'',homework:'',practice:''}); setNewModLink({lesson:'',homework:'',practice:''}); setNewModDue('');
     setNewModSchedLesson({date:'',time:''}); setNewModSchedPractice({date:'',time:''}); setNewModSchedHW({date:'',time:''});
     showToast(`✅ ${t(lang,'admin_module')} ${num}!`);
   };
   const addExtra = async () => {
-    const ts = Date.now();
-    // Count existing items of this type to get sequential number
     const existingCount = contentItems.filter(i => i.type === newExtraType).length + 1;
-    const extraModuleId = `${newExtraType}-${existingCount}`;
-    const newItem: ContentItem = { id:`${newExtraType[0]}${existingCount}-${ts}`, moduleId:extraModuleId, type:newExtraType, title:newExtraTitle||(newExtraType==='grammar'?`Grammar ${existingCount}`:`Listening ${existingCount}`), emoji:newExtraEmoji, fileDataUrl:newExtraFile, fileUrl:newExtraFile, fileName:newExtraFileName, externalLink:newExtraLink||null, scheduledDate:newExtraSchedDate, scheduledTime:newExtraSchedTime, unlocked:false };
-    const updated = [...contentItems, newItem]; setContentItems(updated); await saveStudentContent(contentUserId, updated);
+    const extraModuleId = `${newExtraType}-${Date.now()}`;
+    const newItem: ContentItem = { id: crypto.randomUUID(), userId: contentUserId, moduleId:extraModuleId, type:newExtraType, title:newExtraTitle||(newExtraType==='grammar'?`Grammar ${existingCount}`:`Listening ${existingCount}`), emoji:newExtraEmoji, fileUrl:newExtraFile || null, fileDataUrl:newExtraFile || null, fileName:newExtraFileName || null, externalLink:newExtraLink||null, scheduledDate:newExtraSchedDate || null, scheduledTime:newExtraSchedTime || null, unlocked:false };
+    const updated = [...contentItems, newItem];
+    await saveStudentContent(contentUserId, updated);
+    const fresh = await loadStudentContent(contentUserId);
+    setContentItems(fresh);
     setShowNewExtra(false); setNewExtraTitle(''); setNewExtraFile(''); setNewExtraFileName(''); setNewExtraLink(''); setNewExtraSchedDate(''); setNewExtraSchedTime('');
     showToast(`✅ ${t(lang, newExtraType === 'grammar' ? 'dash_grammar' : 'dash_listening')}!`);
   };
