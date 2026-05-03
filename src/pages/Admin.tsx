@@ -387,13 +387,18 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
   };
   const saveEdit = async (itemId: string, type: ContentType) => {
     const updated = contentItems.map(i => i.id === itemId ? {
-      ...i, title:editTitle, emoji:editEmoji, dueDate:editDueDate||i.dueDate,
-      scheduledDate:editSchedDate, scheduledTime:editSchedTime,
-      fileDataUrl:editFileDataUrl, fileName:editFileName,
-      fileUrl:editFileDataUrl, externalLink:editExternalLink || null,
+      ...i, title:editTitle, emoji:editEmoji,
+      dueDate: editDueDate || null,
+      scheduledDate: editSchedDate || null,
+      scheduledTime: editSchedTime || null,
+      fileDataUrl: editFileDataUrl || null, fileName: editFileName || null,
+      fileUrl: editFileDataUrl || null, externalLink: editExternalLink || null,
       starRating: type === 'homework' ? editStars : i.starRating,
     } : i);
-    setContentItems(updated); await saveStudentContent(contentUserId, updated); setEditingId(null);
+    await saveStudentContent(contentUserId, updated);
+    const fresh = await loadStudentContent(contentUserId);
+    setContentItems(fresh);
+    setEditingId(null);
     showToast(t(lang,'admin_content_saved'));
   };
 
