@@ -5,7 +5,7 @@ export type ContentType = 'lesson' | 'homework' | 'practice' | 'grammar' | 'list
 
 export interface ContentItem {
   id: string;
-  userId: string;
+  userId?: string;
   moduleId: string;
   type: ContentType;
   title: string;

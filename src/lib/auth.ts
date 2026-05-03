@@ -9,6 +9,7 @@ export interface User {
   role: Role;
   hasAccess: boolean;
   createdAt: string;
+  joinedAt: string;
 }
 
 const ME_KEY = 'me';
