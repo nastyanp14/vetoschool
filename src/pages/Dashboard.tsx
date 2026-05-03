@@ -85,18 +85,13 @@ function FileModal({ item, onClose, lang }: { item: ContentItem; onClose: () => 
             {/* Download button — prevent long-press context menu on mobile */}
             <div className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-2xl p-4 border border-pink-100">
               <button
-                onPointerDown={e => e.preventDefault()}
-                onContextMenu={e => e.preventDefault()}
-                onClick={e => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  downloadDataUrl(dataUrl, item.fileName || item.title || 'file');
-                }}
-                style={{ WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' } as React.CSSProperties}
+                onClick={e => { e.preventDefault(); e.stopPropagation(); openOrDownload(item); }}
                 className="btn-magic w-full py-3.5 text-white font-display font-bold text-base flex items-center justify-center gap-3 select-none"
               >
-                <span className="text-xl">⬇️</span>
-                {t(lang, 'dash_download')}
+                <span className="text-xl">{item.externalLink ? '🔗' : '⬇️'}</span>
+                {item.externalLink
+                  ? (lang === 'en' ? 'Open link' : lang === 'ua' ? 'Відкрити посилання' : 'Открыть ссылку')
+                  : t(lang, 'dash_download')}
               </button>
             </div>
 
