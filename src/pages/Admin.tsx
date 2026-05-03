@@ -53,6 +53,10 @@ function DeleteModal({ name, onConfirm, onCancel, lang }: { name: string; onConf
 function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAnalytics }: {
   user: User; lang: Lang; onClose: () => void; onCredentialsSaved: (msg: string) => void; onOpenAnalytics: () => void;
 }) {
+  const [, force] = useState(0);
+  useEffect(() => {
+    Promise.all([loadStudentContent(user.id), loadStudentSchedule(user.id)]).then(() => force(n => n + 1));
+  }, [user.id]);
   const content = ensureStudentContent(user.id);
   const schedule = getStudentSchedule(user.id);
   const { avg, count } = getStudentRating(user.id);
