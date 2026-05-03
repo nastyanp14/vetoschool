@@ -50,8 +50,8 @@ function DeleteModal({ name, onConfirm, onCancel, lang }: { name: string; onConf
 }
 
 // ---- Student Profile Modal ----
-function StudentProfileModal({ user, lang, onClose, onCredentialsSaved }: {
-  user: User; lang: Lang; onClose: () => void; onCredentialsSaved: (msg: string) => void;
+function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAnalytics }: {
+  user: User; lang: Lang; onClose: () => void; onCredentialsSaved: (msg: string) => void; onOpenAnalytics: () => void;
 }) {
   const content = ensureStudentContent(user.id);
   const schedule = getStudentSchedule(user.id);
