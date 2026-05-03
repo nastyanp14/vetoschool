@@ -280,12 +280,8 @@ function FileBtn({ id, accept, label, onFile }: { id: string; accept?: string; l
   );
 }
 
-export default function Admin({ lang: propLang }: { lang: Lang }) {
-  const [lang, setLang] = useState<Lang>(() => {
-    const saved = localStorage.getItem('vetoschool_admin_lang') as Lang | null;
-    return saved || propLang;
-  });
-  const handleSetLang = (l: Lang) => { setLang(l); localStorage.setItem('vetoschool_admin_lang', l); };
+export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
+  const handleSetLang = (l: Lang) => { setLang(l); };
   const currentUser = getCurrentUser();
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
@@ -337,7 +333,7 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
   const [newExtraSchedDate, setNewExtraSchedDate] = useState('');
   const [newExtraSchedTime, setNewExtraSchedTime] = useState('');
 
-  useEffect(() => { setLang(propLang); }, [propLang]);
+  
   useEffect(() => {
     if (!currentUser || currentUser.role !== 'admin') { navigate('/login'); return; }
     loadAllUsers().then(refreshUsers);

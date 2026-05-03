@@ -202,7 +202,7 @@ function SectionBlock({ title, items, locale, emptyMsg }: {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-export default function Analytics({ lang }: { lang: Lang }) {
+export default function Analytics({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const admin = getCurrentUser();
