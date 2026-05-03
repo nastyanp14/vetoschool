@@ -23,9 +23,10 @@ function AudioPlayer({ dataUrl }: { dataUrl: string }) {
 
 // ---- File modal (unlocked) ----
 function FileModal({ item, onClose, lang }: { item: ContentItem; onClose: () => void; lang: Lang }) {
-  const dataUrl = item.fileDataUrl || '';
-  const isImage = dataUrl.startsWith('data:image');
-  const isAudio = dataUrl.startsWith('data:audio') || (item.type === 'listening' && !!dataUrl);
+  const dataUrl = item.fileUrl || item.fileDataUrl || '';
+  const hasContent = !!dataUrl || !!item.externalLink;
+  const isImage = /\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(dataUrl) || dataUrl.startsWith('data:image');
+  const isAudio = /\.(mp3|wav|ogg|m4a)(\?|$)/i.test(dataUrl) || dataUrl.startsWith('data:audio') || (item.type === 'listening' && !!dataUrl);
 
   const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
 
