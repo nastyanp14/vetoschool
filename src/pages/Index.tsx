@@ -48,8 +48,8 @@ export default function Index() {
       <Route path="/login" element={<Login lang={lang} />} />
       <Route path="/register" element={<Register lang={lang} />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard lang={lang} /></ProtectedRoute>} />
-      <Route path="/admin" element={<ProtectedRoute role="admin"><Admin lang={lang} /></ProtectedRoute>} />
-      <Route path="/analytics/:userId" element={<ProtectedRoute role="admin"><Analytics lang={lang} /></ProtectedRoute>} />
+      <Route path="/admin" element={<ProtectedRoute role="admin"><Admin lang={lang} setLang={setLang} /></ProtectedRoute>} />
+      <Route path="/analytics/:userId" element={<ProtectedRoute role="admin"><Analytics lang={lang} setLang={setLang} /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
