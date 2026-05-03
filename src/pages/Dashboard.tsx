@@ -60,7 +60,7 @@ function FileModal({ item, onClose, lang }: { item: ContentItem; onClose: () => 
         </div>
 
         {/* Content */}
-        {dataUrl ? (
+        {hasContent ? (
           <div className="space-y-4">
             {/* Audio player */}
             {isAudio && <AudioPlayer dataUrl={dataUrl} />}
