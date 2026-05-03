@@ -495,6 +495,7 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
             lang={lang}
             onClose={() => setProfileTarget(null)}
             onCredentialsSaved={(msg) => { showToast(msg); setProfileTarget(null); refreshUsers(); }}
+            onOpenAnalytics={() => { const id = profileTarget.id; setProfileTarget(null); navigate(`/analytics/${id}`); }}
           />
         )}
       </AnimatePresence>
