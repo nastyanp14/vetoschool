@@ -395,13 +395,13 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
   const addModule = async () => {
     const moduleId = getNextModuleId(); const num = moduleId.replace('module-',''); const ts = Date.now();
     const newItems: ContentItem[] = [
-      { id:`l${num}-${ts}`, moduleId, type:'lesson', title:newModTitle.lesson||`Lesson ${num}`, emoji:newModEmoji.lesson, fileDataUrl:newModFile.lesson, fileName:newModFileName.lesson, scheduledDate:newModSchedLesson.date, scheduledTime:newModSchedLesson.time, unlocked:false },
-      { id:`h${num}-${ts}`, moduleId, type:'homework', title:newModTitle.homework||`Home Task ${num}`, emoji:newModEmoji.homework, fileDataUrl:newModFile.homework, fileName:newModFileName.homework, dueDate:newModDue, scheduledDate:newModSchedHW.date, scheduledTime:newModSchedHW.time, unlocked:false },
-      { id:`p${num}-${ts}`, moduleId, type:'practice', title:newModTitle.practice||`Practice ${num}`, emoji:newModEmoji.practice, fileDataUrl:newModFile.practice, fileName:newModFileName.practice, scheduledDate:newModSchedPractice.date, scheduledTime:newModSchedPractice.time, unlocked:false },
+      { id:`l${num}-${ts}`, moduleId, type:'lesson', title:newModTitle.lesson||`Lesson ${num}`, emoji:newModEmoji.lesson, fileDataUrl:newModFile.lesson, fileUrl:newModFile.lesson, fileName:newModFileName.lesson, externalLink:newModLink.lesson||null, scheduledDate:newModSchedLesson.date, scheduledTime:newModSchedLesson.time, unlocked:false },
+      { id:`h${num}-${ts}`, moduleId, type:'homework', title:newModTitle.homework||`Home Task ${num}`, emoji:newModEmoji.homework, fileDataUrl:newModFile.homework, fileUrl:newModFile.homework, fileName:newModFileName.homework, externalLink:newModLink.homework||null, dueDate:newModDue, scheduledDate:newModSchedHW.date, scheduledTime:newModSchedHW.time, unlocked:false },
+      { id:`p${num}-${ts}`, moduleId, type:'practice', title:newModTitle.practice||`Practice ${num}`, emoji:newModEmoji.practice, fileDataUrl:newModFile.practice, fileUrl:newModFile.practice, fileName:newModFileName.practice, externalLink:newModLink.practice||null, scheduledDate:newModSchedPractice.date, scheduledTime:newModSchedPractice.time, unlocked:false },
     ];
     const updated = [...contentItems, ...newItems]; setContentItems(updated); await saveStudentContent(contentUserId, updated);
     setShowNewModule(false); setNewModTitle({lesson:'',homework:'',practice:''}); setNewModEmoji({lesson:'📚',homework:'✏️',practice:'🎮'});
-    setNewModFile({lesson:'',homework:'',practice:''}); setNewModFileName({lesson:'',homework:'',practice:''}); setNewModDue('');
+    setNewModFile({lesson:'',homework:'',practice:''}); setNewModFileName({lesson:'',homework:'',practice:''}); setNewModLink({lesson:'',homework:'',practice:''}); setNewModDue('');
     setNewModSchedLesson({date:'',time:''}); setNewModSchedPractice({date:'',time:''}); setNewModSchedHW({date:'',time:''});
     showToast(`✅ ${t(lang,'admin_module')} ${num}!`);
   };
@@ -410,9 +410,9 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
     // Count existing items of this type to get sequential number
     const existingCount = contentItems.filter(i => i.type === newExtraType).length + 1;
     const extraModuleId = `${newExtraType}-${existingCount}`;
-    const newItem: ContentItem = { id:`${newExtraType[0]}${existingCount}-${ts}`, moduleId:extraModuleId, type:newExtraType, title:newExtraTitle||(newExtraType==='grammar'?`Grammar ${existingCount}`:`Listening ${existingCount}`), emoji:newExtraEmoji, fileDataUrl:newExtraFile, fileName:newExtraFileName, scheduledDate:newExtraSchedDate, scheduledTime:newExtraSchedTime, unlocked:false };
+    const newItem: ContentItem = { id:`${newExtraType[0]}${existingCount}-${ts}`, moduleId:extraModuleId, type:newExtraType, title:newExtraTitle||(newExtraType==='grammar'?`Grammar ${existingCount}`:`Listening ${existingCount}`), emoji:newExtraEmoji, fileDataUrl:newExtraFile, fileUrl:newExtraFile, fileName:newExtraFileName, externalLink:newExtraLink||null, scheduledDate:newExtraSchedDate, scheduledTime:newExtraSchedTime, unlocked:false };
     const updated = [...contentItems, newItem]; setContentItems(updated); await saveStudentContent(contentUserId, updated);
-    setShowNewExtra(false); setNewExtraTitle(''); setNewExtraFile(''); setNewExtraFileName(''); setNewExtraSchedDate(''); setNewExtraSchedTime('');
+    setShowNewExtra(false); setNewExtraTitle(''); setNewExtraFile(''); setNewExtraFileName(''); setNewExtraLink(''); setNewExtraSchedDate(''); setNewExtraSchedTime('');
     showToast(`✅ ${t(lang, newExtraType === 'grammar' ? 'dash_grammar' : 'dash_listening')}!`);
   };
 
