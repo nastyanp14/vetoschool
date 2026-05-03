@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getCurrentUser, logout } from '../lib/auth';
 import { getStudentSchedule } from '../lib/schedule';
-import { ensureStudentContent, ContentItem, getStudentRating, downloadDataUrl } from '../lib/content';
+import { ensureStudentContent, ContentItem, getStudentRating, downloadDataUrl, loadStudentContent, openOrDownload } from '../lib/content';
+import { loadStudentSchedule } from '../lib/schedule';
 import { Lang, t } from '../lib/i18n';
 
 type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'grades';
@@ -22,9 +23,10 @@ function AudioPlayer({ dataUrl }: { dataUrl: string }) {
 
 // ---- File modal (unlocked) ----
 function FileModal({ item, onClose, lang }: { item: ContentItem; onClose: () => void; lang: Lang }) {
-  const dataUrl = item.fileDataUrl || '';
-  const isImage = dataUrl.startsWith('data:image');
-  const isAudio = dataUrl.startsWith('data:audio') || (item.type === 'listening' && !!dataUrl);
+  const dataUrl = item.fileUrl || item.fileDataUrl || '';
+  const hasContent = !!dataUrl || !!item.externalLink;
+  const isImage = /\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(dataUrl) || dataUrl.startsWith('data:image');
+  const isAudio = /\.(mp3|wav|ogg|m4a)(\?|$)/i.test(dataUrl) || dataUrl.startsWith('data:audio') || (item.type === 'listening' && !!dataUrl);
 
   const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
 
@@ -84,18 +86,13 @@ function FileModal({ item, onClose, lang }: { item: ContentItem; onClose: () => 
             {/* Download button — prevent long-press context menu on mobile */}
             <div className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-2xl p-4 border border-pink-100">
               <button
-                onPointerDown={e => e.preventDefault()}
-                onContextMenu={e => e.preventDefault()}
-                onClick={e => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  downloadDataUrl(dataUrl, item.fileName || item.title || 'file');
-                }}
-                style={{ WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' } as React.CSSProperties}
+                onClick={e => { e.preventDefault(); e.stopPropagation(); openOrDownload(item); }}
                 className="btn-magic w-full py-3.5 text-white font-display font-bold text-base flex items-center justify-center gap-3 select-none"
               >
-                <span className="text-xl">⬇️</span>
-                {t(lang, 'dash_download')}
+                <span className="text-xl">{item.externalLink ? '🔗' : '⬇️'}</span>
+                {item.externalLink
+                  ? (lang === 'en' ? 'Open link' : lang === 'ua' ? 'Відкрити посилання' : 'Открыть ссылку')
+                  : t(lang, 'dash_download')}
               </button>
             </div>
 
@@ -239,8 +236,8 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
     if (!user) { navigate('/login'); return; }
     const h = new Date().getHours();
     setGreeting(h < 12 ? t(lang, 'dash_morning') : h < 17 ? t(lang, 'dash_afternoon') : t(lang, 'dash_evening'));
-    setSchedule(getStudentSchedule(effectiveUserId));
-    setContent(ensureStudentContent(effectiveUserId));
+    loadStudentSchedule(effectiveUserId).then(setSchedule);
+    loadStudentContent(effectiveUserId).then(setContent);
   }, [user, navigate, lang, effectiveUserId]);
 
   useEffect(() => { setLang(propLang); }, [propLang]);

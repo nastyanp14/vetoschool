@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { getCurrentUser, getUsers, grantAccess, revokeAccess, deleteUser, logout, updateUserCredentials, User } from '../lib/auth';
-import { getStudentSchedule, saveStudentSchedule, ScheduleSlot } from '../lib/schedule';
-import { ensureStudentContent, saveStudentContent, ContentItem, ContentType, getStudentRating, fileToDataUrl } from '../lib/content';
+import { getCurrentUser, getUsers, grantAccess, revokeAccess, deleteUser, logout, loadAllUsers, setAccess, User } from '../lib/auth';
+import { getStudentSchedule, saveStudentSchedule, loadStudentSchedule, ScheduleSlot } from '../lib/schedule';
+import { ensureStudentContent, saveStudentContent, loadStudentContent, ContentItem, ContentType, getStudentRating, fileToDataUrl, uploadContentFile } from '../lib/content';
 import { Lang, t } from '../lib/i18n';
+import { Switch } from '@/components/ui/switch';
+import { subscribe } from '../lib/storage';
 
 const DAYS_EN = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
@@ -62,30 +64,12 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved }: {
   const unlockedCount = content.filter(i => i.unlocked).length;
   const gradedHW = homework.filter(h => h.starRating && h.starRating > 0);
 
-  // Credentials editing
-  const [newEmail, setNewEmail] = useState(user.email);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [credError, setCredError] = useState('');
-  const [credSaving, setCredSaving] = useState(false);
-  const [showCredForm, setShowCredForm] = useState(false);
-  const [showPass, setShowPass] = useState(false);
-
-  const handleSaveCredentials = async () => {
-    setCredError('');
-    if (!newEmail.trim()) { setCredError('Email не может быть пустым'); return; }
-    if (newPassword && newPassword !== confirmPassword) { setCredError('Пароли не совпадают'); return; }
-    if (newPassword && newPassword.length < 6) { setCredError('Пароль минимум 6 символов'); return; }
-    setCredSaving(true);
-    const result = await updateUserCredentials(user.id, newEmail, newPassword);
-    setCredSaving(false);
-    if (result.success) {
-      setNewPassword(''); setConfirmPassword('');
-      setShowCredForm(false);
-      onCredentialsSaved(`✅ Данные ученика ${user.name} обновлены!`);
-    } else {
-      setCredError(result.error || 'Ошибка');
-    }
+  // Access toggle
+  const [accessSaving, setAccessSaving] = useState(false);
+  const handleToggleAccess = async (next: boolean) => {
+    setAccessSaving(true);
+    try { await setAccess(user.id, next); onCredentialsSaved(next ? `✅ Доступ выдан: ${user.name}` : `🔒 Доступ закрыт: ${user.name}`); }
+    finally { setAccessSaving(false); }
   };
 
   const typeColor: Record<string, string> = {
@@ -188,58 +172,19 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved }: {
             </div>
           )}
 
-          {/* ---- CREDENTIALS SECTION ---- */}
-          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border border-purple-100 overflow-hidden">
-            <button onClick={() => setShowCredForm(!showCredForm)}
-              className="w-full flex items-center justify-between px-5 py-4 font-display font-bold text-purple-700 hover:bg-purple-50 transition-colors">
-              <span className="flex items-center gap-2">{lbl.editCreds}</span>
-              <span className={`text-purple-400 transition-transform duration-300 ${showCredForm ? 'rotate-180' : ''}`}>▼</span>
-            </button>
-            <AnimatePresence>
-              {showCredForm && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                  className="px-5 pb-5 space-y-3 border-t border-purple-100">
-                  <div className="pt-3">
-                    <label className="font-body text-xs text-purple-500 font-600 mb-1 block">{lbl.emailLabel}</label>
-                    <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)}
-                      className="input-magic text-sm py-2" placeholder="student@email.com" />
-                  </div>
-                  <div>
-                    <label className="font-body text-xs text-purple-500 font-600 mb-1 block">{lbl.passLabel}</label>
-                    <div className="relative">
-                      <input type={showPass ? 'text' : 'password'} value={newPassword} onChange={e => setNewPassword(e.target.value)}
-                        className="input-magic text-sm py-2 pr-20" placeholder="••••••••" />
-                      <button type="button" onClick={() => setShowPass(!showPass)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-purple-400 hover:text-purple-600 font-body font-600">
-                        {showPass ? lbl.hidePass : lbl.showPass}
-                      </button>
-                    </div>
-                    <p className="font-body text-xs text-purple-400 mt-1">{lbl.passHint}</p>
-                  </div>
-                  {newPassword && (
-                    <div>
-                      <label className="font-body text-xs text-purple-500 font-600 mb-1 block">{lbl.confirmLabel}</label>
-                      <input type={showPass ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
-                        className="input-magic text-sm py-2" placeholder="••••••••" />
-                    </div>
-                  )}
-                  {credError && (
-                    <div className="bg-red-50 border border-red-200 text-red-500 font-body text-xs px-3 py-2 rounded-xl">⚠️ {credError}</div>
-                  )}
-                  <div className="flex gap-2 pt-1">
-                    <button onClick={handleSaveCredentials} disabled={credSaving}
-                      className="btn-magic px-5 py-2 text-white font-display font-bold text-sm disabled:opacity-60 flex items-center gap-2">
-                      {credSaving ? <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>✨</motion.span> : null}
-                      {lbl.saveBtn}
-                    </button>
-                    <button onClick={() => { setShowCredForm(false); setCredError(''); setNewPassword(''); setConfirmPassword(''); }}
-                      className="btn-outline px-5 py-2 font-display font-bold text-sm">
-                      {lbl.cancelBtn}
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+          {/* ---- ACCESS TOGGLE ---- */}
+          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border border-purple-100 p-5 flex items-center justify-between gap-4">
+            <div>
+              <div className="font-display font-bold text-purple-700 flex items-center gap-2">
+                {user.hasAccess ? '🟢' : '🟡'} {lang === 'en' ? 'Access' : lang === 'ua' ? 'Доступ' : 'Доступ'}
+              </div>
+              <p className="font-body text-xs text-purple-400 mt-0.5">
+                {lang === 'en' ? 'Toggle to grant or revoke access for this student.' :
+                 lang === 'ua' ? 'Перемкніть, щоб надати або забрати доступ.' :
+                 'Переключите, чтобы выдать или забрать доступ.'}
+              </p>
+            </div>
+            <Switch checked={user.hasAccess} disabled={accessSaving} onCheckedChange={handleToggleAccess} />
           </div>
 
           {/* Content by type */}
@@ -379,9 +324,14 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
   const [newExtraSchedTime, setNewExtraSchedTime] = useState('');
 
   useEffect(() => { setLang(propLang); }, [propLang]);
-  useEffect(() => { if (!currentUser || currentUser.role !== 'admin') { navigate('/login'); return; } refreshUsers(); }, [currentUser, navigate]);
-  useEffect(() => { if (schedUserId) setSlots(getStudentSchedule(schedUserId)); }, [schedUserId]);
-  useEffect(() => { if (contentUserId) setContentItems(ensureStudentContent(contentUserId)); }, [contentUserId]);
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'admin') { navigate('/login'); return; }
+    loadAllUsers().then(refreshUsers);
+    const unsub = subscribe(refreshUsers);
+    return () => { unsub(); };
+  }, [currentUser, navigate]);
+  useEffect(() => { if (schedUserId) loadStudentSchedule(schedUserId).then(setSlots); else setSlots([]); }, [schedUserId]);
+  useEffect(() => { if (contentUserId) loadStudentContent(contentUserId).then(setContentItems); else setContentItems([]); }, [contentUserId]);
 
   const refreshUsers = () => setUsers(getUsers().filter(u => u.role !== 'admin'));
   const showToast = (msg: string, type: 'success'|'error' = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };

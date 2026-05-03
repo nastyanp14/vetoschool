@@ -136,6 +136,36 @@ export type Database = {
         }
         Relationships: []
       }
+      schedules: {
+        Row: {
+          created_at: string
+          day: string
+          id: string
+          position: number
+          time: string
+          topic: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          day: string
+          id?: string
+          position?: number
+          time: string
+          topic?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          day?: string
+          id?: string
+          position?: number
+          time?: string
+          topic?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { getCurrentUser, getUsers } from '../lib/auth';
-import { ensureStudentContent, getStudentRating, ContentItem } from '../lib/content';
-import { getStudentSchedule } from '../lib/schedule';
+import { getCurrentUser, getUsers, loadAllUsers } from '../lib/auth';
+import { ensureStudentContent, getStudentRating, ContentItem, loadStudentContent } from '../lib/content';
+import { getStudentSchedule, loadStudentSchedule } from '../lib/schedule';
 import { Lang } from '../lib/i18n';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -217,12 +217,16 @@ export default function Analytics({ lang }: { lang: Lang }) {
   useEffect(() => {
     if (!admin || admin.role !== 'admin') { navigate('/login'); return; }
     if (!userId) { navigate('/admin'); return; }
-    const found = getUsers().find(u => u.id === userId);
-    if (!found) { navigate('/admin'); return; }
-    setStudent(found);
-    setContent(ensureStudentContent(userId));
-    setSchedule(getStudentSchedule(userId));
-    setRating(getStudentRating(userId));
+    (async () => {
+      const users = await loadAllUsers();
+      const found = users.find(u => u.id === userId);
+      if (!found) { navigate('/admin'); return; }
+      setStudent(found);
+      const [items, slots] = await Promise.all([loadStudentContent(userId), loadStudentSchedule(userId)]);
+      setContent(items);
+      setSchedule(slots);
+      setRating(getStudentRating(userId));
+    })();
   }, [userId, admin, navigate]);
 
   if (!student) return null;
