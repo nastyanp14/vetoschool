@@ -55,26 +55,26 @@ export function ensureStudentContent(userId: string): ContentItem[] {
 }
 
 export async function saveStudentContent(userId: string, items: ContentItem[]): Promise<void> {
-  // Upsert all items for this student
+  const isUuid = (s?: string) => !!s && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
   const rows = items.map(i => ({
-    id: i.id,
+    id: isUuid(i.id) ? i.id : crypto.randomUUID(),
     user_id: userId,
     module_id: i.moduleId,
     type: i.type,
     title: i.title,
-    emoji: i.emoji,
+    emoji: i.emoji || '✨',
     file_url: i.fileUrl ?? i.fileDataUrl ?? null,
     file_name: i.fileName ?? null,
-    external_link: i.externalLink ?? null,
+    external_link: i.externalLink || null,
     due_date: i.dueDate || null,
     scheduled_date: i.scheduledDate || null,
     scheduled_time: i.scheduledTime || null,
-    unlocked: i.unlocked,
+    unlocked: !!i.unlocked,
     star_rating: i.starRating ?? null,
   }));
   if (rows.length) {
     const { error } = await supabase.from('content_items').upsert(rows);
-    if (error) throw error;
+    if (error) { console.error('saveStudentContent error', error); throw error; }
   }
   await loadStudentContent(userId);
 }
