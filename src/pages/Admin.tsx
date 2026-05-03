@@ -374,12 +374,14 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
     setEditingId(item.id); setEditTitle(item.title); setEditEmoji(item.emoji);
     setEditDueDate(item.dueDate||''); setEditSchedDate(item.scheduledDate||''); setEditSchedTime(item.scheduledTime||'');
     setEditStars(item.starRating||0); setEditFileDataUrl(item.fileDataUrl||''); setEditFileName(item.fileName||'');
+    setEditExternalLink(item.externalLink||'');
   };
   const saveEdit = async (itemId: string, type: ContentType) => {
     const updated = contentItems.map(i => i.id === itemId ? {
       ...i, title:editTitle, emoji:editEmoji, dueDate:editDueDate||i.dueDate,
       scheduledDate:editSchedDate, scheduledTime:editSchedTime,
       fileDataUrl:editFileDataUrl, fileName:editFileName,
+      fileUrl:editFileDataUrl, externalLink:editExternalLink || null,
       starRating: type === 'homework' ? editStars : i.starRating,
     } : i);
     setContentItems(updated); await saveStudentContent(contentUserId, updated); setEditingId(null);
