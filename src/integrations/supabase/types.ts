@@ -14,16 +14,163 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      content_items: {
+        Row: {
+          created_at: string
+          due_date: string | null
+          emoji: string
+          external_link: string | null
+          file_name: string | null
+          file_url: string | null
+          id: string
+          module_id: string
+          scheduled_date: string | null
+          scheduled_time: string | null
+          star_rating: number | null
+          title: string
+          type: Database["public"]["Enums"]["content_type"]
+          unlocked: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          due_date?: string | null
+          emoji?: string
+          external_link?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          module_id: string
+          scheduled_date?: string | null
+          scheduled_time?: string | null
+          star_rating?: number | null
+          title: string
+          type: Database["public"]["Enums"]["content_type"]
+          unlocked?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          due_date?: string | null
+          emoji?: string
+          external_link?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          module_id?: string
+          scheduled_date?: string | null
+          scheduled_time?: string | null
+          star_rating?: number | null
+          title?: string
+          type?: Database["public"]["Enums"]["content_type"]
+          unlocked?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      grades: {
+        Row: {
+          category: string
+          comment: string | null
+          content_id: string | null
+          created_at: string
+          id: string
+          max_score: number
+          score: number
+          user_id: string
+        }
+        Insert: {
+          category: string
+          comment?: string | null
+          content_id?: string | null
+          created_at?: string
+          id?: string
+          max_score?: number
+          score: number
+          user_id: string
+        }
+        Update: {
+          category?: string
+          comment?: string | null
+          content_id?: string | null
+          created_at?: string
+          id?: string
+          max_score?: number
+          score?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grades_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          has_access: boolean
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          has_access?: boolean
+          id: string
+          name?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          has_access?: boolean
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "student"
+      content_type: "lesson" | "homework" | "practice" | "grammar" | "listening"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +297,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "student"],
+      content_type: ["lesson", "homework", "practice", "grammar", "listening"],
+    },
   },
 } as const
