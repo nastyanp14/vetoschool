@@ -1,4 +1,5 @@
-import { storageGetSync, storageSet } from './storage';
+import { supabase } from '@/integrations/supabase/client';
+import { cacheGet, cacheSet } from './storage';
 
 export interface ScheduleSlot {
   id: string;
@@ -7,17 +8,29 @@ export interface ScheduleSlot {
   topic: string;
 }
 
-const SCHEDULE_KEY = 'vetoschool_schedules';
-type ScheduleMap = Record<string, ScheduleSlot[]>;
+const key = (uid: string) => `schedule:${uid}`;
 
-const getAllSchedules = (): ScheduleMap =>
-  storageGetSync<ScheduleMap>(SCHEDULE_KEY) ?? {};
+export function getStudentSchedule(userId: string): ScheduleSlot[] {
+  return cacheGet<ScheduleSlot[]>(key(userId)) ?? [];
+}
 
-export const getStudentSchedule = (userId: string): ScheduleSlot[] =>
-  getAllSchedules()[userId] ?? [];
+export async function loadStudentSchedule(userId: string): Promise<ScheduleSlot[]> {
+  const { data, error } = await supabase
+    .from('schedules').select('*').eq('user_id', userId).order('position', { ascending: true });
+  if (error) { console.error(error); return []; }
+  const slots: ScheduleSlot[] = (data || []).map(r => ({ id: r.id, day: r.day, time: r.time, topic: r.topic }));
+  cacheSet(key(userId), slots);
+  return slots;
+}
 
-export const saveStudentSchedule = async (userId: string, slots: ScheduleSlot[]): Promise<void> => {
-  const all = getAllSchedules();
-  all[userId] = slots;
-  await storageSet(SCHEDULE_KEY, all);
-};
+export async function saveStudentSchedule(userId: string, slots: ScheduleSlot[]): Promise<void> {
+  await supabase.from('schedules').delete().eq('user_id', userId);
+  if (slots.length) {
+    const rows = slots.map((s, i) => ({
+      user_id: userId, day: s.day, time: s.time, topic: s.topic, position: i,
+    }));
+    const { error } = await supabase.from('schedules').insert(rows);
+    if (error) throw error;
+  }
+  await loadStudentSchedule(userId);
+}
