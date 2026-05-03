@@ -333,7 +333,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const [newExtraSchedDate, setNewExtraSchedDate] = useState('');
   const [newExtraSchedTime, setNewExtraSchedTime] = useState('');
 
-  useEffect(() => { setLang(propLang); }, [propLang]);
+  
   useEffect(() => {
     if (!currentUser || currentUser.role !== 'admin') { navigate('/login'); return; }
     loadAllUsers().then(refreshUsers);
