@@ -245,6 +245,14 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
             </div>
           )}
 
+          {/* Analytics CTA */}
+          <button
+            onClick={onOpenAnalytics}
+            className="w-full glass rounded-2xl px-6 py-4 border border-purple-200 hover:border-pink-300 transition-all flex items-center justify-center gap-2 font-display font-bold text-purple-700 hover:scale-[1.02] hover:shadow-lg"
+            style={{ background: 'linear-gradient(135deg, rgba(255,141,199,0.12), rgba(168,126,255,0.12))' }}>
+            <span className="text-xl">📊</span>
+            <span className="bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">{lbl.openDash}</span>
+          </button>
 
         </div>
       </motion.div>
