@@ -976,6 +976,8 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
                                         </div>
                                       )}
                                     </div>
+                                    <input type="url" value={newModLink[type]} onChange={e => setNewModLink(p => ({ ...p, [type]: e.target.value }))} placeholder={`🔗 ${linkLabel}`}
+                                      className="input-magic text-sm py-2 mt-2" />
                                   </div>
                                 </div>
                               );
