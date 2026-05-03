@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getCurrentUser, logout } from '../lib/auth';
 import { getStudentSchedule } from '../lib/schedule';
-import { ensureStudentContent, ContentItem, getStudentRating, downloadDataUrl } from '../lib/content';
+import { ensureStudentContent, ContentItem, getStudentRating, downloadDataUrl, loadStudentContent, openOrDownload } from '../lib/content';
+import { loadStudentSchedule } from '../lib/schedule';
 import { Lang, t } from '../lib/i18n';
 
 type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'grades';
@@ -239,8 +240,8 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
     if (!user) { navigate('/login'); return; }
     const h = new Date().getHours();
     setGreeting(h < 12 ? t(lang, 'dash_morning') : h < 17 ? t(lang, 'dash_afternoon') : t(lang, 'dash_evening'));
-    setSchedule(getStudentSchedule(effectiveUserId));
-    setContent(ensureStudentContent(effectiveUserId));
+    loadStudentSchedule(effectiveUserId).then(setSchedule);
+    loadStudentContent(effectiveUserId).then(setContent);
   }, [user, navigate, lang, effectiveUserId]);
 
   useEffect(() => { setLang(propLang); }, [propLang]);
