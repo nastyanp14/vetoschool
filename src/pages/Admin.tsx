@@ -64,30 +64,12 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved }: {
   const unlockedCount = content.filter(i => i.unlocked).length;
   const gradedHW = homework.filter(h => h.starRating && h.starRating > 0);
 
-  // Credentials editing
-  const [newEmail, setNewEmail] = useState(user.email);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [credError, setCredError] = useState('');
-  const [credSaving, setCredSaving] = useState(false);
-  const [showCredForm, setShowCredForm] = useState(false);
-  const [showPass, setShowPass] = useState(false);
-
-  const handleSaveCredentials = async () => {
-    setCredError('');
-    if (!newEmail.trim()) { setCredError('Email не может быть пустым'); return; }
-    if (newPassword && newPassword !== confirmPassword) { setCredError('Пароли не совпадают'); return; }
-    if (newPassword && newPassword.length < 6) { setCredError('Пароль минимум 6 символов'); return; }
-    setCredSaving(true);
-    const result = await updateUserCredentials(user.id, newEmail, newPassword);
-    setCredSaving(false);
-    if (result.success) {
-      setNewPassword(''); setConfirmPassword('');
-      setShowCredForm(false);
-      onCredentialsSaved(`✅ Данные ученика ${user.name} обновлены!`);
-    } else {
-      setCredError(result.error || 'Ошибка');
-    }
+  // Access toggle
+  const [accessSaving, setAccessSaving] = useState(false);
+  const handleToggleAccess = async (next: boolean) => {
+    setAccessSaving(true);
+    try { await setAccess(user.id, next); onCredentialsSaved(next ? `✅ Доступ выдан: ${user.name}` : `🔒 Доступ закрыт: ${user.name}`); }
+    finally { setAccessSaving(false); }
   };
 
   const typeColor: Record<string, string> = {
