@@ -906,6 +906,8 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
                                     </div>
                                   )}
                                 </div>
+                                <input type="url" value={newExtraLink} onChange={e => setNewExtraLink(e.target.value)} placeholder={`🔗 ${linkLabel}`}
+                                  className="input-magic text-sm py-2 mt-2" />
                               </div>
                             </div>
                             <div className="flex gap-3 mt-4">
