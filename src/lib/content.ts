@@ -98,19 +98,27 @@ export async function uploadContentFile(userId: string, file: File): Promise<{ u
   const path = `${userId}/${Date.now()}_${safe}`;
   const { error } = await supabase.storage.from('content').upload(path, file, { upsert: true });
   if (error) throw error;
-  const { data } = supabase.storage.from('content').getPublicUrl(path);
-  return { url: data.publicUrl, name: file.name };
+  // Bucket is private; persist the storage path and resolve to a signed URL on demand.
+  return { url: path, name: file.name };
+}
+
+async function resolveFileUrl(stored: string): Promise<string> {
+  if (/^https?:\/\//i.test(stored)) return stored; // legacy public URL
+  const { data, error } = await supabase.storage.from('content').createSignedUrl(stored, 60 * 60);
+  if (error || !data) throw error || new Error('Could not sign URL');
+  return data.signedUrl;
 }
 
 // ---- Smart download/open ----
-export function openOrDownload(item: ContentItem) {
+export async function openOrDownload(item: ContentItem) {
   if (item.externalLink) {
     window.open(item.externalLink, '_blank', 'noopener,noreferrer');
     return;
   }
   if (item.fileUrl) {
+    const url = await resolveFileUrl(item.fileUrl);
     const a = document.createElement('a');
-    a.href = item.fileUrl;
+    a.href = url;
     a.download = item.fileName || item.title || 'file';
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
