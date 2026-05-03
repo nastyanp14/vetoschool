@@ -818,6 +818,8 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
                                                 </div>
                                               )}
                                             </div>
+                                            <input type="url" value={editExternalLink} onChange={e => setEditExternalLink(e.target.value)} placeholder={`🔗 ${linkPlaceholder}`}
+                                              className="input-magic text-sm py-2 mt-2" />
                                           </div>
                                           {item.type === 'homework' && (
                                             <div>
