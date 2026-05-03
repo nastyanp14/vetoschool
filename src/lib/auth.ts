@@ -33,6 +33,7 @@ async function loadCurrentUser(authUserId: string): Promise<User | null> {
     role,
     hasAccess: profile.has_access,
     createdAt: profile.created_at,
+    joinedAt: profile.created_at,
   };
 }
 
@@ -50,6 +51,7 @@ export async function loadAllUsers(): Promise<User[]> {
     role: roleMap.get(p.id) || 'student',
     hasAccess: p.has_access,
     createdAt: p.created_at,
+    joinedAt: p.created_at,
   }));
   cacheSet(USERS_KEY, list);
   return list;
