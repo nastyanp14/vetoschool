@@ -330,6 +330,7 @@ export default function Admin({ lang: propLang }: { lang: Lang }) {
   const [newExtraEmoji, setNewExtraEmoji] = useState('📝');
   const [newExtraFile, setNewExtraFile] = useState('');
   const [newExtraFileName, setNewExtraFileName] = useState('');
+  const [newExtraLink, setNewExtraLink] = useState('');
   const [newExtraSchedDate, setNewExtraSchedDate] = useState('');
   const [newExtraSchedTime, setNewExtraSchedTime] = useState('');
 
