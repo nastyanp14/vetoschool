@@ -118,8 +118,11 @@ export const grantAccess = (id: string) => setAccess(id, true);
 export const revokeAccess = (id: string) => setAccess(id, false);
 
 export async function deleteUser(userId: string) {
-  // Deleting auth.users requires service role; here we just remove the profile row.
-  // Cascade via foreign key would need to be set up; for now soft delete by removing profile.
-  await supabase.from('profiles').delete().eq('id', userId);
+  // Full deletion requires service role — handled by edge function which removes
+  // app data and the auth.users row so credentials/JWTs are invalidated.
+  const { error } = await supabase.functions.invoke('admin-delete-user', {
+    body: { userId },
+  });
+  if (error) throw error;
   await loadAllUsers();
 }
