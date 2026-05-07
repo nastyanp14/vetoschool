@@ -80,7 +80,18 @@ export async function saveStudentContent(userId: string, items: ContentItem[]): 
 }
 
 export async function deleteContentItem(userId: string, id: string): Promise<void> {
-  await supabase.from('content_items').delete().eq('id', id);
+  const { error } = await supabase.from('content_items').delete().eq('id', id);
+  if (error) { console.error('deleteContentItem error', error); throw error; }
+  await loadStudentContent(userId);
+}
+
+export async function deleteModule(userId: string, moduleId: string): Promise<void> {
+  const { error } = await supabase
+    .from('content_items')
+    .delete()
+    .eq('user_id', userId)
+    .eq('module_id', moduleId);
+  if (error) { console.error('deleteModule error', error); throw error; }
   await loadStudentContent(userId);
 }
 
