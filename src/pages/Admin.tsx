@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { getCurrentUser, getUsers, grantAccess, revokeAccess, deleteUser, logout, loadAllUsers, setAccess, User } from '../lib/auth';
 import { getStudentSchedule, saveStudentSchedule, loadStudentSchedule, ScheduleSlot } from '../lib/schedule';
-import { ensureStudentContent, saveStudentContent, loadStudentContent, ContentItem, ContentType, getStudentRating, fileToDataUrl, uploadContentFile } from '../lib/content';
+import { ensureStudentContent, saveStudentContent, loadStudentContent, ContentItem, ContentType, getStudentRating, fileToDataUrl, uploadContentFile, deleteContentItem, deleteModule } from '../lib/content';
 import { Lang, t } from '../lib/i18n';
 import { Switch } from '@/components/ui/switch';
+import { Trash2 } from 'lucide-react';
 import { subscribe } from '../lib/storage';
 
 const DAYS_EN = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
@@ -309,6 +310,33 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const [editFileDataUrl, setEditFileDataUrl] = useState('');
   const [editFileName, setEditFileName] = useState('');
   const [editExternalLink, setEditExternalLink] = useState('');
+  const [confirmDeleteItem, setConfirmDeleteItem] = useState<string | null>(null);
+  const [confirmDeleteModule, setConfirmDeleteModule] = useState<string | null>(null);
+
+  const handleDeleteItem = async (itemId: string) => {
+    if (confirmDeleteItem !== itemId) {
+      setConfirmDeleteItem(itemId);
+      setTimeout(() => setConfirmDeleteItem(c => c === itemId ? null : c), 3000);
+      return;
+    }
+    await deleteContentItem(contentUserId, itemId);
+    const fresh = await loadStudentContent(contentUserId);
+    setContentItems(fresh);
+    setConfirmDeleteItem(null);
+    showToast('🗑️ ' + t(lang,'admin_do_delete'));
+  };
+  const handleDeleteModule = async (moduleId: string) => {
+    if (confirmDeleteModule !== moduleId) {
+      setConfirmDeleteModule(moduleId);
+      setTimeout(() => setConfirmDeleteModule(c => c === moduleId ? null : c), 3000);
+      return;
+    }
+    await deleteModule(contentUserId, moduleId);
+    const fresh = await loadStudentContent(contentUserId);
+    setContentItems(fresh);
+    setConfirmDeleteModule(null);
+    showToast('🗑️ ' + t(lang,'admin_do_delete'));
+  };
 
   // New module
   const [showNewModule, setShowNewModule] = useState(false);
@@ -746,12 +774,22 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                             : 'bg-gradient-to-br from-pink-400 to-purple-400';
                           return (
                             <div key={moduleId} className={`rounded-3xl p-5 border ${bgClass}`}>
-                              <h4 className="font-display font-bold text-purple-700 text-lg mb-4 flex items-center gap-2">
-                                <span className={`w-9 h-9 rounded-full text-white flex items-center justify-center font-black text-sm flex-shrink-0 ${badgeClass}`}>
-                                  {badge}
-                                </span>
-                                {modTitle}
-                              </h4>
+                              <div className="flex items-center justify-between mb-4 gap-3">
+                                <h4 className="font-display font-bold text-purple-700 text-lg flex items-center gap-2">
+                                  <span className={`w-9 h-9 rounded-full text-white flex items-center justify-center font-black text-sm flex-shrink-0 ${badgeClass}`}>
+                                    {badge}
+                                  </span>
+                                  {modTitle}
+                                </h4>
+                                <button
+                                  onClick={() => handleDeleteModule(moduleId)}
+                                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl font-body font-600 transition-all whitespace-nowrap ${confirmDeleteModule===moduleId?'bg-red-500 text-white shadow-lg':'glass text-red-500 hover:bg-red-50 border border-red-100'}`}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  {confirmDeleteModule===moduleId
+                                    ? (lang==='en'?'Sure?':lang==='ua'?'Впевнені?':'Уверены?')
+                                    : (lang==='en'?'Delete module':lang==='ua'?'Видалити модуль':'Удалить модуль')}
+                                </button>
+                              </div>
                               <div className="space-y-3">
                                 {items.map(item => (
                                   <div key={item.id} className="bg-white rounded-2xl p-4 border border-purple-50 shadow-sm">
@@ -780,6 +818,12 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                         <button onClick={() => editingId===item.id ? setEditingId(null) : startEdit(item)}
                                           className="text-xs bg-purple-100 text-purple-600 hover:bg-purple-200 px-3 py-1.5 rounded-xl font-body font-600 transition-colors">
                                           ✏️
+                                        </button>
+                                        <button onClick={() => handleDeleteItem(item.id)}
+                                          title={lang==='en'?'Delete':lang==='ua'?'Видалити':'Удалить'}
+                                          className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-xl font-body font-600 transition-all ${confirmDeleteItem===item.id?'bg-red-500 text-white shadow':'bg-red-50 text-red-500 hover:bg-red-100 border border-red-100'}`}>
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                          {confirmDeleteItem===item.id && <span>{lang==='en'?'Sure?':lang==='ua'?'Впевнені?':'Уверены?'}</span>}
                                         </button>
                                       </div>
                                     </div>
