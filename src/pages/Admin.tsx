@@ -819,6 +819,12 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                           className="text-xs bg-purple-100 text-purple-600 hover:bg-purple-200 px-3 py-1.5 rounded-xl font-body font-600 transition-colors">
                                           ✏️
                                         </button>
+                                        <button onClick={() => handleDeleteItem(item.id)}
+                                          title={lang==='en'?'Delete':lang==='ua'?'Видалити':'Удалить'}
+                                          className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-xl font-body font-600 transition-all ${confirmDeleteItem===item.id?'bg-red-500 text-white shadow':'bg-red-50 text-red-500 hover:bg-red-100 border border-red-100'}`}>
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                          {confirmDeleteItem===item.id && <span>{lang==='en'?'Sure?':lang==='ua'?'Впевнені?':'Уверены?'}</span>}
+                                        </button>
                                       </div>
                                     </div>
 
