@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { getCurrentUser, getUsers, grantAccess, revokeAccess, deleteUser, logout, loadAllUsers, setAccess, User } from '../lib/auth';
 import { getStudentSchedule, saveStudentSchedule, loadStudentSchedule, ScheduleSlot } from '../lib/schedule';
-import { ensureStudentContent, saveStudentContent, loadStudentContent, ContentItem, ContentType, getStudentRating, fileToDataUrl, uploadContentFile } from '../lib/content';
+import { ensureStudentContent, saveStudentContent, loadStudentContent, ContentItem, ContentType, getStudentRating, fileToDataUrl, uploadContentFile, deleteContentItem, deleteModule } from '../lib/content';
 import { Lang, t } from '../lib/i18n';
 import { Switch } from '@/components/ui/switch';
+import { Trash2 } from 'lucide-react';
 import { subscribe } from '../lib/storage';
 
 const DAYS_EN = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
