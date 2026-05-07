@@ -310,6 +310,33 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const [editFileDataUrl, setEditFileDataUrl] = useState('');
   const [editFileName, setEditFileName] = useState('');
   const [editExternalLink, setEditExternalLink] = useState('');
+  const [confirmDeleteItem, setConfirmDeleteItem] = useState<string | null>(null);
+  const [confirmDeleteModule, setConfirmDeleteModule] = useState<string | null>(null);
+
+  const handleDeleteItem = async (itemId: string) => {
+    if (confirmDeleteItem !== itemId) {
+      setConfirmDeleteItem(itemId);
+      setTimeout(() => setConfirmDeleteItem(c => c === itemId ? null : c), 3000);
+      return;
+    }
+    await deleteContentItem(contentUserId, itemId);
+    const fresh = await loadStudentContent(contentUserId);
+    setContentItems(fresh);
+    setConfirmDeleteItem(null);
+    showToast('🗑️ ' + t(lang,'admin_do_delete'));
+  };
+  const handleDeleteModule = async (moduleId: string) => {
+    if (confirmDeleteModule !== moduleId) {
+      setConfirmDeleteModule(moduleId);
+      setTimeout(() => setConfirmDeleteModule(c => c === moduleId ? null : c), 3000);
+      return;
+    }
+    await deleteModule(contentUserId, moduleId);
+    const fresh = await loadStudentContent(contentUserId);
+    setContentItems(fresh);
+    setConfirmDeleteModule(null);
+    showToast('🗑️ ' + t(lang,'admin_do_delete'));
+  };
 
   // New module
   const [showNewModule, setShowNewModule] = useState(false);
