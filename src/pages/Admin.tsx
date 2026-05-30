@@ -787,7 +787,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                   <Trash2 className="w-3.5 h-3.5" />
                                   {confirmDeleteModule===moduleId
                                     ? (lang==='en'?'Sure?':lang==='ua'?'Впевнені?':'Уверены?')
-                                    : (lang==='en'?'Delete module':lang==='ua'?'Видалити модуль':'Удалить модуль')}
+                                    : (lang==='en'?'Delete block':lang==='ua'?'Видалити блок':'Удалить блок')}
                                 </button>
                               </div>
                               <div className="space-y-3">
