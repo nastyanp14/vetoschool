@@ -170,6 +170,7 @@ function ContentCard({ item, lang, onClick }: { item: ContentItem; lang: Lang; o
     practice: 'from-blue-50 to-cyan-50 border-blue-200',
     grammar: 'from-yellow-50 to-amber-50 border-yellow-200',
     listening: 'from-green-50 to-teal-50 border-green-200',
+    checkpoint: 'from-orange-50 to-amber-50 border-orange-200',
   };
   return (
     <motion.div
