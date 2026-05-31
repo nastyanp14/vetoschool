@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { cacheGet, cacheSet, fileToDataUrl as _fileToDataUrl } from './storage';
 
-export type ContentType = 'lesson' | 'homework' | 'practice' | 'grammar' | 'listening';
+export type ContentType = 'lesson' | 'homework' | 'practice' | 'grammar' | 'listening' | 'checkpoint';
 
 export interface ContentItem {
   id: string;
