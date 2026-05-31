@@ -352,7 +352,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
 
   // New grammar/listening
   const [showNewExtra, setShowNewExtra] = useState(false);
-  const [newExtraType, setNewExtraType] = useState<'grammar'|'listening'>('grammar');
+  const [newExtraType, setNewExtraType] = useState<'grammar'|'listening'|'checkpoint'>('grammar');
   const [newExtraTitle, setNewExtraTitle] = useState('');
   const [newExtraEmoji, setNewExtraEmoji] = useState('📝');
   const [newExtraFile, setNewExtraFile] = useState('');
