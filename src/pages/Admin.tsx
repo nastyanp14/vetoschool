@@ -939,9 +939,15 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                       <AnimatePresence>
                         {showNewExtra && (
                           <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-20 }}
-                            className={`rounded-3xl p-6 border mt-4 ${newExtraType==='grammar'?'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-200':'bg-gradient-to-br from-green-50 to-teal-50 border-green-200'}`}>
+                            className={`rounded-3xl p-6 border mt-4 ${
+                              newExtraType==='grammar' ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-200'
+                              : newExtraType==='listening' ? 'bg-gradient-to-br from-green-50 to-teal-50 border-green-200'
+                              : 'bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200'
+                            }`}>
                             <h4 className="font-display font-bold text-xl text-purple-700 mb-5">
-                              {newExtraType==='grammar' ? t(lang,'admin_new_grammar_title') : t(lang,'admin_new_listening_title')}
+                              {newExtraType==='grammar' ? t(lang,'admin_new_grammar_title')
+                                : newExtraType==='listening' ? t(lang,'admin_new_listening_title')
+                                : t(lang,'admin_new_checkpoint_title')}
                             </h4>
                             <div className="bg-white rounded-2xl p-4 border border-purple-100 space-y-3">
                               <div className="grid grid-cols-2 gap-3">
