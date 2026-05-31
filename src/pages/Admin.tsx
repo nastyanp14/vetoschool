@@ -352,7 +352,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
 
   // New grammar/listening
   const [showNewExtra, setShowNewExtra] = useState(false);
-  const [newExtraType, setNewExtraType] = useState<'grammar'|'listening'>('grammar');
+  const [newExtraType, setNewExtraType] = useState<'grammar'|'listening'|'checkpoint'>('grammar');
   const [newExtraTitle, setNewExtraTitle] = useState('');
   const [newExtraEmoji, setNewExtraEmoji] = useState('📝');
   const [newExtraFile, setNewExtraFile] = useState('');
@@ -417,7 +417,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
       scheduledTime: editSchedTime || null,
       fileDataUrl: editFileDataUrl || null, fileName: editFileName || null,
       fileUrl: editFileDataUrl || null, externalLink: editExternalLink || null,
-      starRating: type === 'homework' ? editStars : i.starRating,
+      starRating: (type === 'homework' || type === 'checkpoint') ? editStars : i.starRating,
     } : i);
     await saveStudentContent(contentUserId, updated);
     const fresh = await loadStudentContent(contentUserId);
@@ -449,13 +449,17 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const addExtra = async () => {
     const existingCount = contentItems.filter(i => i.type === newExtraType).length + 1;
     const extraModuleId = `${newExtraType}-${Date.now()}`;
-    const newItem: ContentItem = { id: crypto.randomUUID(), userId: contentUserId, moduleId:extraModuleId, type:newExtraType, title:newExtraTitle||(newExtraType==='grammar'?`Grammar ${existingCount}`:`Listening ${existingCount}`), emoji:newExtraEmoji, fileUrl:newExtraFile || null, fileDataUrl:newExtraFile || null, fileName:newExtraFileName || null, externalLink:newExtraLink||null, scheduledDate:newExtraSchedDate || null, scheduledTime:newExtraSchedTime || null, unlocked:false };
+    const defaultTitle = newExtraType === 'grammar' ? `Grammar ${existingCount}`
+      : newExtraType === 'listening' ? `Listening ${existingCount}`
+      : `Unit Checkpoint ${existingCount}`;
+    const newItem: ContentItem = { id: crypto.randomUUID(), userId: contentUserId, moduleId:extraModuleId, type:newExtraType, title:newExtraTitle||defaultTitle, emoji:newExtraEmoji, fileUrl:newExtraFile || null, fileDataUrl:newExtraFile || null, fileName:newExtraFileName || null, externalLink:newExtraLink||null, scheduledDate:newExtraSchedDate || null, scheduledTime:newExtraSchedTime || null, unlocked:false };
     const updated = [...contentItems, newItem];
     await saveStudentContent(contentUserId, updated);
     const fresh = await loadStudentContent(contentUserId);
     setContentItems(fresh);
     setShowNewExtra(false); setNewExtraTitle(''); setNewExtraFile(''); setNewExtraFileName(''); setNewExtraLink(''); setNewExtraSchedDate(''); setNewExtraSchedTime('');
-    showToast(`✅ ${t(lang, newExtraType === 'grammar' ? 'dash_grammar' : 'dash_listening')}!`);
+    const toastKey = newExtraType === 'grammar' ? 'dash_grammar' : newExtraType === 'listening' ? 'dash_listening' : 'dash_checkpoint';
+    showToast(`✅ ${t(lang, toastKey)}!`);
   };
 
   const filtered = users.filter(u => {
@@ -486,6 +490,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
     for (const mid of moduleIds) {
       const prefix = mid.startsWith('grammar-') ? 'grammar'
         : mid.startsWith('listening-') ? 'listening'
+        : mid.startsWith('checkpoint-') ? 'checkpoint'
         : null;
       if (prefix) {
         counters[prefix] = (counters[prefix] || 0) + 1;
@@ -511,6 +516,10 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
       const label = lang === 'en' ? 'Listening' : lang === 'ua' ? 'Аудіювання' : 'Аудирование';
       return { badge: String(n), title: `${label} ${n}`, isExtra: true };
     }
+    if (moduleId.startsWith('checkpoint-')) {
+      const n = moduleSeqMap[moduleId] ?? moduleId.replace('checkpoint-', '');
+      return { badge: String(n), title: `Unit Checkpoint ${n}`, isExtra: true };
+    }
     return { badge: '?', title: moduleId, isExtra: false };
   };
 
@@ -518,13 +527,17 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
     type === 'lesson' ? `📚 ${t(lang,'admin_lesson')}` :
     type === 'homework' ? `✏️ ${t(lang,'admin_homework')}` :
     type === 'practice' ? `🎮 ${t(lang,'admin_practice')}` :
-    type === 'grammar' ? `📝 ${t(lang,'dash_grammar')}` : `🎧 ${t(lang,'dash_listening')}`;
+    type === 'grammar' ? `📝 ${t(lang,'dash_grammar')}` :
+    type === 'checkpoint' ? `🏁 ${t(lang,'dash_checkpoint')}` :
+    `🎧 ${t(lang,'dash_listening')}`;
 
   const typeBadge = (type: ContentType) =>
     type === 'lesson' ? 'bg-pink-100 text-pink-600' :
     type === 'homework' ? 'bg-purple-100 text-purple-600' :
     type === 'practice' ? 'bg-blue-100 text-blue-600' :
-    type === 'grammar' ? 'bg-yellow-100 text-yellow-600' : 'bg-green-100 text-green-600';
+    type === 'grammar' ? 'bg-yellow-100 text-yellow-600' :
+    type === 'checkpoint' ? 'bg-orange-100 text-orange-600' :
+    'bg-green-100 text-green-600';
 
   const langs: Lang[] = ['ru','en','ua'];
   const linkLabel = lang === 'en' ? 'Attach link' : lang === 'ua' ? 'Прикріпити посилання' : 'Прикрепить ссылку';
@@ -879,7 +892,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                             <input type="url" value={editExternalLink} onChange={e => setEditExternalLink(e.target.value)} placeholder={`🔗 ${linkPlaceholder}`}
                                               className="input-magic text-sm py-2 mt-2" />
                                           </div>
-                                          {item.type === 'homework' && (
+                                          {(item.type === 'homework' || item.type === 'checkpoint') && (
                                             <div>
                                               <label className="font-body text-xs text-purple-500 font-600 mb-2 block">{t(lang,'admin_stars_label')}</label>
                                               <StarPicker value={editStars} onChange={setEditStars} />
@@ -915,6 +928,10 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                             className="flex-1 py-4 rounded-3xl border-2 border-dashed border-green-200 text-green-600 font-display font-bold hover:border-green-400 hover:bg-green-50 transition-all text-sm">
                             {t(lang,'admin_add_listening_btn')}
                           </button>
+                          <button onClick={() => { setNewExtraType('checkpoint'); setNewExtraEmoji('🏁'); setShowNewExtra(true); }}
+                            className="flex-1 py-4 rounded-3xl border-2 border-dashed border-orange-200 text-orange-600 font-display font-bold hover:border-orange-400 hover:bg-orange-50 transition-all text-sm">
+                            {t(lang,'admin_add_checkpoint_btn')}
+                          </button>
                         </div>
                       )}
 
@@ -922,9 +939,15 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                       <AnimatePresence>
                         {showNewExtra && (
                           <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-20 }}
-                            className={`rounded-3xl p-6 border mt-4 ${newExtraType==='grammar'?'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-200':'bg-gradient-to-br from-green-50 to-teal-50 border-green-200'}`}>
+                            className={`rounded-3xl p-6 border mt-4 ${
+                              newExtraType==='grammar' ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-200'
+                              : newExtraType==='listening' ? 'bg-gradient-to-br from-green-50 to-teal-50 border-green-200'
+                              : 'bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200'
+                            }`}>
                             <h4 className="font-display font-bold text-xl text-purple-700 mb-5">
-                              {newExtraType==='grammar' ? t(lang,'admin_new_grammar_title') : t(lang,'admin_new_listening_title')}
+                              {newExtraType==='grammar' ? t(lang,'admin_new_grammar_title')
+                                : newExtraType==='listening' ? t(lang,'admin_new_listening_title')
+                                : t(lang,'admin_new_checkpoint_title')}
                             </h4>
                             <div className="bg-white rounded-2xl p-4 border border-purple-100 space-y-3">
                               <div className="grid grid-cols-2 gap-3">

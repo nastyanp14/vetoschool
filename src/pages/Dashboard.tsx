@@ -7,7 +7,7 @@ import { ensureStudentContent, ContentItem, getStudentRating, downloadDataUrl, l
 import { loadStudentSchedule } from '../lib/schedule';
 import { Lang, t } from '../lib/i18n';
 
-type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'grades';
+type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'grades';
 
 // ---- Audio player ----
 function AudioPlayer({ dataUrl }: { dataUrl: string }) {
@@ -170,6 +170,7 @@ function ContentCard({ item, lang, onClick }: { item: ContentItem; lang: Lang; o
     practice: 'from-blue-50 to-cyan-50 border-blue-200',
     grammar: 'from-yellow-50 to-amber-50 border-yellow-200',
     listening: 'from-green-50 to-teal-50 border-green-200',
+    checkpoint: 'from-orange-50 to-amber-50 border-orange-200',
   };
   return (
     <motion.div
@@ -262,6 +263,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   const practice = content.filter(i => i.type === 'practice');
   const grammar = content.filter(i => i.type === 'grammar');
   const listening = content.filter(i => i.type === 'listening');
+  const checkpoint = content.filter(i => i.type === 'checkpoint');
   const completedLessons = lessons.filter(l => l.unlocked).length;
   const { avg: ratingAvg } = getStudentRating(effectiveUserId);
   const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
@@ -274,6 +276,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
     { id: 'practice', label: t(lang, 'dash_practice'), emoji: '🎮' },
     { id: 'grammar', label: t(lang, 'dash_grammar'), emoji: '📝' },
     { id: 'listening', label: t(lang, 'dash_listening'), emoji: '🎧' },
+    { id: 'checkpoint', label: t(lang, 'dash_checkpoint'), emoji: '🏁' },
     { id: 'grades', label: t(lang, 'dash_grades'), emoji: '🏆' },
   ];
 
@@ -494,6 +497,16 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                     {listening.map(item => <ContentCard key={item.id} item={item} lang={lang} onClick={() => handleItemClick(item)} />)}
                   </div>
             )}
+
+            {/* CHECKPOINT */}
+            {activeTab === 'checkpoint' && (
+              checkpoint.length === 0
+                ? <EmptySection emoji="🏁" title={t(lang, 'dash_checkpoint')} desc={t(lang, 'dash_coming_soon_desc')} />
+                : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {checkpoint.map(item => <ContentCard key={item.id} item={item} lang={lang} onClick={() => handleItemClick(item)} />)}
+                  </div>
+            )}
+
 
             {/* GRADES */}
             {activeTab === 'grades' && (

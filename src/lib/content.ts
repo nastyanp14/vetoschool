@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { cacheGet, cacheSet, fileToDataUrl as _fileToDataUrl } from './storage';
 
-export type ContentType = 'lesson' | 'homework' | 'practice' | 'grammar' | 'listening';
+export type ContentType = 'lesson' | 'homework' | 'practice' | 'grammar' | 'listening' | 'checkpoint';
 
 export interface ContentItem {
   id: string;
@@ -97,7 +97,7 @@ export async function deleteModule(userId: string, moduleId: string): Promise<vo
 
 export function getStudentRating(userId: string): { avg: number; count: number } {
   const items = ensureStudentContent(userId);
-  const graded = items.filter(i => i.type === 'homework' && i.starRating && i.starRating > 0);
+  const graded = items.filter(i => (i.type === 'homework' || i.type === 'checkpoint') && i.starRating && i.starRating > 0);
   if (!graded.length) return { avg: 0, count: 0 };
   const sum = graded.reduce((s, i) => s + (i.starRating || 0), 0);
   return { avg: Math.round((sum / graded.length) * 10) / 10, count: graded.length };
