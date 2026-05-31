@@ -928,6 +928,10 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                             className="flex-1 py-4 rounded-3xl border-2 border-dashed border-green-200 text-green-600 font-display font-bold hover:border-green-400 hover:bg-green-50 transition-all text-sm">
                             {t(lang,'admin_add_listening_btn')}
                           </button>
+                          <button onClick={() => { setNewExtraType('checkpoint'); setNewExtraEmoji('🏁'); setShowNewExtra(true); }}
+                            className="flex-1 py-4 rounded-3xl border-2 border-dashed border-orange-200 text-orange-600 font-display font-bold hover:border-orange-400 hover:bg-orange-50 transition-all text-sm">
+                            {t(lang,'admin_add_checkpoint_btn')}
+                          </button>
                         </div>
                       )}
 
