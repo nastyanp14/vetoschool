@@ -490,6 +490,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
     for (const mid of moduleIds) {
       const prefix = mid.startsWith('grammar-') ? 'grammar'
         : mid.startsWith('listening-') ? 'listening'
+        : mid.startsWith('checkpoint-') ? 'checkpoint'
         : null;
       if (prefix) {
         counters[prefix] = (counters[prefix] || 0) + 1;
@@ -515,6 +516,10 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
       const label = lang === 'en' ? 'Listening' : lang === 'ua' ? 'Аудіювання' : 'Аудирование';
       return { badge: String(n), title: `${label} ${n}`, isExtra: true };
     }
+    if (moduleId.startsWith('checkpoint-')) {
+      const n = moduleSeqMap[moduleId] ?? moduleId.replace('checkpoint-', '');
+      return { badge: String(n), title: `Unit Checkpoint ${n}`, isExtra: true };
+    }
     return { badge: '?', title: moduleId, isExtra: false };
   };
 
@@ -522,13 +527,17 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
     type === 'lesson' ? `📚 ${t(lang,'admin_lesson')}` :
     type === 'homework' ? `✏️ ${t(lang,'admin_homework')}` :
     type === 'practice' ? `🎮 ${t(lang,'admin_practice')}` :
-    type === 'grammar' ? `📝 ${t(lang,'dash_grammar')}` : `🎧 ${t(lang,'dash_listening')}`;
+    type === 'grammar' ? `📝 ${t(lang,'dash_grammar')}` :
+    type === 'checkpoint' ? `🏁 ${t(lang,'dash_checkpoint')}` :
+    `🎧 ${t(lang,'dash_listening')}`;
 
   const typeBadge = (type: ContentType) =>
     type === 'lesson' ? 'bg-pink-100 text-pink-600' :
     type === 'homework' ? 'bg-purple-100 text-purple-600' :
     type === 'practice' ? 'bg-blue-100 text-blue-600' :
-    type === 'grammar' ? 'bg-yellow-100 text-yellow-600' : 'bg-green-100 text-green-600';
+    type === 'grammar' ? 'bg-yellow-100 text-yellow-600' :
+    type === 'checkpoint' ? 'bg-orange-100 text-orange-600' :
+    'bg-green-100 text-green-600';
 
   const langs: Lang[] = ['ru','en','ua'];
   const linkLabel = lang === 'en' ? 'Attach link' : lang === 'ua' ? 'Прикріпити посилання' : 'Прикрепить ссылку';
