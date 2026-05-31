@@ -263,6 +263,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   const practice = content.filter(i => i.type === 'practice');
   const grammar = content.filter(i => i.type === 'grammar');
   const listening = content.filter(i => i.type === 'listening');
+  const checkpoint = content.filter(i => i.type === 'checkpoint');
   const completedLessons = lessons.filter(l => l.unlocked).length;
   const { avg: ratingAvg } = getStudentRating(effectiveUserId);
   const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
