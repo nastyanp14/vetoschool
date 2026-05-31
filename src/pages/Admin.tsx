@@ -449,13 +449,17 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const addExtra = async () => {
     const existingCount = contentItems.filter(i => i.type === newExtraType).length + 1;
     const extraModuleId = `${newExtraType}-${Date.now()}`;
-    const newItem: ContentItem = { id: crypto.randomUUID(), userId: contentUserId, moduleId:extraModuleId, type:newExtraType, title:newExtraTitle||(newExtraType==='grammar'?`Grammar ${existingCount}`:`Listening ${existingCount}`), emoji:newExtraEmoji, fileUrl:newExtraFile || null, fileDataUrl:newExtraFile || null, fileName:newExtraFileName || null, externalLink:newExtraLink||null, scheduledDate:newExtraSchedDate || null, scheduledTime:newExtraSchedTime || null, unlocked:false };
+    const defaultTitle = newExtraType === 'grammar' ? `Grammar ${existingCount}`
+      : newExtraType === 'listening' ? `Listening ${existingCount}`
+      : `Unit Checkpoint ${existingCount}`;
+    const newItem: ContentItem = { id: crypto.randomUUID(), userId: contentUserId, moduleId:extraModuleId, type:newExtraType, title:newExtraTitle||defaultTitle, emoji:newExtraEmoji, fileUrl:newExtraFile || null, fileDataUrl:newExtraFile || null, fileName:newExtraFileName || null, externalLink:newExtraLink||null, scheduledDate:newExtraSchedDate || null, scheduledTime:newExtraSchedTime || null, unlocked:false };
     const updated = [...contentItems, newItem];
     await saveStudentContent(contentUserId, updated);
     const fresh = await loadStudentContent(contentUserId);
     setContentItems(fresh);
     setShowNewExtra(false); setNewExtraTitle(''); setNewExtraFile(''); setNewExtraFileName(''); setNewExtraLink(''); setNewExtraSchedDate(''); setNewExtraSchedTime('');
-    showToast(`✅ ${t(lang, newExtraType === 'grammar' ? 'dash_grammar' : 'dash_listening')}!`);
+    const toastKey = newExtraType === 'grammar' ? 'dash_grammar' : newExtraType === 'listening' ? 'dash_listening' : 'dash_checkpoint';
+    showToast(`✅ ${t(lang, toastKey)}!`);
   };
 
   const filtered = users.filter(u => {
