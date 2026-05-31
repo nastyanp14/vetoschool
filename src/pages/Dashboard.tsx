@@ -7,7 +7,7 @@ import { ensureStudentContent, ContentItem, getStudentRating, downloadDataUrl, l
 import { loadStudentSchedule } from '../lib/schedule';
 import { Lang, t } from '../lib/i18n';
 
-type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'grades';
+type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'grades';
 
 // ---- Audio player ----
 function AudioPlayer({ dataUrl }: { dataUrl: string }) {
