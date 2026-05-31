@@ -498,6 +498,16 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                   </div>
             )}
 
+            {/* CHECKPOINT */}
+            {activeTab === 'checkpoint' && (
+              checkpoint.length === 0
+                ? <EmptySection emoji="🏁" title={t(lang, 'dash_checkpoint')} desc={t(lang, 'dash_coming_soon_desc')} />
+                : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {checkpoint.map(item => <ContentCard key={item.id} item={item} lang={lang} onClick={() => handleItemClick(item)} />)}
+                  </div>
+            )}
+
+
             {/* GRADES */}
             {activeTab === 'grades' && (
               <div className="space-y-6">
