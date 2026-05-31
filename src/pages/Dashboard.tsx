@@ -276,6 +276,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
     { id: 'practice', label: t(lang, 'dash_practice'), emoji: '🎮' },
     { id: 'grammar', label: t(lang, 'dash_grammar'), emoji: '📝' },
     { id: 'listening', label: t(lang, 'dash_listening'), emoji: '🎧' },
+    { id: 'checkpoint', label: t(lang, 'dash_checkpoint'), emoji: '🏁' },
     { id: 'grades', label: t(lang, 'dash_grades'), emoji: '🏆' },
   ];
 
