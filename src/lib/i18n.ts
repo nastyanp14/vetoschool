@@ -784,7 +784,7 @@ const ua: typeof ru = {
   admin_file_audio_label: '🎵 Аудіофайл або будь-який файл',
   admin_attach_btn: 'Прикріпити файл з пристрою',
   admin_attach_audio_btn: 'Прикріпити аудіо або файл',
-  admin_stars_label: '⭐ Оцінка за ДЗ',
+  admin_stars_label: '⭐ Оцінка',
   admin_save_changes: 'Зберегти',
   admin_cancel_btn: 'Скасувати',
   admin_content_saved: '✅ Збережено!',
