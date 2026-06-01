@@ -892,7 +892,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                             <input type="url" value={editExternalLink} onChange={e => setEditExternalLink(e.target.value)} placeholder={`🔗 ${linkPlaceholder}`}
                                               className="input-magic text-sm py-2 mt-2" />
                                           </div>
-                                          {(item.type === 'homework' || item.type === 'checkpoint') && (
+                                          {(item.type === 'homework' || item.type === 'practice' || item.type === 'checkpoint') && (
                                             <div>
                                               <label className="font-body text-xs text-purple-500 font-600 mb-2 block">{t(lang,'admin_stars_label')}</label>
                                               <StarPicker value={editStars} onChange={setEditStars} />
