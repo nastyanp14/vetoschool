@@ -4,7 +4,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { getCurrentUser, getUsers, loadAllUsers } from '../lib/auth';
 import { ensureStudentContent, getStudentRating, ContentItem, loadStudentContent } from '../lib/content';
 import { getStudentSchedule, loadStudentSchedule } from '../lib/schedule';
-import { Lang } from '../lib/i18n';
+import { Lang, t } from '../lib/i18n';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
