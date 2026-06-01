@@ -417,7 +417,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
       scheduledTime: editSchedTime || null,
       fileDataUrl: editFileDataUrl || null, fileName: editFileName || null,
       fileUrl: editFileDataUrl || null, externalLink: editExternalLink || null,
-      starRating: (type === 'homework' || type === 'checkpoint') ? editStars : i.starRating,
+      starRating: (type === 'homework' || type === 'practice' || type === 'checkpoint') ? editStars : i.starRating,
     } : i);
     await saveStudentContent(contentUserId, updated);
     const fresh = await loadStudentContent(contentUserId);
