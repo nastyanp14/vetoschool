@@ -525,7 +525,7 @@ const en: typeof ru = {
   admin_file_audio_label: '🎵 Audio or any file',
   admin_attach_btn: 'Attach file from device',
   admin_attach_audio_btn: 'Attach audio or file',
-  admin_stars_label: '⭐ Grade for homework',
+  admin_stars_label: '⭐ Grade',
   admin_save_changes: 'Save',
   admin_cancel_btn: 'Cancel',
   admin_content_saved: '✅ Saved!',
