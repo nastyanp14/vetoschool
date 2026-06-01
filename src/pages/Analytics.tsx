@@ -236,6 +236,7 @@ export default function Analytics({ lang, setLang }: { lang: Lang; setLang: (l: 
   const practice  = content.filter(i => i.type === 'practice');
   const grammar   = content.filter(i => i.type === 'grammar');
   const listening = content.filter(i => i.type === 'listening');
+  const checkpoint = content.filter(i => i.type === 'checkpoint');
 
   const gradedHW = homework.filter(i => i.starRating && i.starRating > 0);
   const totalUnlocked = content.filter(i => i.unlocked).length;
