@@ -186,10 +186,10 @@ function SectionBlock({ title, items, locale, emptyMsg }: {
               }`}>
                 {item.unlocked ? '🔓' : '🔒'}
               </span>
-              {item.type === 'homework' && item.starRating && item.starRating > 0 && (
+              {(item.type === 'homework' || item.type === 'practice' || item.type === 'checkpoint') && item.starRating && item.starRating > 0 && (
                 <StarRow value={item.starRating} size="text-sm" />
               )}
-              {item.type === 'homework' && (!item.starRating || item.starRating === 0) && item.unlocked && (
+              {(item.type === 'homework' || item.type === 'practice' || item.type === 'checkpoint') && (!item.starRating || item.starRating === 0) && item.unlocked && (
                 <span className="text-xs text-purple-300 font-body">{emptyMsg}</span>
               )}
             </div>
