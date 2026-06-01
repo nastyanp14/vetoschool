@@ -4,7 +4,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { getCurrentUser, getUsers, loadAllUsers } from '../lib/auth';
 import { ensureStudentContent, getStudentRating, ContentItem, loadStudentContent } from '../lib/content';
 import { getStudentSchedule, loadStudentSchedule } from '../lib/schedule';
-import { Lang } from '../lib/i18n';
+import { Lang, t } from '../lib/i18n';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -186,10 +186,10 @@ function SectionBlock({ title, items, locale, emptyMsg }: {
               }`}>
                 {item.unlocked ? '🔓' : '🔒'}
               </span>
-              {item.type === 'homework' && item.starRating && item.starRating > 0 && (
+              {(item.type === 'homework' || item.type === 'practice' || item.type === 'checkpoint') && item.starRating && item.starRating > 0 && (
                 <StarRow value={item.starRating} size="text-sm" />
               )}
-              {item.type === 'homework' && (!item.starRating || item.starRating === 0) && item.unlocked && (
+              {(item.type === 'homework' || item.type === 'practice' || item.type === 'checkpoint') && (!item.starRating || item.starRating === 0) && item.unlocked && (
                 <span className="text-xs text-purple-300 font-body">{emptyMsg}</span>
               )}
             </div>
@@ -236,6 +236,7 @@ export default function Analytics({ lang, setLang }: { lang: Lang; setLang: (l: 
   const practice  = content.filter(i => i.type === 'practice');
   const grammar   = content.filter(i => i.type === 'grammar');
   const listening = content.filter(i => i.type === 'listening');
+  const checkpoint = content.filter(i => i.type === 'checkpoint');
 
   const gradedHW = homework.filter(i => i.starRating && i.starRating > 0);
   const totalUnlocked = content.filter(i => i.unlocked).length;
@@ -450,33 +451,42 @@ export default function Analytics({ lang, setLang }: { lang: Lang; setLang: (l: 
           </motion.div>
         )}
 
-        {/* ── Bar chart: HW grades ──────────────────────────────────────────── */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-          className="glass rounded-3xl p-6">
-          <h2 className="font-display font-bold text-xl text-purple-700 mb-4">{lbl.chartTitle}</h2>
-          <BarChart items={homework} locale={locale} emptyMsg={lbl.noGraded} />
-        </motion.div>
-
-        {/* ── HW grades list ────────────────────────────────────────────────── */}
-        {gradedHW.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-            className="glass rounded-3xl p-6">
-            <h2 className="font-display font-bold text-xl text-purple-700 mb-4">{lbl.hwTitle}</h2>
-            <div className="space-y-3">
-              {gradedHW.map((hw, i) => (
-                <motion.div key={hw.id} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.07 }}
-                  className="flex items-center gap-3 p-3 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-2xl border border-yellow-100">
-                  <span className="text-2xl">{hw.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-body font-600 text-purple-700 text-sm truncate">{hw.title}</div>
-                    {hw.dueDate && <div className="font-body text-xs text-purple-400">{fmt(hw.dueDate, locale)}</div>}
+        {/* ── Three chart+list sections: HW / Practice / Checkpoint ────────── */}
+        {([
+          { key: 'hw', items: homework, chartTitle: t(lang, 'analytics_hw_chart'), listTitle: t(lang, 'analytics_hw_list') },
+          { key: 'practice', items: practice, chartTitle: t(lang, 'analytics_practice_chart'), listTitle: t(lang, 'analytics_practice_list') },
+          { key: 'checkpoint', items: checkpoint, chartTitle: t(lang, 'analytics_checkpoint_chart'), listTitle: t(lang, 'analytics_checkpoint_list') },
+        ] as const).map((sec, idx) => {
+          const graded = sec.items.filter(i => i.starRating && i.starRating > 0);
+          return (
+            <div key={sec.key} className="space-y-6">
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 + idx * 0.05 }}
+                className="glass rounded-3xl p-6">
+                <h2 className="font-display font-bold text-xl text-purple-700 mb-4">{sec.chartTitle}</h2>
+                <BarChart items={sec.items} locale={locale} emptyMsg={lbl.noGraded} />
+              </motion.div>
+              {graded.length > 0 && (
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 + idx * 0.05 }}
+                  className="glass rounded-3xl p-6">
+                  <h2 className="font-display font-bold text-xl text-purple-700 mb-4">{sec.listTitle}</h2>
+                  <div className="space-y-3">
+                    {graded.map((hw, i) => (
+                      <motion.div key={hw.id} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.07 }}
+                        className="flex items-center gap-3 p-3 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-2xl border border-yellow-100">
+                        <span className="text-2xl">{hw.emoji}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-body font-600 text-purple-700 text-sm truncate">{hw.title}</div>
+                          {hw.dueDate && <div className="font-body text-xs text-purple-400">{fmt(hw.dueDate, locale)}</div>}
+                        </div>
+                        <StarRow value={hw.starRating!} />
+                      </motion.div>
+                    ))}
                   </div>
-                  <StarRow value={hw.starRating!} />
                 </motion.div>
-              ))}
+              )}
             </div>
-          </motion.div>
-        )}
+          );
+        })}
 
         {/* ── Timeline ──────────────────────────────────────────────────────── */}
         {content.some(i => i.unlocked) && (

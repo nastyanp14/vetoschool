@@ -526,38 +526,44 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                   {ratingAvg === 0 && <p className="font-body text-white/70 text-sm mt-2">{t(lang, 'dash_grades_empty')}</p>}
                 </div>
 
-                <div className="glass rounded-3xl p-6">
-                  <h3 className="font-display font-bold text-xl text-purple-700 mb-4">{t(lang, 'dash_diary')}</h3>
-                  {homework.length === 0 ? (
-                    <p className="font-body text-sm text-purple-400 text-center py-6">{t(lang, 'dash_hw_empty_title')}</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {homework.map(hw => (
-                        <div key={hw.id} onClick={() => handleItemClick(hw)}
-                          className="flex items-center gap-3 p-3 bg-white/60 rounded-2xl cursor-pointer hover:bg-white/80 transition-colors">
-                          <span className="text-2xl">{hw.emoji}</span>
-                          <div className="flex-1">
-                            <div className="font-body font-600 text-purple-700 text-sm">{hw.title}</div>
-                            {hw.dueDate && hw.dueDate.length > 0 && (
-                              <div className="font-body text-xs text-purple-400">
-                                {t(lang, 'dash_due')} {new Date(hw.dueDate).toLocaleDateString(locale, { day: 'numeric', month: 'long' })}
-                              </div>
-                            )}
+                {([
+                  { key: 'hw', title: t(lang, 'dash_diary'), items: homework, emptyTitle: t(lang, 'dash_hw_empty_title') },
+                  { key: 'practice', title: t(lang, 'dash_practice_diary'), items: practice, emptyTitle: t(lang, 'dash_practice_empty_title') },
+                  { key: 'checkpoint', title: t(lang, 'dash_checkpoint_results'), items: checkpoint, emptyTitle: t(lang, 'dash_checkpoint') },
+                ] as const).map(section => (
+                  <div key={section.key} className="glass rounded-3xl p-6">
+                    <h3 className="font-display font-bold text-xl text-purple-700 mb-4">{section.title}</h3>
+                    {section.items.length === 0 ? (
+                      <p className="font-body text-sm text-purple-400 text-center py-6">{section.emptyTitle}</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {section.items.map(it => (
+                          <div key={it.id} onClick={() => handleItemClick(it)}
+                            className="flex items-center gap-3 p-3 bg-white/60 rounded-2xl cursor-pointer hover:bg-white/80 transition-colors">
+                            <span className="text-2xl">{it.emoji}</span>
+                            <div className="flex-1">
+                              <div className="font-body font-600 text-purple-700 text-sm">{it.title}</div>
+                              {it.dueDate && it.dueDate.length > 0 && (
+                                <div className="font-body text-xs text-purple-400">
+                                  {t(lang, 'dash_due')} {new Date(it.dueDate).toLocaleDateString(locale, { day: 'numeric', month: 'long' })}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              {it.starRating && it.starRating > 0 ? (
+                                <div className="flex gap-0.5 justify-end">
+                                  {[1,2,3,4,5].map(s => <span key={s} className={`text-base ${s <= it.starRating! ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>)}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-purple-400 font-body">{t(lang, 'dash_not_graded')}</span>
+                              )}
+                            </div>
                           </div>
-                          <div className="text-right flex-shrink-0">
-                            {hw.starRating && hw.starRating > 0 ? (
-                              <div className="flex gap-0.5 justify-end">
-                                {[1,2,3,4,5].map(s => <span key={s} className={`text-base ${s <= hw.starRating! ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>)}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-purple-400 font-body">{t(lang, 'dash_not_graded')}</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
 
