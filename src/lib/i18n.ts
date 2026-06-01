@@ -260,7 +260,7 @@ const ru = {
   admin_file_audio_label: '🎵 Аудиофайл или любой файл',
   admin_attach_btn: 'Прикрепить файл с устройства',
   admin_attach_audio_btn: 'Прикрепить аудио или файл',
-  admin_stars_label: '⭐ Оценка за ДЗ',
+  admin_stars_label: '⭐ Оценка',
   admin_save_changes: 'Сохранить',
   admin_cancel_btn: 'Отмена',
   admin_content_saved: '✅ Сохранено!',
