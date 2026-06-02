@@ -512,32 +512,59 @@ export default function Analytics({ lang, setLang }: { lang: Lang; setLang: (l: 
           ))}
         </AnimatePresence>
 
-        {/* ── Schedule ──────────────────────────────────────────────────────── */}
+        {/* ── Schedule (split: upcoming + conducted archive) ─────────────── */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
           className="glass rounded-3xl p-6">
           <h2 className="font-display font-bold text-xl text-purple-700 mb-4">{lbl.scheduleTitle}</h2>
           {schedule.length === 0 ? (
             <p className="font-body text-sm text-purple-400 text-center py-4">{lbl.noSchedule}</p>
-          ) : (
-            <div className="space-y-3">
-              {schedule.map((slot, i) => (
-                <motion.div key={slot.id} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}
-                  className="flex items-center gap-3 p-3 bg-gradient-to-r from-pink-50 to-purple-50 rounded-2xl border border-pink-100">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-400 to-purple-400 flex flex-col items-center justify-center text-white font-display font-black flex-shrink-0">
-                    <span style={{ fontSize: 9 }}>{slot.day.slice(0, 3)}</span>
-                    <span className="text-base leading-none">{slot.time.split(':')[0]}</span>
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-body font-600 text-purple-700 text-sm">{slot.topic}</div>
-                    <div className="font-body text-xs text-purple-400">{slot.day} · {slot.time}</div>
-                  </div>
-                  <span className="text-xs px-2.5 py-1 rounded-full bg-pink-100 text-pink-600 font-body font-600">
-                    {lang === 'ru' ? 'Урок' : lang === 'ua' ? 'Урок' : 'Lesson'}
-                  </span>
-                </motion.div>
-              ))}
-            </div>
-          )}
+          ) : (() => {
+            const upcoming = schedule.filter(s => !s.isConducted);
+            const conducted = schedule.filter(s => s.isConducted);
+            const renderCard = (slot: typeof schedule[number], i: number, done: boolean) => (
+              <motion.div key={slot.id} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}
+                className={`flex items-center gap-3 p-3 rounded-2xl border ${done ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 opacity-90' : 'bg-gradient-to-r from-pink-50 to-purple-50 border-pink-100'}`}>
+                <input type="checkbox" checked={slot.isConducted} disabled readOnly
+                  className="w-5 h-5 accent-green-500 cursor-not-allowed flex-shrink-0"
+                  title={t(lang, 'sched_conducted_label')} />
+                <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center text-white font-display font-black flex-shrink-0 ${done ? 'bg-gradient-to-br from-green-400 to-emerald-500' : 'bg-gradient-to-br from-pink-400 to-purple-400'}`}>
+                  <span style={{ fontSize: 9 }}>{slot.day.slice(0, 3)}</span>
+                  <span className="text-base leading-none">{slot.time.split(':')[0]}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className={`font-body font-600 text-sm ${done ? 'text-green-700 line-through decoration-green-300' : 'text-purple-700'}`}>{slot.topic}</div>
+                  <div className={`font-body text-xs ${done ? 'text-green-500' : 'text-purple-400'}`}>{slot.day} · {slot.time}</div>
+                </div>
+                <span className={`text-xs px-2.5 py-1 rounded-full font-body font-600 flex-shrink-0 ${done ? 'bg-green-100 text-green-600' : 'bg-pink-100 text-pink-600'}`}>
+                  {done ? `✅ ${t(lang, 'sched_conducted_label')}` : (lang === 'ru' ? 'Урок' : lang === 'ua' ? 'Урок' : 'Lesson')}
+                </span>
+              </motion.div>
+            );
+            return (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-display font-bold text-base text-purple-700 mb-3 flex items-center gap-2">
+                    📅 {t(lang, 'sched_upcoming')} <span className="text-xs text-purple-400 font-600">({upcoming.length})</span>
+                  </h3>
+                  {upcoming.length === 0
+                    ? <div className="glass rounded-2xl p-4 text-center font-body text-sm text-purple-400">—</div>
+                    : <div className="space-y-3">{upcoming.map((s, i) => renderCard(s, i, false))}</div>
+                  }
+                </div>
+                {conducted.length > 0 && (
+                  <details className="group" open>
+                    <summary className="cursor-pointer list-none mb-3">
+                      <h3 className="font-display font-bold text-base text-green-700 inline-flex items-center gap-2">
+                        <span className="transition-transform group-open:rotate-90">▶</span>
+                        ✅ {t(lang, 'sched_conducted')} <span className="text-xs text-green-500 font-600">({conducted.length})</span>
+                      </h3>
+                    </summary>
+                    <div className="space-y-3">{conducted.map((s, i) => renderCard(s, i, true))}</div>
+                  </details>
+                )}
+              </div>
+            );
+          })()}
         </motion.div>
 
       </div>
