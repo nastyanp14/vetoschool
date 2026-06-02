@@ -451,24 +451,53 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
             {activeTab === 'schedule' && (
               schedule.length === 0
                 ? <EmptySection emoji="📅" title={t(lang, 'dash_no_schedule')} desc={t(lang, 'dash_no_schedule_desc')} />
-                : <div className="space-y-4">
-                    {schedule.map((slot, i) => (
-                      <motion.div key={slot.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}
-                        className="bg-gradient-to-br from-pink-50 to-purple-50 border border-pink-200 rounded-3xl p-5 card-hover">
+                : (() => {
+                    const upcoming = schedule.filter(s => !s.isConducted);
+                    const conducted = schedule.filter(s => s.isConducted);
+                    const renderCard = (slot: typeof schedule[number], i: number, done: boolean) => (
+                      <motion.div key={slot.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }}
+                        className={`glass border rounded-3xl p-5 card-hover ${done ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 opacity-90' : 'bg-gradient-to-br from-pink-50 to-purple-50 border-pink-200'}`}>
                         <div className="flex items-center gap-4">
-                          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-pink-400 to-purple-400 flex flex-col items-center justify-center text-white font-display font-black flex-shrink-0">
+                          <input type="checkbox" checked={slot.isConducted} disabled readOnly
+                            className="w-5 h-5 accent-green-500 cursor-not-allowed flex-shrink-0"
+                            title={t(lang, 'sched_conducted_label')} />
+                          <div className={`w-16 h-16 rounded-2xl flex flex-col items-center justify-center text-white font-display font-black flex-shrink-0 ${done ? 'bg-gradient-to-br from-green-400 to-emerald-500' : 'bg-gradient-to-br from-pink-400 to-purple-400'}`}>
                             <span className="text-xs">{slot.day.slice(0, 3)}</span>
                             <span className="text-lg">{slot.time.split(':')[0]}</span>
                           </div>
-                          <div className="flex-1">
-                            <h4 className="font-display font-bold text-purple-700 text-lg">{slot.topic}</h4>
-                            <p className="font-body text-sm text-purple-400">{slot.day} · {slot.time} · Anastasiia Vetoshchuk</p>
+                          <div className="flex-1 min-w-0">
+                            <h4 className={`font-display font-bold text-lg ${done ? 'text-green-700 line-through decoration-green-300' : 'text-purple-700'}`}>{slot.topic}</h4>
+                            <p className={`font-body text-sm ${done ? 'text-green-500' : 'text-purple-400'}`}>{slot.day} · {slot.time} · Anastasiia Vetoshchuk</p>
                           </div>
-                          <span className="text-xs px-3 py-1 rounded-full bg-pink-100 text-pink-600 font-body font-600">{t(lang, 'dash_lesson_type')}</span>
+                          <span className={`text-xs px-3 py-1 rounded-full font-body font-600 flex-shrink-0 ${done ? 'bg-green-100 text-green-600' : 'bg-pink-100 text-pink-600'}`}>
+                            {done ? `✅ ${t(lang, 'sched_conducted_label')}` : t(lang, 'dash_lesson_type')}
+                          </span>
                         </div>
                       </motion.div>
-                    ))}
-                  </div>
+                    );
+                    return (
+                      <div className="space-y-8">
+                        <div>
+                          <h3 className="font-display font-bold text-xl text-purple-700 mb-4 flex items-center gap-2">📅 {t(lang, 'sched_upcoming')} <span className="text-sm text-purple-400 font-600">({upcoming.length})</span></h3>
+                          {upcoming.length === 0
+                            ? <div className="glass rounded-2xl p-6 text-center font-body text-sm text-purple-400">—</div>
+                            : <div className="space-y-4">{upcoming.map((s, i) => renderCard(s, i, false))}</div>
+                          }
+                        </div>
+                        {conducted.length > 0 && (
+                          <details className="group" open>
+                            <summary className="cursor-pointer list-none mb-4">
+                              <h3 className="font-display font-bold text-xl text-green-700 inline-flex items-center gap-2">
+                                <span className="transition-transform group-open:rotate-90">▶</span>
+                                ✅ {t(lang, 'sched_conducted')} <span className="text-sm text-green-500 font-600">({conducted.length})</span>
+                              </h3>
+                            </summary>
+                            <div className="space-y-4">{conducted.map((s, i) => renderCard(s, i, true))}</div>
+                          </details>
+                        )}
+                      </div>
+                    );
+                  })()
             )}
 
             {/* PRACTICE */}
