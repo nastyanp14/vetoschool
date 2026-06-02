@@ -229,26 +229,30 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
             </div>
           ))}
 
-          {/* Schedule */}
-          {schedule.length > 0 && (
-            <div>
-              <h4 className="font-display font-bold text-purple-700 mb-2">{lbl.scheduleTitle}</h4>
-              <div className="space-y-2">
-                {schedule.map(slot => (
-                  <div key={slot.id} className="flex items-center gap-3 p-3 bg-white/70 rounded-2xl border border-blue-100">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-400 to-purple-400 flex flex-col items-center justify-center text-white font-display font-black flex-shrink-0">
-                      <span style={{ fontSize: 9 }}>{slot.day.slice(0,3)}</span>
-                      <span className="text-sm">{slot.time.split(':')[0]}</span>
+          {/* Schedule — show only upcoming lessons in the profile card */}
+          {(() => {
+            const upcoming = schedule.filter(s => !s.isConducted);
+            if (upcoming.length === 0) return null;
+            return (
+              <div>
+                <h4 className="font-display font-bold text-purple-700 mb-2">{lbl.scheduleTitle}</h4>
+                <div className="space-y-2">
+                  {upcoming.map(slot => (
+                    <div key={slot.id} className="flex items-center gap-3 p-3 bg-white/70 rounded-2xl border border-blue-100">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-400 to-purple-400 flex flex-col items-center justify-center text-white font-display font-black flex-shrink-0">
+                        <span style={{ fontSize: 9 }}>{slot.day.slice(0,3)}</span>
+                        <span className="text-sm">{slot.time.split(':')[0]}</span>
+                      </div>
+                      <div>
+                        <div className="font-body font-600 text-purple-700 text-sm">{slot.topic}</div>
+                        <div className="font-body text-xs text-purple-400">{slot.day} · {slot.time}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-body font-600 text-purple-700 text-sm">{slot.topic}</div>
-                      <div className="font-body text-xs text-purple-400">{slot.day} · {slot.time}</div>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Analytics CTA */}
           <button
