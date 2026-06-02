@@ -1139,15 +1139,19 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                 {schedUserId && (
                   <AnimatePresence>
                     <motion.div initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
-                      <div className="space-y-3 mb-4">
-                        {slots.length === 0 && (
-                          <div className="text-center py-8 bg-purple-50 rounded-2xl">
-                            <p className="font-body text-purple-400 text-sm">{t(lang,'admin_no_slots')}</p>
-                          </div>
-                        )}
-                        {slots.map((slot, i) => (
+                      {(() => {
+                        const upcoming = slots.filter(s => !s.isConducted);
+                        const conducted = slots.filter(s => s.isConducted);
+                        const renderRow = (slot: ScheduleSlot, i: number) => (
                           <motion.div key={slot.id} initial={{ opacity:0, x:-20 }} animate={{ opacity:1, x:0 }} transition={{ delay:i*0.05 }}
-                            className="flex flex-col sm:flex-row gap-3 p-4 bg-white/70 rounded-2xl border border-purple-100">
+                            className={`flex flex-col sm:flex-row gap-3 p-4 rounded-2xl border ${slot.isConducted ? 'bg-green-50/70 border-green-200' : 'bg-white/70 border-purple-100'}`}>
+                            <div className="flex items-center sm:items-end pt-1 sm:pt-0">
+                              <label className="inline-flex items-center gap-2 cursor-pointer select-none" title={t(lang,'sched_conducted_label')}>
+                                <input type="checkbox" checked={slot.isConducted} onChange={() => toggleConducted(slot)}
+                                  className="w-5 h-5 accent-green-500 cursor-pointer" />
+                                <span className="font-body text-xs text-purple-500 sm:hidden">{t(lang,'sched_conducted_label')}</span>
+                              </label>
+                            </div>
                             <div className="flex-1">
                               <label className="font-body text-xs text-purple-500 font-600 mb-1 block">{t(lang,'admin_day')}</label>
                               <select value={slot.day} onChange={e => updateSlot(slot.id,'day',e.target.value)} className="input-magic text-sm py-2">
@@ -1166,8 +1170,36 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                               <button onClick={() => removeSlot(slot.id)} className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl text-sm font-body font-600 transition-colors">{t(lang,'admin_remove')}</button>
                             </div>
                           </motion.div>
-                        ))}
-                      </div>
+                        );
+                        return (
+                          <>
+                            <div className="mb-5">
+                              <h4 className="font-display font-bold text-purple-700 mb-2">📅 {t(lang,'sched_upcoming')} <span className="text-xs text-purple-400 font-body font-600">({upcoming.length})</span></h4>
+                              <div className="space-y-3">
+                                {upcoming.length === 0 && (
+                                  <div className="text-center py-6 bg-purple-50 rounded-2xl">
+                                    <p className="font-body text-purple-400 text-sm">{t(lang,'admin_no_slots')}</p>
+                                  </div>
+                                )}
+                                {upcoming.map((s, i) => renderRow(s, i))}
+                              </div>
+                            </div>
+                            {conducted.length > 0 && (
+                              <details className="mb-4 group" open>
+                                <summary className="cursor-pointer list-none">
+                                  <h4 className="font-display font-bold text-green-700 mb-2 inline-flex items-center gap-2">
+                                    <span className="transition-transform group-open:rotate-90">▶</span>
+                                    ✅ {t(lang,'sched_conducted')} <span className="text-xs text-green-500 font-body font-600">({conducted.length})</span>
+                                  </h4>
+                                </summary>
+                                <div className="space-y-3 mt-2">
+                                  {conducted.map((s, i) => renderRow(s, i))}
+                                </div>
+                              </details>
+                            )}
+                          </>
+                        );
+                      })()}
                       <div className="flex gap-3">
                         <button onClick={addSlot} className="btn-outline px-5 py-2.5 text-sm font-display font-bold">{t(lang,'admin_add_slot')}</button>
                         <button onClick={saveSchedule} className="btn-magic px-6 py-2.5 text-white text-sm font-display font-bold">{t(lang,'admin_save_schedule')}</button>
