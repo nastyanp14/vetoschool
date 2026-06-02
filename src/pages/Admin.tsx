@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { getCurrentUser, getUsers, grantAccess, revokeAccess, deleteUser, logout, loadAllUsers, setAccess, User } from '../lib/auth';
-import { getStudentSchedule, saveStudentSchedule, loadStudentSchedule, ScheduleSlot } from '../lib/schedule';
+import { getStudentSchedule, saveStudentSchedule, loadStudentSchedule, setSlotConducted, ScheduleSlot } from '../lib/schedule';
 import { ensureStudentContent, saveStudentContent, loadStudentContent, ContentItem, ContentType, getStudentRating, fileToDataUrl, uploadContentFile, deleteContentItem, deleteModule } from '../lib/content';
 import { Lang, t } from '../lib/i18n';
 import { Switch } from '@/components/ui/switch';
@@ -386,8 +386,8 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const handleLogout = async () => { await logout(); navigate('/'); };
 
   // Schedule
-  const addSlot = () => setSlots(p => [...p, { id: crypto.randomUUID(), day:'Monday', time:'15:00', topic:'' }]);
-  const updateSlot = (id: string, f: keyof ScheduleSlot, v: string) => setSlots(p => p.map(s => s.id === id ? { ...s, [f]: v } : s));
+  const addSlot = () => setSlots(p => [...p, { id: crypto.randomUUID(), day:'Monday', time:'15:00', topic:'', isConducted: false }]);
+  const updateSlot = (id: string, f: keyof ScheduleSlot, v: string | boolean) => setSlots(p => p.map(s => s.id === id ? { ...s, [f]: v } as ScheduleSlot : s));
   const removeSlot = (id: string) => setSlots(p => p.filter(s => s.id !== id));
   const saveSchedule = async () => {
     if (!schedUserId) return;
@@ -395,6 +395,17 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
     const fresh = await loadStudentSchedule(schedUserId);
     setSlots(fresh);
     showToast(t(lang,'admin_schedule_saved'));
+  };
+  const toggleConducted = async (slot: ScheduleSlot) => {
+    const next = !slot.isConducted;
+    setSlots(p => p.map(s => s.id === slot.id ? { ...s, isConducted: next } : s));
+    try {
+      await setSlotConducted(slot.id, next);
+      await loadStudentSchedule(schedUserId);
+    } catch (e) {
+      console.error(e);
+      setSlots(p => p.map(s => s.id === slot.id ? { ...s, isConducted: !next } : s));
+    }
   };
 
   // Content
