@@ -141,6 +141,7 @@ export type Database = {
           created_at: string
           day: string
           id: string
+          is_conducted: boolean
           position: number
           time: string
           topic: string
@@ -150,6 +151,7 @@ export type Database = {
           created_at?: string
           day: string
           id?: string
+          is_conducted?: boolean
           position?: number
           time: string
           topic?: string
@@ -159,6 +161,7 @@ export type Database = {
           created_at?: string
           day?: string
           id?: string
+          is_conducted?: boolean
           position?: number
           time?: string
           topic?: string

@@ -1,0 +1,1 @@
+ALTER TABLE public.schedules ADD COLUMN IF NOT EXISTS is_conducted boolean NOT NULL DEFAULT false;
