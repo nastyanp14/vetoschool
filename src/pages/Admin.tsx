@@ -57,6 +57,7 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
   user: User; lang: Lang; onClose: () => void; onCredentialsSaved: (msg: string) => void; onOpenAnalytics: () => void;
 }) {
   const [, force] = useState(0);
+  const [tab, setTab] = useState<'profile' | 'dict'>('profile');
   useEffect(() => {
     Promise.all([loadStudentContent(user.id), loadStudentSchedule(user.id)]).then(() => force(n => n + 1));
   }, [user.id]);
