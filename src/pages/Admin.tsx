@@ -8,6 +8,8 @@ import { Lang, t } from '../lib/i18n';
 import { Switch } from '@/components/ui/switch';
 import { Trash2 } from 'lucide-react';
 import { subscribe } from '../lib/storage';
+import ThemeToggle from '../components/ThemeToggle';
+import AdminDictionary from '../components/AdminDictionary';
 
 const DAYS_EN = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
