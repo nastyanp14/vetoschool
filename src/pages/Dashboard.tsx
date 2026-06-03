@@ -6,8 +6,10 @@ import { getStudentSchedule } from '../lib/schedule';
 import { ensureStudentContent, ContentItem, getStudentRating, downloadDataUrl, loadStudentContent, openOrDownload } from '../lib/content';
 import { loadStudentSchedule } from '../lib/schedule';
 import { Lang, t } from '../lib/i18n';
+import ThemeToggle from '../components/ThemeToggle';
+import DictionaryView from '../components/DictionaryView';
 
-type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'grades';
+type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades';
 
 // ---- Audio player ----
 function AudioPlayer({ dataUrl }: { dataUrl: string }) {
@@ -277,11 +279,13 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
     { id: 'grammar', label: t(lang, 'dash_grammar'), emoji: '📝' },
     { id: 'listening', label: t(lang, 'dash_listening'), emoji: '🎧' },
     { id: 'checkpoint', label: t(lang, 'dash_checkpoint'), emoji: '🏁' },
+    { id: 'dictionary', label: t(lang, 'dict_tab'), emoji: '📖' },
     { id: 'grades', label: t(lang, 'dash_grades'), emoji: '🏆' },
   ];
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #FFF0F6 0%, #F5F0FF 50%, #F0F8FF 100%)' }}>
+    <div className="min-h-screen page-bg-dashboard">
+
 
       {/* Modals */}
       <AnimatePresence>
@@ -300,6 +304,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
             <span className="font-display font-black text-xl bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">Vetoschool</span>
           </Link>
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             {/* Lang switcher */}
             <div className="flex gap-1 bg-white/60 rounded-full px-1 py-1">
               {langs.map(l => (
