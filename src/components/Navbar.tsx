@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getCurrentUser, logout } from '../lib/auth';
 import { useNavigate, Link } from 'react-router-dom';
 import { Lang, t } from '../lib/i18n';
+import ThemeToggle from './ThemeToggle';
 
 interface NavbarProps {
   lang: Lang;
@@ -78,7 +79,7 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
 
         {/* Right side */}
         <div className="hidden md:flex items-center gap-3">
-          {/* Lang switcher */}
+          <ThemeToggle />
           <div className="flex gap-1 bg-white/60 rounded-full px-1 py-1">
             {langs.map(l => (
               <button
@@ -120,14 +121,17 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
         </div>
 
         {/* Mobile menu button */}
-        <button
-          className="md:hidden p-2 rounded-xl glass"
-          onClick={() => setMenuOpen(!menuOpen)}
-        >
+        <div className="md:hidden flex items-center gap-2">
+          <ThemeToggle />
+          <button
+            className="p-2 rounded-xl glass"
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
           <div className={`w-5 h-0.5 bg-purple-400 mb-1 transition-all duration-300 ${menuOpen ? 'rotate-45 translate-y-1.5' : ''}`} />
           <div className={`w-5 h-0.5 bg-purple-400 mb-1 transition-all duration-300 ${menuOpen ? 'opacity-0' : ''}`} />
           <div className={`w-5 h-0.5 bg-purple-400 transition-all duration-300 ${menuOpen ? '-rotate-45 -translate-y-1.5' : ''}`} />
-        </button>
+          </button>
+        </div>
       </div>
 
       {/* Mobile menu */}
