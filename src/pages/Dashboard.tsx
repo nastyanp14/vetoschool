@@ -541,6 +541,11 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                   </div>
             )}
 
+            {/* DICTIONARY */}
+            {activeTab === 'dictionary' && (
+              <DictionaryView userId={effectiveUserId} lang={lang} />
+            )}
+
 
             {/* GRADES */}
             {activeTab === 'grades' && (
