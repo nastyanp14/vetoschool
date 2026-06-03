@@ -8,6 +8,8 @@ import { Lang, t } from '../lib/i18n';
 import { Switch } from '@/components/ui/switch';
 import { Trash2 } from 'lucide-react';
 import { subscribe } from '../lib/storage';
+import ThemeToggle from '../components/ThemeToggle';
+import AdminDictionary from '../components/AdminDictionary';
 
 const DAYS_EN = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
@@ -55,6 +57,7 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
   user: User; lang: Lang; onClose: () => void; onCredentialsSaved: (msg: string) => void; onOpenAnalytics: () => void;
 }) {
   const [, force] = useState(0);
+  const [tab, setTab] = useState<'profile' | 'dict'>('profile');
   useEffect(() => {
     Promise.all([loadStudentContent(user.id), loadStudentSchedule(user.id)]).then(() => force(n => n + 1));
   }, [user.id]);
@@ -148,6 +151,23 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
         </div>
 
         <div className="p-6 space-y-5">
+          {/* Tabs: Profile / Dictionary */}
+          <div className="flex gap-2">
+            {([
+              ['profile', lang === 'en' ? '👤 Profile' : lang === 'ua' ? '👤 Профіль' : '👤 Профиль'],
+              ['dict', t(lang, 'dict_tab')],
+            ] as const).map(([id, label]) => (
+              <button key={id} onClick={() => setTab(id)}
+                className={`px-4 py-2 rounded-2xl font-body font-700 text-sm transition-all ${
+                  tab === id ? 'bg-gradient-to-r from-pink-400 to-purple-400 text-white shadow-lg' : 'bg-white/60 text-purple-600 hover:bg-pink-50'
+                }`}>{label}</button>
+            ))}
+          </div>
+
+          {tab === 'dict' ? (
+            <AdminDictionary userId={user.id} lang={lang} />
+          ) : (<>
+
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
@@ -261,10 +281,12 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
             <span className="text-xl">📊</span>
             <span>{lbl.openDash}</span>
           </button>
+          </>)}
 
         </div>
       </motion.div>
     </motion.div>
+
   );
 }
 
@@ -559,7 +581,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const linkPlaceholder = lang === 'en' ? 'https://example.com' : 'https://...';
 
   return (
-    <div className="min-h-screen" style={{ background:'linear-gradient(135deg,#F5F0FF 0%,#FFF0F6 50%,#F0F8FF 100%)' }}>
+    <div className="min-h-screen page-bg-admin">
 
       <AnimatePresence>
         {deleteTarget && <DeleteModal name={deleteTarget.name} onConfirm={doDelete} onCancel={() => setDeleteTarget(null)} lang={lang} />}
@@ -594,6 +616,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
             <span className="font-display font-black text-xl bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">Vetoschool</span>
           </Link>
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <div className="flex gap-1 bg-white/60 rounded-full px-1 py-1">
               {langs.map(l => (
                 <button key={l} onClick={() => handleSetLang(l)}

@@ -71,6 +71,39 @@ export type Database = {
         }
         Relationships: []
       }
+      dictionary_words: {
+        Row: {
+          category: string
+          created_at: string
+          emoji: string
+          id: string
+          lesson: string
+          translation: string
+          user_id: string
+          word: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          lesson?: string
+          translation: string
+          user_id: string
+          word: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          lesson?: string
+          translation?: string
+          user_id?: string
+          word?: string
+        }
+        Relationships: []
+      }
       grades: {
         Row: {
           category: string

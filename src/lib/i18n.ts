@@ -307,6 +307,23 @@ const ru = {
   sched_conducted: 'Проведенные уроки',
   sched_conducted_label: 'Проведено',
   admin_lessons_count: 'занятий',
+
+  // Dictionary (RU)
+  dict_tab: '📖 Словарик',
+  dict_title: '📖 Мой словарик',
+  dict_by_lesson: 'По урокам',
+  dict_by_category: 'По категориям',
+  dict_empty: '🌱 Слова появятся, когда преподаватель добавит их',
+  dict_add_title: '➕ Добавить слово',
+  dict_lesson_field: 'Урок',
+  dict_category_field: 'Категория',
+  dict_word_field: 'Слово (English)',
+  dict_translation_field: 'Перевод',
+  dict_emoji_field: 'Эмодзи',
+  dict_add_btn: '✨ Добавить слово',
+  dict_no_lesson: 'Без урока',
+  dict_no_category: 'Без категории',
+  dict_flip_hint: 'Нажми, чтобы перевернуть',
 };
 
 const en: typeof ru = {
@@ -569,6 +586,23 @@ const en: typeof ru = {
   admin_all_schedules: '📋 All Student Schedules',
   admin_sched_none: 'No schedule',
   admin_lessons_count: 'lessons',
+
+  // Dictionary (EN)
+  dict_tab: '📖 Dictionary',
+  dict_title: '📖 My Dictionary',
+  dict_by_lesson: 'By Lesson',
+  dict_by_category: 'By Category',
+  dict_empty: '🌱 Words will appear once your teacher adds them',
+  dict_add_title: '➕ Add a word',
+  dict_lesson_field: 'Lesson',
+  dict_category_field: 'Category',
+  dict_word_field: 'Word (English)',
+  dict_translation_field: 'Translation',
+  dict_emoji_field: 'Emoji',
+  dict_add_btn: '✨ Add word',
+  dict_no_lesson: 'No lesson',
+  dict_no_category: 'No category',
+  dict_flip_hint: 'Tap to flip',
 };
 
 const ua: typeof ru = {
@@ -831,6 +865,23 @@ const ua: typeof ru = {
   admin_all_schedules: '📋 Розклади всіх учнів',
   admin_sched_none: 'Немає розкладу',
   admin_lessons_count: 'занять',
+
+  // Dictionary (UA)
+  dict_tab: '📖 Словничок',
+  dict_title: '📖 Мій словничок',
+  dict_by_lesson: 'За уроками',
+  dict_by_category: 'За категоріями',
+  dict_empty: '🌱 Слова з\'являться, коли викладач їх додасть',
+  dict_add_title: '➕ Додати слово',
+  dict_lesson_field: 'Урок',
+  dict_category_field: 'Категорія',
+  dict_word_field: 'Слово (English)',
+  dict_translation_field: 'Переклад',
+  dict_emoji_field: 'Емодзі',
+  dict_add_btn: '✨ Додати слово',
+  dict_no_lesson: 'Без уроку',
+  dict_no_category: 'Без категорії',
+  dict_flip_hint: 'Натисни, щоб перевернути',
 };
 
 export const translations = { ru, en, ua };
