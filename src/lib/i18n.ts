@@ -614,7 +614,7 @@ const en: typeof ru = {
   admin_lessons_count: 'lessons',
 
   // Dictionary (EN)
-  dict_tab: '📖 Dictionary',
+  dict_tab: 'Dictionary',
   dict_title: '📖 My Dictionary',
   dict_by_lesson: 'By Lesson',
   dict_by_category: 'By Category',
@@ -629,6 +629,32 @@ const en: typeof ru = {
   dict_no_lesson: 'No lesson',
   dict_no_category: 'No category',
   dict_flip_hint: 'Tap to flip',
+
+  // Stars & Shop (EN)
+  shop_tab: 'Shop',
+  shop_title: '🛍️ Avatar Shop',
+  shop_balance: 'Your balance',
+  shop_stars: 'stars',
+  shop_buy: 'Buy',
+  shop_owned: 'Owned',
+  shop_equip: 'Equip',
+  shop_equipped: '✓ Equipped',
+  shop_unequip: 'Remove avatar',
+  shop_not_enough: 'Not enough stars',
+  shop_rarity_common: 'Common',
+  shop_rarity_rare: 'Rare',
+  shop_rarity_epic: 'Epic',
+  shop_rarity_legendary: 'Legendary',
+  shop_locked_title: 'Access pending approval',
+  shop_locked_desc: 'The shop opens as soon as your teacher activates your account ✨',
+  star_reward_title: 'Yay! 🌟',
+  star_reward_body: 'Great job — you just earned',
+  star_reward_more: 'stars! You rock! 🌟',
+  star_reward_close: 'Add to piggy bank',
+  admin_bonus_stars: '🎁 Gift bonus stars',
+  admin_bonus_amount: 'How many stars to award?',
+  admin_bonus_grant: 'Grant',
+  admin_bonus_done: '✨ Sent! Student will see a star burst ⭐',
 };
 
 const ua: typeof ru = {
