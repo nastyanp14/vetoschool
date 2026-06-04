@@ -919,7 +919,7 @@ const ua: typeof ru = {
   admin_lessons_count: 'занять',
 
   // Dictionary (UA)
-  dict_tab: '📖 Словничок',
+  dict_tab: 'Словничок',
   dict_title: '📖 Мій словничок',
   dict_by_lesson: 'За уроками',
   dict_by_category: 'За категоріями',
@@ -934,6 +934,32 @@ const ua: typeof ru = {
   dict_no_lesson: 'Без уроку',
   dict_no_category: 'Без категорії',
   dict_flip_hint: 'Натисни, щоб перевернути',
+
+  // Stars & Shop (UA)
+  shop_tab: 'Магазин',
+  shop_title: '🛍️ Магазин аватарок',
+  shop_balance: 'Твій баланс',
+  shop_stars: 'зірок',
+  shop_buy: 'Купити',
+  shop_owned: 'Куплено',
+  shop_equip: 'Вдягти',
+  shop_equipped: '✓ Вдягнено',
+  shop_unequip: 'Зняти аватарку',
+  shop_not_enough: 'Не вистачає зірок',
+  shop_rarity_common: 'Звичайні',
+  shop_rarity_rare: 'Рідкісні',
+  shop_rarity_epic: 'Епічні',
+  shop_rarity_legendary: 'Легендарні',
+  shop_locked_title: 'Доступ очікує підтвердження',
+  shop_locked_desc: 'Магазин відкриється, щойно викладач активує твій акаунт ✨',
+  star_reward_title: 'Ура! 🌟',
+  star_reward_body: 'Молодець — ти заробив(ла)',
+  star_reward_more: 'зірок! Ти супер! 🌟',
+  star_reward_close: 'У скарбничку',
+  admin_bonus_stars: '🎁 Подарувати бонусні зірки',
+  admin_bonus_amount: 'Скільки зірок нарахувати?',
+  admin_bonus_grant: 'Нарахувати',
+  admin_bonus_done: '✨ Нараховано! Учень побачить салют ⭐',
 };
 
 export const translations = { ru, en, ua };
