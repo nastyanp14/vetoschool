@@ -309,7 +309,7 @@ const ru = {
   admin_lessons_count: 'занятий',
 
   // Dictionary (RU)
-  dict_tab: '📖 Словарик',
+  dict_tab: 'Словарик',
   dict_title: '📖 Мой словарик',
   dict_by_lesson: 'По урокам',
   dict_by_category: 'По категориям',
@@ -324,6 +324,32 @@ const ru = {
   dict_no_lesson: 'Без урока',
   dict_no_category: 'Без категории',
   dict_flip_hint: 'Нажми, чтобы перевернуть',
+
+  // Stars & Shop (RU)
+  shop_tab: 'Магазин',
+  shop_title: '🛍️ Магазин аватарок',
+  shop_balance: 'Твой баланс',
+  shop_stars: 'звёзд',
+  shop_buy: 'Купить',
+  shop_owned: 'Куплено',
+  shop_equip: 'Надеть',
+  shop_equipped: '✓ Надето',
+  shop_unequip: 'Снять аватарку',
+  shop_not_enough: 'Не хватает звёзд',
+  shop_rarity_common: 'Обычные',
+  shop_rarity_rare: 'Редкие',
+  shop_rarity_epic: 'Эпические',
+  shop_rarity_legendary: 'Легендарные',
+  shop_locked_title: 'Доступ ожидает подтверждения',
+  shop_locked_desc: 'Магазин откроется, как только преподаватель активирует твой аккаунт ✨',
+  star_reward_title: 'Ура! 🌟',
+  star_reward_body: 'Ты отлично потрудился(лась) и заработал(а)',
+  star_reward_more: 'звёзд! Ты супер! 🌟',
+  star_reward_close: 'Забрать в копилку',
+  admin_bonus_stars: '🎁 Подарить бонусные звёзды',
+  admin_bonus_amount: 'Сколько звёзд начислить?',
+  admin_bonus_grant: 'Начислить',
+  admin_bonus_done: '✨ Начислено! Ученик получит салют ⭐',
 };
 
 const en: typeof ru = {
