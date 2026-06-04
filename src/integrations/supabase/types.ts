@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      avatar_purchases: {
+        Row: {
+          avatar_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          avatar_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          avatar_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       content_items: {
         Row: {
           created_at: string
@@ -147,25 +168,37 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_id: string | null
           created_at: string
           email: string
           has_access: boolean
           id: string
           name: string
+          pending_celebration: number
+          star_balance: number
+          total_stars_earned: number
         }
         Insert: {
+          avatar_id?: string | null
           created_at?: string
           email: string
           has_access?: boolean
           id: string
           name?: string
+          pending_celebration?: number
+          star_balance?: number
+          total_stars_earned?: number
         }
         Update: {
+          avatar_id?: string | null
           created_at?: string
           email?: string
           has_access?: boolean
           id?: string
           name?: string
+          pending_celebration?: number
+          star_balance?: number
+          total_stars_earned?: number
         }
         Relationships: []
       }
