@@ -60,7 +60,7 @@ export default function Home({ lang }: HomeProps) {
       {/* ===== HERO ===== */}
       <section
         id="hero"
-        className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden"
+        className="page-bg-home relative min-h-screen flex flex-col items-center justify-center overflow-hidden"
         style={{
           background: `linear-gradient(135deg,
             hsl(${340 + scrollY * 0.02}deg, 100%, 93%) 0%,

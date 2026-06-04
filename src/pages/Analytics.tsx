@@ -325,7 +325,7 @@ export default function Analytics({ lang, setLang }: { lang: Lang; setLang: (l: 
   const overallPct = pct(totalUnlocked, content.length);
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #F5F0FF 0%, #FFF0F6 50%, #F0F8FF 100%)' }}>
+    <div className="min-h-screen page-bg-analytics" style={{ background: 'linear-gradient(135deg, #F5F0FF 0%, #FFF0F6 50%, #F0F8FF 100%)' }}>
 
       {/* Header */}
       <div className="sticky top-0 z-40 glass border-b border-purple-100" style={{ boxShadow: '0 4px 20px rgba(150,100,200,0.1)' }}>

@@ -51,8 +51,18 @@ html.dark {
   background: linear-gradient(135deg, #FFF0F6 0%, #F5F0FF 50%, #F0F8FF 100%);
   transition: background 0.4s ease;
 }
-html.dark .page-bg-dashboard {
-  background: linear-gradient(135deg, #0e0420 0%, #15082e 50%, #0a1230 100%);
+html.dark .page-bg-dashboard,
+html.dark .page-bg-analytics,
+html.dark .page-bg-home,
+html.dark .page-bg-auth {
+  background: linear-gradient(135deg, #0e0420 0%, #15082e 50%, #0a1230 100%) !important;
+}
+/* Inline-style gradients override (Home hero / Analytics / Login / Register) */
+html.dark .page-bg-home > section,
+html.dark section.page-bg-home,
+html.dark .page-bg-analytics,
+html.dark .page-bg-auth {
+  background-image: linear-gradient(135deg, #0e0420 0%, #15082e 50%, #0a1230 100%) !important;
 }
 .page-bg-admin {
   background: linear-gradient(135deg, #F5F0FF 0%, #FFF0F6 50%, #F0F8FF 100%);

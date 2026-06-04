@@ -309,7 +309,7 @@ const ru = {
   admin_lessons_count: 'занятий',
 
   // Dictionary (RU)
-  dict_tab: '📖 Словарик',
+  dict_tab: 'Словарик',
   dict_title: '📖 Мой словарик',
   dict_by_lesson: 'По урокам',
   dict_by_category: 'По категориям',
@@ -324,6 +324,32 @@ const ru = {
   dict_no_lesson: 'Без урока',
   dict_no_category: 'Без категории',
   dict_flip_hint: 'Нажми, чтобы перевернуть',
+
+  // Stars & Shop (RU)
+  shop_tab: 'Магазин',
+  shop_title: '🛍️ Магазин аватарок',
+  shop_balance: 'Твой баланс',
+  shop_stars: 'звёзд',
+  shop_buy: 'Купить',
+  shop_owned: 'Куплено',
+  shop_equip: 'Надеть',
+  shop_equipped: '✓ Надето',
+  shop_unequip: 'Снять аватарку',
+  shop_not_enough: 'Не хватает звёзд',
+  shop_rarity_common: 'Обычные',
+  shop_rarity_rare: 'Редкие',
+  shop_rarity_epic: 'Эпические',
+  shop_rarity_legendary: 'Легендарные',
+  shop_locked_title: 'Доступ ожидает подтверждения',
+  shop_locked_desc: 'Магазин откроется, как только преподаватель активирует твой аккаунт ✨',
+  star_reward_title: 'Ура! 🌟',
+  star_reward_body: 'Ты отлично потрудился(лась) и заработал(а)',
+  star_reward_more: 'звёзд! Ты супер! 🌟',
+  star_reward_close: 'Забрать в копилку',
+  admin_bonus_stars: '🎁 Подарить бонусные звёзды',
+  admin_bonus_amount: 'Сколько звёзд начислить?',
+  admin_bonus_grant: 'Начислить',
+  admin_bonus_done: '✨ Начислено! Ученик получит салют ⭐',
 };
 
 const en: typeof ru = {
@@ -588,7 +614,7 @@ const en: typeof ru = {
   admin_lessons_count: 'lessons',
 
   // Dictionary (EN)
-  dict_tab: '📖 Dictionary',
+  dict_tab: 'Dictionary',
   dict_title: '📖 My Dictionary',
   dict_by_lesson: 'By Lesson',
   dict_by_category: 'By Category',
@@ -603,6 +629,32 @@ const en: typeof ru = {
   dict_no_lesson: 'No lesson',
   dict_no_category: 'No category',
   dict_flip_hint: 'Tap to flip',
+
+  // Stars & Shop (EN)
+  shop_tab: 'Shop',
+  shop_title: '🛍️ Avatar Shop',
+  shop_balance: 'Your balance',
+  shop_stars: 'stars',
+  shop_buy: 'Buy',
+  shop_owned: 'Owned',
+  shop_equip: 'Equip',
+  shop_equipped: '✓ Equipped',
+  shop_unequip: 'Remove avatar',
+  shop_not_enough: 'Not enough stars',
+  shop_rarity_common: 'Common',
+  shop_rarity_rare: 'Rare',
+  shop_rarity_epic: 'Epic',
+  shop_rarity_legendary: 'Legendary',
+  shop_locked_title: 'Access pending approval',
+  shop_locked_desc: 'The shop opens as soon as your teacher activates your account ✨',
+  star_reward_title: 'Yay! 🌟',
+  star_reward_body: 'Great job — you just earned',
+  star_reward_more: 'stars! You rock! 🌟',
+  star_reward_close: 'Add to piggy bank',
+  admin_bonus_stars: '🎁 Gift bonus stars',
+  admin_bonus_amount: 'How many stars to award?',
+  admin_bonus_grant: 'Grant',
+  admin_bonus_done: '✨ Sent! Student will see a star burst ⭐',
 };
 
 const ua: typeof ru = {
@@ -867,7 +919,7 @@ const ua: typeof ru = {
   admin_lessons_count: 'занять',
 
   // Dictionary (UA)
-  dict_tab: '📖 Словничок',
+  dict_tab: 'Словничок',
   dict_title: '📖 Мій словничок',
   dict_by_lesson: 'За уроками',
   dict_by_category: 'За категоріями',
@@ -882,6 +934,32 @@ const ua: typeof ru = {
   dict_no_lesson: 'Без уроку',
   dict_no_category: 'Без категорії',
   dict_flip_hint: 'Натисни, щоб перевернути',
+
+  // Stars & Shop (UA)
+  shop_tab: 'Магазин',
+  shop_title: '🛍️ Магазин аватарок',
+  shop_balance: 'Твій баланс',
+  shop_stars: 'зірок',
+  shop_buy: 'Купити',
+  shop_owned: 'Куплено',
+  shop_equip: 'Вдягти',
+  shop_equipped: '✓ Вдягнено',
+  shop_unequip: 'Зняти аватарку',
+  shop_not_enough: 'Не вистачає зірок',
+  shop_rarity_common: 'Звичайні',
+  shop_rarity_rare: 'Рідкісні',
+  shop_rarity_epic: 'Епічні',
+  shop_rarity_legendary: 'Легендарні',
+  shop_locked_title: 'Доступ очікує підтвердження',
+  shop_locked_desc: 'Магазин відкриється, щойно викладач активує твій акаунт ✨',
+  star_reward_title: 'Ура! 🌟',
+  star_reward_body: 'Молодець — ти заробив(ла)',
+  star_reward_more: 'зірок! Ти супер! 🌟',
+  star_reward_close: 'У скарбничку',
+  admin_bonus_stars: '🎁 Подарувати бонусні зірки',
+  admin_bonus_amount: 'Скільки зірок нарахувати?',
+  admin_bonus_grant: 'Нарахувати',
+  admin_bonus_done: '✨ Нараховано! Учень побачить салют ⭐',
 };
 
 export const translations = { ru, en, ua };
