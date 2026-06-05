@@ -59,9 +59,28 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
 }) {
   const [, force] = useState(0);
   const [tab, setTab] = useState<'profile' | 'dict'>('profile');
+  const [starBalance, setStarBalance] = useState(0);
+  const [bonusInput, setBonusInput] = useState('');
+  const [bonusBusy, setBonusBusy] = useState(false);
+  const [bonusMsg, setBonusMsg] = useState('');
   useEffect(() => {
     Promise.all([loadStudentContent(user.id), loadStudentSchedule(user.id)]).then(() => force(n => n + 1));
+    loadStarProfile(user.id).then(p => setStarBalance(p.starBalance));
   }, [user.id]);
+
+  const handleGiftStars = async () => {
+    const amount = parseInt(bonusInput, 10);
+    if (!amount || amount <= 0) return;
+    setBonusBusy(true);
+    try {
+      const p = await loadStarProfile(user.id);
+      await giftStars(user.id, amount, p.starBalance, p.totalEarned, p.pendingCelebration);
+      setStarBalance(p.starBalance + amount);
+      setBonusInput('');
+      setBonusMsg(t(lang, 'admin_bonus_done'));
+      setTimeout(() => setBonusMsg(''), 3000);
+    } finally { setBonusBusy(false); }
+  };
   const content = ensureStudentContent(user.id);
   const schedule = getStudentSchedule(user.id);
   const { avg, count } = getStudentRating(user.id);
