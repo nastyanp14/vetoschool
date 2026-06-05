@@ -242,10 +242,22 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   const [content, setContent] = useState<ContentItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [starProfile, setStarProfile] = useState({ starBalance: 0, totalEarned: 0, pendingCelebration: 0, avatarId: null as string | null });
+  const [celebrationAmount, setCelebrationAmount] = useState(0);
 
   const effectiveUserId = previewUserId || user?.id || '';
   const langs: Lang[] = ['ru', 'en', 'ua'];
   const isPreview = !!previewUserId;
+
+  const refreshStars = async () => {
+    if (!effectiveUserId) return;
+    const p = await loadStarProfile(effectiveUserId);
+    setStarProfile(p);
+    if (!isPreview && p.pendingCelebration > 0) {
+      setCelebrationAmount(p.pendingCelebration);
+      await clearCelebration(effectiveUserId);
+    }
+  };
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -253,6 +265,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
     setGreeting(h < 12 ? t(lang, 'dash_morning') : h < 17 ? t(lang, 'dash_afternoon') : t(lang, 'dash_evening'));
     loadStudentSchedule(effectiveUserId).then(setSchedule);
     loadStudentContent(effectiveUserId).then(setContent);
+    refreshStars();
   }, [user, navigate, lang, effectiveUserId]);
 
   useEffect(() => { setLang(propLang); }, [propLang]);
