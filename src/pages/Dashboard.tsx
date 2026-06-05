@@ -8,8 +8,10 @@ import { loadStudentSchedule } from '../lib/schedule';
 import { Lang, t } from '../lib/i18n';
 import ThemeToggle from '../components/ThemeToggle';
 import DictionaryView from '../components/DictionaryView';
+import AvatarShop, { StarCelebration } from '../components/AvatarShop';
+import { loadStarProfile, clearCelebration, findAvatar, avatarUrl } from '../lib/stars';
 
-type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades';
+type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades' | 'shop';
 
 // ---- Audio player ----
 function AudioPlayer({ dataUrl }: { dataUrl: string }) {
