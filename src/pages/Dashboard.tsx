@@ -335,12 +335,21 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
             {isPreview && (
               <Link to="/admin" className="text-xs bg-purple-100 text-purple-600 px-3 py-1.5 rounded-xl font-body font-600 hover:bg-purple-200 transition-colors">← Admin</Link>
             )}
+            {/* Stars balance widget */}
+            <button onClick={() => setActiveTab('shop')}
+              className="hidden sm:flex items-center gap-1.5 bg-gradient-to-r from-yellow-100 to-amber-100 border border-yellow-300 rounded-full px-3 py-1.5 hover:scale-105 transition-transform"
+              title={t(lang, 'shop_balance')}>
+              <span className="text-base">⭐</span>
+              <span className="font-display font-black text-yellow-700 text-sm">{starProfile.starBalance}</span>
+            </button>
             <div className="hidden sm:block text-right">
               <div className="font-display font-bold text-purple-700 text-sm">{user.name}</div>
               <div className="font-body text-xs text-purple-400">{user.hasAccess ? t(lang, 'dash_active') : t(lang, 'dash_pending')}</div>
             </div>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-300 to-purple-300 flex items-center justify-center font-display font-black text-white text-lg">
-              {user.name[0].toUpperCase()}
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-300 to-purple-300 flex items-center justify-center font-display font-black text-white text-lg overflow-hidden">
+              {equippedAvatar
+                ? <img src={avatarUrl(equippedAvatar)} alt="" className="w-full h-full object-cover" />
+                : user.name[0].toUpperCase()}
             </div>
             {!isPreview && (
               <button onClick={handleLogout} className="text-xs text-purple-400 hover:text-pink-500 transition-colors font-body">{t(lang, 'nav_logout')}</button>
