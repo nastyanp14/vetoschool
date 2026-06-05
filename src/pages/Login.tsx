@@ -26,7 +26,7 @@ export default function Login({ lang }: { lang: Lang }) {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
+      className="page-bg-auth min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
       style={{ background: 'linear-gradient(135deg, #FFD6E8 0%, #E8D6FF 50%, #D6EEFF 100%)' }}
     >
       <div className="absolute inset-0 overflow-hidden">
