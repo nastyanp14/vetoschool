@@ -633,9 +633,21 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
               </div>
             )}
 
+            {/* SHOP */}
+            {activeTab === 'shop' && (
+              <AvatarShop userId={effectiveUserId} hasAccess={user.hasAccess} lang={lang} />
+            )}
+
           </motion.div>
         </AnimatePresence>
       </div>
+
+      {/* Star celebration popup */}
+      <AnimatePresence>
+        {celebrationAmount > 0 && (
+          <StarCelebration amount={celebrationAmount} lang={lang} onDone={() => setCelebrationAmount(0)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
