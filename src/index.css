@@ -72,6 +72,42 @@ html.dark .page-bg-admin {
   background: linear-gradient(135deg, #14072c 0%, #1c0833 50%, #0a1230 100%);
 }
 
+/* Light pastel section bands on Home → dark in dark mode */
+html.dark .section-pink,
+html.dark .section-blue,
+html.dark .section-purple,
+html.dark .section-cream {
+  background: linear-gradient(180deg, #0e0420 0%, #15082e 100%) !important;
+}
+
+/* CTA / showcase blocks that use inline gradient backgrounds → soften with overlay */
+html.dark .section-pink h2,
+html.dark .section-blue h2,
+html.dark .section-purple h2,
+html.dark .section-pink h3,
+html.dark .section-blue h3,
+html.dark .section-purple h3,
+html.dark .section-pink h4,
+html.dark .section-blue h4,
+html.dark .section-purple h4 { color: #f3e8ff !important; }
+
+html.dark .section-pink p,
+html.dark .section-blue p,
+html.dark .section-purple p { color: #d8b4fe !important; }
+
+/* Hero (Home) inline-style background override — beat inline because of !important */
+html.dark section#hero { background: linear-gradient(135deg, #0e0420 0%, #15082e 50%, #0a1230 100%) !important; }
+html.dark section#hero p,
+html.dark section#hero h1,
+html.dark section#hero h2 { color: #f3e8ff; }
+
+/* Auth pages */
+.page-bg-auth { transition: background 0.4s ease; }
+html.dark .page-bg-auth {
+  background: linear-gradient(135deg, #0e0420 0%, #15082e 50%, #0a1230 100%) !important;
+}
+
+
 /* Glass tweaks */
 html.dark .glass {
   background: rgba(28, 14, 50, 0.55);

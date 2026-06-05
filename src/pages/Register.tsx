@@ -30,7 +30,7 @@ export default function Register({ lang }: { lang: Lang }) {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
+      className="page-bg-auth min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
       style={{ background: 'linear-gradient(135deg, #D6EEFF 0%, #E8D6FF 50%, #FFD6E8 100%)' }}
     >
       <div className="absolute inset-0 overflow-hidden">

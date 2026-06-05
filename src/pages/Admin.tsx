@@ -10,6 +10,7 @@ import { Trash2 } from 'lucide-react';
 import { subscribe } from '../lib/storage';
 import ThemeToggle from '../components/ThemeToggle';
 import AdminDictionary from '../components/AdminDictionary';
+import { giftStars, loadStarProfile } from '../lib/stars';
 
 const DAYS_EN = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
@@ -58,9 +59,28 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
 }) {
   const [, force] = useState(0);
   const [tab, setTab] = useState<'profile' | 'dict'>('profile');
+  const [starBalance, setStarBalance] = useState(0);
+  const [bonusInput, setBonusInput] = useState('');
+  const [bonusBusy, setBonusBusy] = useState(false);
+  const [bonusMsg, setBonusMsg] = useState('');
   useEffect(() => {
     Promise.all([loadStudentContent(user.id), loadStudentSchedule(user.id)]).then(() => force(n => n + 1));
+    loadStarProfile(user.id).then(p => setStarBalance(p.starBalance));
   }, [user.id]);
+
+  const handleGiftStars = async () => {
+    const amount = parseInt(bonusInput, 10);
+    if (!amount || amount <= 0) return;
+    setBonusBusy(true);
+    try {
+      const p = await loadStarProfile(user.id);
+      await giftStars(user.id, amount, p.starBalance, p.totalEarned, p.pendingCelebration);
+      setStarBalance(p.starBalance + amount);
+      setBonusInput('');
+      setBonusMsg(t(lang, 'admin_bonus_done'));
+      setTimeout(() => setBonusMsg(''), 3000);
+    } finally { setBonusBusy(false); }
+  };
   const content = ensureStudentContent(user.id);
   const schedule = getStudentSchedule(user.id);
   const { avg, count } = getStudentRating(user.id);
@@ -210,6 +230,28 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
               </p>
             </div>
             <Switch checked={user.hasAccess} disabled={accessSaving} onCheckedChange={handleToggleAccess} />
+          </div>
+
+          {/* ---- GIFT BONUS STARS ---- */}
+          <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl border border-yellow-200 p-5">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <div className="font-display font-bold text-purple-700 flex items-center gap-2">
+                  {t(lang, 'admin_bonus_stars')}
+                </div>
+                <p className="font-body text-xs text-purple-400 mt-0.5">⭐ {starBalance} {t(lang, 'shop_stars')}</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <input type="number" min={1} max={500} value={bonusInput} onChange={e => setBonusInput(e.target.value)}
+                placeholder={t(lang, 'admin_bonus_amount')}
+                className="input-magic flex-1" />
+              <button onClick={handleGiftStars} disabled={bonusBusy || !bonusInput}
+                className="btn-magic px-5 py-3 text-white font-display font-bold text-sm whitespace-nowrap disabled:opacity-50">
+                {t(lang, 'admin_bonus_grant')}
+              </button>
+            </div>
+            {bonusMsg && <p className="font-body text-xs text-green-600 mt-2 font-700">{bonusMsg}</p>}
           </div>
 
           {/* Content by type */}

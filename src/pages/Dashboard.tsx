@@ -8,8 +8,10 @@ import { loadStudentSchedule } from '../lib/schedule';
 import { Lang, t } from '../lib/i18n';
 import ThemeToggle from '../components/ThemeToggle';
 import DictionaryView from '../components/DictionaryView';
+import AvatarShop, { StarCelebration } from '../components/AvatarShop';
+import { loadStarProfile, clearCelebration, findAvatar, avatarUrl } from '../lib/stars';
 
-type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades';
+type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades' | 'shop';
 
 // ---- Audio player ----
 function AudioPlayer({ dataUrl }: { dataUrl: string }) {
@@ -240,10 +242,22 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   const [content, setContent] = useState<ContentItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [starProfile, setStarProfile] = useState({ starBalance: 0, totalEarned: 0, pendingCelebration: 0, avatarId: null as string | null });
+  const [celebrationAmount, setCelebrationAmount] = useState(0);
 
   const effectiveUserId = previewUserId || user?.id || '';
   const langs: Lang[] = ['ru', 'en', 'ua'];
   const isPreview = !!previewUserId;
+
+  const refreshStars = async () => {
+    if (!effectiveUserId) return;
+    const p = await loadStarProfile(effectiveUserId);
+    setStarProfile(p);
+    if (!isPreview && p.pendingCelebration > 0) {
+      setCelebrationAmount(p.pendingCelebration);
+      await clearCelebration(effectiveUserId);
+    }
+  };
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -251,6 +265,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
     setGreeting(h < 12 ? t(lang, 'dash_morning') : h < 17 ? t(lang, 'dash_afternoon') : t(lang, 'dash_evening'));
     loadStudentSchedule(effectiveUserId).then(setSchedule);
     loadStudentContent(effectiveUserId).then(setContent);
+    refreshStars();
   }, [user, navigate, lang, effectiveUserId]);
 
   useEffect(() => { setLang(propLang); }, [propLang]);
@@ -281,7 +296,10 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
     { id: 'checkpoint', label: t(lang, 'dash_checkpoint'), emoji: '🏁' },
     { id: 'dictionary', label: t(lang, 'dict_tab'), emoji: '📖' },
     { id: 'grades', label: t(lang, 'dash_grades'), emoji: '🏆' },
+    { id: 'shop', label: t(lang, 'shop_tab'), emoji: '🛍️' },
   ];
+
+  const equippedAvatar = findAvatar(starProfile.avatarId);
 
   return (
     <div className="min-h-screen page-bg-dashboard">
@@ -317,12 +335,21 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
             {isPreview && (
               <Link to="/admin" className="text-xs bg-purple-100 text-purple-600 px-3 py-1.5 rounded-xl font-body font-600 hover:bg-purple-200 transition-colors">← Admin</Link>
             )}
+            {/* Stars balance widget */}
+            <button onClick={() => setActiveTab('shop')}
+              className="hidden sm:flex items-center gap-1.5 bg-gradient-to-r from-yellow-100 to-amber-100 border border-yellow-300 rounded-full px-3 py-1.5 hover:scale-105 transition-transform"
+              title={t(lang, 'shop_balance')}>
+              <span className="text-base">⭐</span>
+              <span className="font-display font-black text-yellow-700 text-sm">{starProfile.starBalance}</span>
+            </button>
             <div className="hidden sm:block text-right">
               <div className="font-display font-bold text-purple-700 text-sm">{user.name}</div>
               <div className="font-body text-xs text-purple-400">{user.hasAccess ? t(lang, 'dash_active') : t(lang, 'dash_pending')}</div>
             </div>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-300 to-purple-300 flex items-center justify-center font-display font-black text-white text-lg">
-              {user.name[0].toUpperCase()}
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-300 to-purple-300 flex items-center justify-center font-display font-black text-white text-lg overflow-hidden">
+              {equippedAvatar
+                ? <img src={avatarUrl(equippedAvatar)} alt="" className="w-full h-full object-cover" />
+                : user.name[0].toUpperCase()}
             </div>
             {!isPreview && (
               <button onClick={handleLogout} className="text-xs text-purple-400 hover:text-pink-500 transition-colors font-body">{t(lang, 'nav_logout')}</button>
@@ -606,9 +633,21 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
               </div>
             )}
 
+            {/* SHOP */}
+            {activeTab === 'shop' && (
+              <AvatarShop userId={effectiveUserId} hasAccess={user.hasAccess} lang={lang} />
+            )}
+
           </motion.div>
         </AnimatePresence>
       </div>
+
+      {/* Star celebration popup */}
+      <AnimatePresence>
+        {celebrationAmount > 0 && (
+          <StarCelebration amount={celebrationAmount} lang={lang} onDone={() => setCelebrationAmount(0)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
