@@ -296,7 +296,10 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
     { id: 'checkpoint', label: t(lang, 'dash_checkpoint'), emoji: '🏁' },
     { id: 'dictionary', label: t(lang, 'dict_tab'), emoji: '📖' },
     { id: 'grades', label: t(lang, 'dash_grades'), emoji: '🏆' },
+    { id: 'shop', label: t(lang, 'shop_tab'), emoji: '🛍️' },
   ];
+
+  const equippedAvatar = findAvatar(starProfile.avatarId);
 
   return (
     <div className="min-h-screen page-bg-dashboard">
