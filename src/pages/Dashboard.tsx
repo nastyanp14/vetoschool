@@ -9,7 +9,7 @@ import { Lang, t } from '../lib/i18n';
 import ThemeToggle from '../components/ThemeToggle';
 import DictionaryView from '../components/DictionaryView';
 import AvatarShop, { StarCelebration } from '../components/AvatarShop';
-import { loadStarProfile, clearCelebration, findAvatar, avatarUrl } from '../lib/stars';
+import { loadStarProfile, clearCelebration, findAvatar } from '../lib/stars';
 
 type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades' | 'shop';
 
