@@ -348,7 +348,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
             </div>
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-300 to-purple-300 flex items-center justify-center font-display font-black text-white text-lg overflow-hidden">
               {equippedAvatar
-                ? <img src={avatarUrl(equippedAvatar)} alt="" className="w-full h-full object-cover" />
+                ? <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>{equippedAvatar.emoji}</span>
                 : user.name[0].toUpperCase()}
             </div>
             {!isPreview && (
