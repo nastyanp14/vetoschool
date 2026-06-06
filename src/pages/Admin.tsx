@@ -499,6 +499,10 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
     setEditExternalLink(item.externalLink||'');
   };
   const saveEdit = async (itemId: string, type: ContentType) => {
+    const prev = contentItems.find(i => i.id === itemId);
+    const isGradedType = type === 'homework' || type === 'practice' || type === 'checkpoint';
+    const wasGraded = !!(prev?.starRating && prev.starRating > 0);
+    const willBeGraded = isGradedType && editStars > 0;
     const updated = contentItems.map(i => i.id === itemId ? {
       ...i, title:editTitle, emoji:editEmoji,
       dueDate: editDueDate || null,
@@ -506,9 +510,14 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
       scheduledTime: editSchedTime || null,
       fileDataUrl: editFileDataUrl || null, fileName: editFileName || null,
       fileUrl: editFileDataUrl || null, externalLink: editExternalLink || null,
-      starRating: (type === 'homework' || type === 'practice' || type === 'checkpoint') ? editStars : i.starRating,
+      starRating: isGradedType ? editStars : i.starRating,
     } : i);
     await saveStudentContent(contentUserId, updated);
+    // Auto-award +5★ on first-time grading of a task
+    if (isGradedType && willBeGraded && !wasGraded && contentUserId) {
+      try { await awardStars(contentUserId, 5); showToast('⭐ +5 ' + t(lang, 'shop_stars')); }
+      catch (e) { console.error('awardStars failed', e); }
+    }
     const fresh = await loadStudentContent(contentUserId);
     setContentItems(fresh);
     setEditingId(null);
