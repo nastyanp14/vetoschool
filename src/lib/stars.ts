@@ -47,52 +47,73 @@ export async function giftStars(userId: string, amount: number, currentBalance: 
   }).eq('id', userId);
 }
 
+/** Award N stars to a student (used for automatic +5★ on task grading). */
+export async function awardStars(userId: string, amount: number) {
+  const p = await loadStarProfile(userId);
+  await giftStars(userId, amount, p.starBalance, p.totalEarned, p.pendingCelebration);
+}
+
 export async function clearCelebration(userId: string) {
   await supabase.from('profiles').update({ pending_celebration: 0 }).eq('id', userId);
 }
 
-// ============== AVATAR CATALOG (DiceBear) ==============
+// ============== AVATAR CATALOG (emoji-based, playful) ==============
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 
 export interface AvatarDef {
   id: string;
   rarity: Rarity;
   cost: number;
-  style: string;
-  seed: string;
+  emoji: string;
+  /** Display name (English fallback); for UI we use rarity color + emoji */
+  name: string;
 }
 
 export const AVATARS: AvatarDef[] = [
-  // Common (5) — 10★
-  { id: 'c1', rarity: 'common', cost: 10, style: 'adventurer', seed: 'Luna' },
-  { id: 'c2', rarity: 'common', cost: 10, style: 'adventurer', seed: 'Max' },
-  { id: 'c3', rarity: 'common', cost: 10, style: 'big-smile', seed: 'Sunny' },
-  { id: 'c4', rarity: 'common', cost: 10, style: 'big-smile', seed: 'Pip' },
-  { id: 'c5', rarity: 'common', cost: 10, style: 'fun-emoji', seed: 'Star' },
-  // Rare (6) — 30★
-  { id: 'r1', rarity: 'rare', cost: 30, style: 'avataaars', seed: 'Hero' },
-  { id: 'r2', rarity: 'rare', cost: 30, style: 'avataaars', seed: 'Magic' },
-  { id: 'r3', rarity: 'rare', cost: 30, style: 'lorelei', seed: 'Aurora' },
-  { id: 'r4', rarity: 'rare', cost: 30, style: 'lorelei', seed: 'Nova' },
-  { id: 'r5', rarity: 'rare', cost: 30, style: 'micah', seed: 'Rio' },
-  { id: 'r6', rarity: 'rare', cost: 30, style: 'micah', seed: 'Zen' },
-  // Epic (5) — 70★
-  { id: 'e1', rarity: 'epic', cost: 70, style: 'bottts', seed: 'RoboPink' },
-  { id: 'e2', rarity: 'epic', cost: 70, style: 'bottts', seed: 'RoboBlue' },
-  { id: 'e3', rarity: 'epic', cost: 70, style: 'bottts-neutral', seed: 'Cyber' },
-  { id: 'e4', rarity: 'epic', cost: 70, style: 'pixel-art', seed: 'Pixie' },
-  { id: 'e5', rarity: 'epic', cost: 70, style: 'pixel-art', seed: 'Knight' },
-  // Legendary (3) — 150★
-  { id: 'l1', rarity: 'legendary', cost: 150, style: 'lorelei', seed: 'Phoenix' },
-  { id: 'l2', rarity: 'legendary', cost: 150, style: 'bottts', seed: 'GalaxyKing' },
-  { id: 'l3', rarity: 'legendary', cost: 150, style: 'adventurer', seed: 'Unicorn' },
+  // Common — 10★ (4)
+  { id: 'c-flower',     rarity: 'common', cost: 10,  emoji: '🌸', name: 'Flower' },
+  { id: 'c-strawberry', rarity: 'common', cost: 10,  emoji: '🍓', name: 'Strawberry' },
+  { id: 'c-cat',        rarity: 'common', cost: 10,  emoji: '🐱', name: 'Cat' },
+  { id: 'c-dog',        rarity: 'common', cost: 10,  emoji: '🐶', name: 'Dog' },
+  // Rare — 30★ (7)
+  { id: 'r-bunny',      rarity: 'rare',   cost: 30,  emoji: '🐰', name: 'Bunny' },
+  { id: 'r-bear',       rarity: 'rare',   cost: 30,  emoji: '🐻', name: 'Bear' },
+  { id: 'r-elephant',   rarity: 'rare',   cost: 30,  emoji: '🐘', name: 'Elephant' },
+  { id: 'r-giraffe',    rarity: 'rare',   cost: 30,  emoji: '🦒', name: 'Giraffe' },
+  { id: 'r-monkey',     rarity: 'rare',   cost: 30,  emoji: '🐵', name: 'Monkey' },
+  { id: 'r-fox',        rarity: 'rare',   cost: 30,  emoji: '🦊', name: 'Fox' },
+  { id: 'r-car',        rarity: 'rare',   cost: 30,  emoji: '🚗', name: 'Car' },
+  // Epic — 60★ (4)
+  { id: 'e-lion',       rarity: 'epic',   cost: 60,  emoji: '🦁', name: 'Lion' },
+  { id: 'e-tiger',      rarity: 'epic',   cost: 60,  emoji: '🐯', name: 'Tiger' },
+  { id: 'e-koala',      rarity: 'epic',   cost: 60,  emoji: '🐨', name: 'Koala' },
+  { id: 'e-elf',        rarity: 'epic',   cost: 60,  emoji: '🧝', name: 'Elf' },
+  // Legendary — 100★ (4)
+  { id: 'l-fairy',      rarity: 'legendary', cost: 100, emoji: '🧚', name: 'Fairy' },
+  { id: 'l-princess',   rarity: 'legendary', cost: 100, emoji: '👸', name: 'Princess' },
+  { id: 'l-hero',       rarity: 'legendary', cost: 100, emoji: '🦸', name: 'Superhero' },
+  { id: 'l-prince',     rarity: 'legendary', cost: 100, emoji: '🤴', name: 'Little Prince' },
 ];
 
-export function avatarUrl(a: AvatarDef): string {
-  return `https://api.dicebear.com/7.x/${a.style}/svg?seed=${encodeURIComponent(a.seed)}&backgroundType=gradientLinear`;
-}
+/** Background gradient (game-style) per rarity */
+export const RARITY_BG: Record<Rarity, string> = {
+  common:    'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
+  rare:      'linear-gradient(135deg, #60a5fa 0%, #22d3ee 100%)',
+  epic:      'linear-gradient(135deg, #c084fc 0%, #f472b6 100%)',
+  legendary: 'linear-gradient(135deg, #facc15 0%, #fb923c 50%, #ef4444 100%)',
+};
+
+export const RARITY_RING: Record<Rarity, string> = {
+  common:    'ring-2 ring-slate-300',
+  rare:      'ring-2 ring-blue-300',
+  epic:      'ring-2 ring-purple-300',
+  legendary: 'ring-4 ring-yellow-300 shadow-[0_0_25px_rgba(250,204,21,0.6)]',
+};
 
 export function findAvatar(id: string | null | undefined): AvatarDef | undefined {
   if (!id) return undefined;
   return AVATARS.find(a => a.id === id);
 }
+
+/** Legacy compatibility — some old code may still call avatarUrl(); return '' */
+export function avatarUrl(_a: AvatarDef): string { return ''; }

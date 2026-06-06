@@ -2,17 +2,11 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lang, t } from '../lib/i18n';
 import {
-  AVATARS, AvatarDef, Rarity, avatarUrl, equipAvatar,
-  loadPurchases, loadStarProfile, purchaseAvatar,
+  AVATARS, AvatarDef, Rarity, RARITY_BG, RARITY_RING,
+  equipAvatar, loadPurchases, loadStarProfile, purchaseAvatar,
 } from '../lib/stars';
 
 const RARITY_ORDER: Rarity[] = ['common', 'rare', 'epic', 'legendary'];
-const RARITY_STYLES: Record<Rarity, string> = {
-  common: 'from-slate-100 to-slate-200 border-slate-300',
-  rare: 'from-blue-100 to-cyan-100 border-blue-300',
-  epic: 'from-purple-100 to-violet-100 border-purple-300',
-  legendary: 'from-yellow-100 via-amber-100 to-orange-100 border-yellow-400',
-};
 
 interface Props { userId: string; hasAccess: boolean; lang: Lang; }
 
@@ -105,15 +99,19 @@ export default function AvatarShop({ userId, hasAccess, lang }: Props) {
           return (
             <motion.div key={a.id} layout
               initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-              className={`bg-gradient-to-br ${RARITY_STYLES[a.rarity]} border-2 rounded-3xl p-4 flex flex-col items-center text-center relative overflow-hidden`}>
+              className="shop-card rounded-3xl p-4 flex flex-col items-center text-center relative overflow-hidden border border-purple-100">
               {a.rarity === 'legendary' && (
                 <div className="absolute inset-0 pointer-events-none opacity-20 animate-pulse"
                   style={{ background: 'radial-gradient(circle, gold, transparent)' }} />
               )}
-              <div className="w-24 h-24 rounded-2xl bg-white/70 overflow-hidden mb-3 flex items-center justify-center">
-                <img src={avatarUrl(a)} alt="" className="w-full h-full" loading="lazy" />
+              {/* Avatar circle */}
+              <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-3 ${RARITY_RING[a.rarity]}`}
+                style={{ background: RARITY_BG[a.rarity] }}>
+                <span style={{ fontSize: '3.5rem', lineHeight: 1, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))' }}>
+                  {a.emoji}
+                </span>
               </div>
-              <div className="font-body text-xs font-700 uppercase tracking-wider text-purple-500 mb-1">
+              <div className="font-body text-[10px] font-700 uppercase tracking-wider text-purple-500 mb-1">
                 {t(lang, `shop_rarity_${a.rarity}` as any)}
               </div>
               <div className="font-display font-bold text-purple-700 text-sm mb-2 flex items-center gap-1">
