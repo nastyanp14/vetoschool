@@ -10,7 +10,19 @@ import { Trash2 } from 'lucide-react';
 import { subscribe } from '../lib/storage';
 import ThemeToggle from '../components/ThemeToggle';
 import AdminDictionary from '../components/AdminDictionary';
-import { giftStars, loadStarProfile } from '../lib/stars';
+import { giftStars, loadStarProfile, awardStars, findAvatar } from '../lib/stars';
+
+// Small inline avatar that shows the equipped emoji avatar or the name initial
+function UserAvatar({ user, size = 'md' }: { user: { name: string; avatarId?: string | null }; size?: 'sm' | 'md' | 'lg' }) {
+  const a = findAvatar(user.avatarId);
+  const cls = size === 'lg' ? 'w-14 h-14 text-2xl rounded-2xl' : size === 'sm' ? 'w-8 h-8 text-sm rounded-full' : 'w-9 h-9 text-sm rounded-full';
+  const emojiSize = size === 'lg' ? '2rem' : size === 'sm' ? '1.25rem' : '1.4rem';
+  return (
+    <div className={`${cls} bg-gradient-to-br from-pink-300 to-purple-400 flex items-center justify-center font-display font-black text-white shadow-sm flex-shrink-0 overflow-hidden`}>
+      {a ? <span style={{ fontSize: emojiSize, lineHeight: 1 }}>{a.emoji}</span> : user.name[0].toUpperCase()}
+    </div>
+  );
+}
 
 const DAYS_EN = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
@@ -147,9 +159,7 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
         <div className="sticky top-0 glass rounded-t-3xl px-6 pt-6 pb-4 border-b border-purple-100 z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-300 to-purple-400 flex items-center justify-center font-display font-black text-white text-2xl shadow-lg">
-                {user.name[0].toUpperCase()}
-              </div>
+              <UserAvatar user={user} size="lg" />
               <div>
                 <h2 className="font-display font-black text-2xl text-purple-700">{user.name}</h2>
                 <p className="font-body text-sm text-purple-400">{user.email}</p>
@@ -489,6 +499,10 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
     setEditExternalLink(item.externalLink||'');
   };
   const saveEdit = async (itemId: string, type: ContentType) => {
+    const prev = contentItems.find(i => i.id === itemId);
+    const isGradedType = type === 'homework' || type === 'practice' || type === 'checkpoint';
+    const wasGraded = !!(prev?.starRating && prev.starRating > 0);
+    const willBeGraded = isGradedType && editStars > 0;
     const updated = contentItems.map(i => i.id === itemId ? {
       ...i, title:editTitle, emoji:editEmoji,
       dueDate: editDueDate || null,
@@ -496,9 +510,14 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
       scheduledTime: editSchedTime || null,
       fileDataUrl: editFileDataUrl || null, fileName: editFileName || null,
       fileUrl: editFileDataUrl || null, externalLink: editExternalLink || null,
-      starRating: (type === 'homework' || type === 'practice' || type === 'checkpoint') ? editStars : i.starRating,
+      starRating: isGradedType ? editStars : i.starRating,
     } : i);
     await saveStudentContent(contentUserId, updated);
+    // Auto-award +5★ on first-time grading of a task
+    if (isGradedType && willBeGraded && !wasGraded && contentUserId) {
+      try { await awardStars(contentUserId, 5); showToast('⭐ +5 ' + t(lang, 'shop_stars')); }
+      catch (e) { console.error('awardStars failed', e); }
+    }
     const fresh = await loadStudentContent(contentUserId);
     setContentItems(fresh);
     setEditingId(null);
@@ -763,9 +782,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                 transition={{ delay:i*0.05 }} className="border-b border-purple-50 hover:bg-purple-50/50 transition-colors">
                                 <td className="px-4 md:px-6 py-4">
                                   <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-300 to-purple-300 flex items-center justify-center font-display font-black text-white text-sm flex-shrink-0">
-                                      {user.name[0].toUpperCase()}
-                                    </div>
+                                    <UserAvatar user={user} />
                                     <div>
                                       <div className="font-body font-600 text-purple-700 text-sm">{user.name}</div>
                                       {avg > 0 && (
@@ -1166,9 +1183,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                       const { avg } = getStudentRating(u.id);
                       return (
                         <div key={u.id} className="flex items-center gap-3 p-3 bg-white/60 rounded-2xl">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-300 to-purple-300 flex items-center justify-center font-display font-black text-white text-sm flex-shrink-0">
-                            {u.name[0].toUpperCase()}
-                          </div>
+                          <UserAvatar user={u} size="sm" />
                           <div className="flex-1 min-w-0">
                             <div className="font-body font-600 text-purple-700 text-sm">{u.name}</div>
                             <div className="font-body text-xs text-purple-400">{unlocked}/{items.length} {t(lang,'admin_unlocked_of')}{avg>0?` · ⭐ ${avg}`:''}</div>
@@ -1286,9 +1301,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                       const sched = getStudentSchedule(u.id);
                       return (
                         <div key={u.id} className="flex items-center gap-3 p-3 bg-white/60 rounded-2xl">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-300 to-purple-300 flex items-center justify-center font-display font-black text-white text-sm flex-shrink-0">
-                            {u.name[0].toUpperCase()}
-                          </div>
+                          <UserAvatar user={u} size="sm" />
                           <div className="flex-1 min-w-0">
                             <div className="font-body font-600 text-purple-700 text-sm">{u.name}</div>
                             <div className="font-body text-xs text-purple-400">

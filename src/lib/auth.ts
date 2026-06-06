@@ -10,6 +10,7 @@ export interface User {
   hasAccess: boolean;
   createdAt: string;
   joinedAt: string;
+  avatarId?: string | null;
 }
 
 const ME_KEY = 'me';
@@ -34,6 +35,7 @@ async function loadCurrentUser(authUserId: string): Promise<User | null> {
     hasAccess: profile.has_access,
     createdAt: profile.created_at,
     joinedAt: profile.created_at,
+    avatarId: (profile as any).avatar_id ?? null,
   };
 }
 
@@ -44,7 +46,7 @@ export async function loadAllUsers(): Promise<User[]> {
   ]);
   const roleMap = new Map<string, Role>();
   roles?.forEach(r => { if (r.role === 'admin') roleMap.set(r.user_id, 'admin'); });
-  const list: User[] = (profiles || []).map(p => ({
+  const list: User[] = (profiles || []).map((p: any) => ({
     id: p.id,
     name: p.name || p.email.split('@')[0],
     email: p.email,
@@ -52,6 +54,7 @@ export async function loadAllUsers(): Promise<User[]> {
     hasAccess: p.has_access,
     createdAt: p.created_at,
     joinedAt: p.created_at,
+    avatarId: p.avatar_id ?? null,
   }));
   cacheSet(USERS_KEY, list);
   return list;

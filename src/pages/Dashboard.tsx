@@ -9,7 +9,7 @@ import { Lang, t } from '../lib/i18n';
 import ThemeToggle from '../components/ThemeToggle';
 import DictionaryView from '../components/DictionaryView';
 import AvatarShop, { StarCelebration } from '../components/AvatarShop';
-import { loadStarProfile, clearCelebration, findAvatar, avatarUrl } from '../lib/stars';
+import { loadStarProfile, clearCelebration, findAvatar } from '../lib/stars';
 
 type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades' | 'shop';
 
@@ -348,7 +348,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
             </div>
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-300 to-purple-300 flex items-center justify-center font-display font-black text-white text-lg overflow-hidden">
               {equippedAvatar
-                ? <img src={avatarUrl(equippedAvatar)} alt="" className="w-full h-full object-cover" />
+                ? <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>{equippedAvatar.emoji}</span>
                 : user.name[0].toUpperCase()}
             </div>
             {!isPreview && (
