@@ -197,6 +197,25 @@ html.dark .input-magic:focus {
 html.dark ::-webkit-scrollbar-track { background: #15082e; }
 html.dark ::-webkit-scrollbar-thumb { background: linear-gradient(#a855f7, #ec4899); }
 
+/* ============== AVATAR SHOP CARDS ============== */
+.shop-card { background: rgba(255,255,255,0.78); transition: background 0.3s ease, border-color 0.3s ease; }
+html.dark .shop-card {
+  background: rgba(35, 18, 60, 0.7) !important;
+  border-color: rgba(168, 85, 247, 0.3) !important;
+}
+
+/* ============== HOME — DARK MODE TEXT FIXES ============== */
+/* CTA "Ready to start?" section paragraphs stay bright white in dark mode */
+html.dark section .text-white\/90,
+html.dark section .text-white\/80 { color: #ffffff !important; opacity: 0.95; }
+
+/* Hero trial-lesson badge: keep text visible & don't shrink/clip in dark mode */
+html.dark #hero .bg-gradient-to-r p,
+html.dark #hero .bg-gradient-to-r p span { color: #fef3ff !important; }
+html.dark #hero .bg-gradient-to-r .text-pink-500 { color: #fbcfe8 !important; }
+#hero .inline-flex.bg-gradient-to-r > div > p { white-space: normal; }
+#hero .inline-flex.bg-gradient-to-r { max-width: min(92vw, 640px); }
+
 /* ============== FLIP CARD (Dictionary) ============== */
 .flip-card { perspective: 1000px; }
 .flip-card-inner {
