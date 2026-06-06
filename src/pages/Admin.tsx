@@ -159,9 +159,7 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
         <div className="sticky top-0 glass rounded-t-3xl px-6 pt-6 pb-4 border-b border-purple-100 z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-300 to-purple-400 flex items-center justify-center font-display font-black text-white text-2xl shadow-lg">
-                {user.name[0].toUpperCase()}
-              </div>
+              <UserAvatar user={user} size="lg" />
               <div>
                 <h2 className="font-display font-black text-2xl text-purple-700">{user.name}</h2>
                 <p className="font-body text-sm text-purple-400">{user.email}</p>
@@ -775,9 +773,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                 transition={{ delay:i*0.05 }} className="border-b border-purple-50 hover:bg-purple-50/50 transition-colors">
                                 <td className="px-4 md:px-6 py-4">
                                   <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-300 to-purple-300 flex items-center justify-center font-display font-black text-white text-sm flex-shrink-0">
-                                      {user.name[0].toUpperCase()}
-                                    </div>
+                                    <UserAvatar user={user} />
                                     <div>
                                       <div className="font-body font-600 text-purple-700 text-sm">{user.name}</div>
                                       {avg > 0 && (
@@ -1178,9 +1174,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                       const { avg } = getStudentRating(u.id);
                       return (
                         <div key={u.id} className="flex items-center gap-3 p-3 bg-white/60 rounded-2xl">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-300 to-purple-300 flex items-center justify-center font-display font-black text-white text-sm flex-shrink-0">
-                            {u.name[0].toUpperCase()}
-                          </div>
+                          <UserAvatar user={u} size="sm" />
                           <div className="flex-1 min-w-0">
                             <div className="font-body font-600 text-purple-700 text-sm">{u.name}</div>
                             <div className="font-body text-xs text-purple-400">{unlocked}/{items.length} {t(lang,'admin_unlocked_of')}{avg>0?` · ⭐ ${avg}`:''}</div>
@@ -1298,9 +1292,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                       const sched = getStudentSchedule(u.id);
                       return (
                         <div key={u.id} className="flex items-center gap-3 p-3 bg-white/60 rounded-2xl">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-300 to-purple-300 flex items-center justify-center font-display font-black text-white text-sm flex-shrink-0">
-                            {u.name[0].toUpperCase()}
-                          </div>
+                          <UserAvatar user={u} size="sm" />
                           <div className="flex-1 min-w-0">
                             <div className="font-body font-600 text-purple-700 text-sm">{u.name}</div>
                             <div className="font-body text-xs text-purple-400">
