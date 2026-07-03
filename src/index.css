@@ -209,10 +209,19 @@ html.dark .shop-card {
 html.dark section .text-white\/90,
 html.dark section .text-white\/80 { color: #ffffff !important; opacity: 0.95; }
 
-/* Hero trial-lesson badge: keep text visible & don't shrink/clip in dark mode */
+/* Hero trial-lesson badge: deep purple plaque + bright pink accent in dark mode */
+html.dark #hero .inline-flex.bg-gradient-to-r {
+  background: linear-gradient(135deg, #2a0f4a 0%, #1a0836 100%) !important;
+  border-color: rgba(236, 72, 153, 0.5) !important;
+  box-shadow: 0 0 24px rgba(236, 72, 153, 0.25);
+}
 html.dark #hero .bg-gradient-to-r p,
-html.dark #hero .bg-gradient-to-r p span { color: #fef3ff !important; }
-html.dark #hero .bg-gradient-to-r .text-pink-500 { color: #fbcfe8 !important; }
+html.dark #hero .bg-gradient-to-r p span { color: #fce7f3 !important; }
+html.dark #hero .bg-gradient-to-r .text-pink-500 {
+  color: #ff4fa8 !important;
+  text-shadow: 0 0 12px rgba(255, 79, 168, 0.55);
+  font-weight: 800;
+}
 #hero .inline-flex.bg-gradient-to-r > div > p { white-space: normal; }
 #hero .inline-flex.bg-gradient-to-r { max-width: min(92vw, 640px); }
 

@@ -8,9 +8,9 @@ import {
 
 const RARITY_ORDER: Rarity[] = ['common', 'rare', 'epic', 'legendary'];
 
-interface Props { userId: string; hasAccess: boolean; lang: Lang; }
+interface Props { userId: string; hasAccess: boolean; lang: Lang; onChange?: () => void; }
 
-export default function AvatarShop({ userId, hasAccess, lang }: Props) {
+export default function AvatarShop({ userId, hasAccess, lang, onChange }: Props) {
   const [balance, setBalance] = useState(0);
   const [equipped, setEquipped] = useState<string | null>(null);
   const [owned, setOwned] = useState<string[]>([]);
@@ -40,17 +40,17 @@ export default function AvatarShop({ userId, hasAccess, lang }: Props) {
   const handleBuy = async (a: AvatarDef) => {
     if (balance < a.cost) return;
     setBusy(a.id);
-    try { await purchaseAvatar(userId, a.id, a.cost, balance); await refresh(); }
+    try { await purchaseAvatar(userId, a.id, a.cost, balance); await refresh(); onChange?.(); }
     finally { setBusy(null); }
   };
   const handleEquip = async (a: AvatarDef) => {
     setBusy(a.id);
-    try { await equipAvatar(userId, a.id); await refresh(); }
+    try { await equipAvatar(userId, a.id); await refresh(); onChange?.(); }
     finally { setBusy(null); }
   };
   const handleUnequip = async () => {
     setBusy('unequip');
-    try { await equipAvatar(userId, null); await refresh(); }
+    try { await equipAvatar(userId, null); await refresh(); onChange?.(); }
     finally { setBusy(null); }
   };
 
@@ -85,7 +85,7 @@ export default function AvatarShop({ userId, hasAccess, lang }: Props) {
             className={`px-4 py-2 rounded-2xl font-body font-700 text-sm transition-all ${
               filter === r ? 'bg-gradient-to-r from-pink-400 to-purple-400 text-white shadow-lg' : 'bg-white/60 text-purple-600 hover:bg-pink-50'
             }`}>
-            {r === 'all' ? '✨ All' : t(lang, `shop_rarity_${r}` as any)}
+            {r === 'all' ? t(lang, 'shop_rarity_all') : t(lang, `shop_rarity_${r}` as any)}
           </button>
         ))}
       </div>

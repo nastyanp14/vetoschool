@@ -635,7 +635,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
             {/* SHOP */}
             {activeTab === 'shop' && (
-              <AvatarShop userId={effectiveUserId} hasAccess={user.hasAccess} lang={lang} />
+              <AvatarShop userId={effectiveUserId} hasAccess={user.hasAccess} lang={lang} onChange={refreshStars} />
             )}
 
           </motion.div>
