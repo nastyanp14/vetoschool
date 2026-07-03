@@ -8,7 +8,7 @@ import {
 
 const RARITY_ORDER: Rarity[] = ['common', 'rare', 'epic', 'legendary'];
 
-interface Props { userId: string; hasAccess: boolean; lang: Lang; }
+interface Props { userId: string; hasAccess: boolean; lang: Lang; onChange?: () => void; }
 
 export default function AvatarShop({ userId, hasAccess, lang }: Props) {
   const [balance, setBalance] = useState(0);
