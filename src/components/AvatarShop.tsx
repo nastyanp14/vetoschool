@@ -85,7 +85,7 @@ export default function AvatarShop({ userId, hasAccess, lang, onChange }: Props)
             className={`px-4 py-2 rounded-2xl font-body font-700 text-sm transition-all ${
               filter === r ? 'bg-gradient-to-r from-pink-400 to-purple-400 text-white shadow-lg' : 'bg-white/60 text-purple-600 hover:bg-pink-50'
             }`}>
-            {r === 'all' ? '✨ All' : t(lang, `shop_rarity_${r}` as any)}
+            {r === 'all' ? t(lang, 'shop_rarity_all') : t(lang, `shop_rarity_${r}` as any)}
           </button>
         ))}
       </div>
