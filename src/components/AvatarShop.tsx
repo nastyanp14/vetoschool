@@ -10,7 +10,7 @@ const RARITY_ORDER: Rarity[] = ['common', 'rare', 'epic', 'legendary'];
 
 interface Props { userId: string; hasAccess: boolean; lang: Lang; onChange?: () => void; }
 
-export default function AvatarShop({ userId, hasAccess, lang }: Props) {
+export default function AvatarShop({ userId, hasAccess, lang, onChange }: Props) {
   const [balance, setBalance] = useState(0);
   const [equipped, setEquipped] = useState<string | null>(null);
   const [owned, setOwned] = useState<string[]>([]);
