@@ -40,17 +40,17 @@ export default function AvatarShop({ userId, hasAccess, lang, onChange }: Props)
   const handleBuy = async (a: AvatarDef) => {
     if (balance < a.cost) return;
     setBusy(a.id);
-    try { await purchaseAvatar(userId, a.id, a.cost, balance); await refresh(); }
+    try { await purchaseAvatar(userId, a.id, a.cost, balance); await refresh(); onChange?.(); }
     finally { setBusy(null); }
   };
   const handleEquip = async (a: AvatarDef) => {
     setBusy(a.id);
-    try { await equipAvatar(userId, a.id); await refresh(); }
+    try { await equipAvatar(userId, a.id); await refresh(); onChange?.(); }
     finally { setBusy(null); }
   };
   const handleUnequip = async () => {
     setBusy('unequip');
-    try { await equipAvatar(userId, null); await refresh(); }
+    try { await equipAvatar(userId, null); await refresh(); onChange?.(); }
     finally { setBusy(null); }
   };
 
