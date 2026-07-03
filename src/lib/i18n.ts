@@ -336,6 +336,7 @@ const ru = {
   shop_equipped: '✓ Надето',
   shop_unequip: 'Снять аватарку',
   shop_not_enough: 'Не хватает звёзд',
+  shop_rarity_all: '✨ Все',
   shop_rarity_common: 'Обычные',
   shop_rarity_rare: 'Редкие',
   shop_rarity_epic: 'Эпические',
