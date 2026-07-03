@@ -166,6 +166,88 @@ export type Database = {
           },
         ]
       }
+      interactive_tasks: {
+        Row: {
+          created_at: string
+          id: string
+          lesson_id: string
+          mechanic_type: string
+          order: number
+          payload_json: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lesson_id: string
+          mechanic_type: string
+          order?: number
+          payload_json?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lesson_id?: string
+          mechanic_type?: string
+          order?: number
+          payload_json?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interactive_tasks_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lessons: {
+        Row: {
+          created_at: string
+          id: string
+          lesson_number: number
+          order: number
+          stars_reward: number
+          title: string
+          type: Database["public"]["Enums"]["lesson_kind"]
+          unit_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lesson_number?: number
+          order?: number
+          stars_reward?: number
+          title: string
+          type?: Database["public"]["Enums"]["lesson_kind"]
+          unit_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lesson_number?: number
+          order?: number
+          stars_reward?: number
+          title?: string
+          type?: Database["public"]["Enums"]["lesson_kind"]
+          unit_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lessons_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_id: string | null
@@ -235,6 +317,41 @@ export type Database = {
         }
         Relationships: []
       }
+      units: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          unit_number: number
+          updated_at: string
+          workbook_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title: string
+          unit_number?: number
+          updated_at?: string
+          workbook_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          unit_number?: number
+          updated_at?: string
+          workbook_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "units_workbook_id_fkey"
+            columns: ["workbook_id"]
+            isOneToOne: false
+            referencedRelation: "workbooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -250,6 +367,36 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      workbooks: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_global: boolean
+          level: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_global?: boolean
+          level?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_global?: boolean
+          level?: string | null
+          title?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -274,6 +421,12 @@ export type Database = {
         | "practice"
         | "grammar"
         | "listening"
+        | "checkpoint"
+      lesson_kind:
+        | "theory"
+        | "class_task"
+        | "homework"
+        | "practice"
         | "checkpoint"
     }
     CompositeTypes: {
@@ -409,6 +562,13 @@ export const Constants = {
         "practice",
         "grammar",
         "listening",
+        "checkpoint",
+      ],
+      lesson_kind: [
+        "theory",
+        "class_task",
+        "homework",
+        "practice",
         "checkpoint",
       ],
     },
