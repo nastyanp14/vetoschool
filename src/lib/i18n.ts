@@ -642,6 +642,7 @@ const en: typeof ru = {
   shop_equipped: '✓ Equipped',
   shop_unequip: 'Remove avatar',
   shop_not_enough: 'Not enough stars',
+  shop_rarity_all: '✨ All',
   shop_rarity_common: 'Common',
   shop_rarity_rare: 'Rare',
   shop_rarity_epic: 'Epic',
