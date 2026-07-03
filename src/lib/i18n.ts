@@ -948,6 +948,7 @@ const ua: typeof ru = {
   shop_equipped: '✓ Вдягнено',
   shop_unequip: 'Зняти аватарку',
   shop_not_enough: 'Не вистачає зірок',
+  shop_rarity_all: '✨ Всі',
   shop_rarity_common: 'Звичайні',
   shop_rarity_rare: 'Рідкісні',
   shop_rarity_epic: 'Епічні',
