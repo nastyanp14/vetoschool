@@ -1323,6 +1323,13 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
             </motion.div>
           )}
 
+          {/* ===== WORKBOOKS ===== */}
+          {activeSection === 'workbooks' && (
+            <motion.div key="workbooks" initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-20 }}>
+              <WorkbookBuilder />
+            </motion.div>
+          )}
+
         </AnimatePresence>
       </div>
     </div>
