@@ -640,6 +640,12 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
               <AvatarShop userId={effectiveUserId} hasAccess={user.hasAccess} lang={lang} onChange={refreshStars} />
             )}
 
+            {/* INTERACTIVE LESSONS */}
+            {activeTab === 'interactive' && (
+              <InteractiveLessonMap userId={effectiveUserId} hasAccess={user.hasAccess} onStarsChanged={refreshStars} />
+            )}
+
+
           </motion.div>
         </AnimatePresence>
       </div>
