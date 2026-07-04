@@ -732,6 +732,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
             { id:'students' as Section, label:t(lang,'admin_students_tab') },
             { id:'content' as Section, label:t(lang,'admin_content_tab') },
             { id:'schedule' as Section, label:t(lang,'admin_schedule_tab') },
+            { id:'workbooks' as Section, label:'🧱 Воркбуки' },
           ].map(sec => (
             <button key={sec.id} onClick={() => setActiveSection(sec.id)}
               className={`px-6 py-2.5 rounded-2xl font-body font-600 text-sm transition-all ${activeSection===sec.id?'bg-gradient-to-r from-pink-400 to-purple-400 text-white shadow-lg':'glass text-purple-600 hover:bg-pink-50'}`}>
