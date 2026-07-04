@@ -27,7 +27,7 @@ function UserAvatar({ user, size = 'md' }: { user: { name: string; avatarId?: st
 
 const DAYS_EN = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
-type Section = 'students' | 'content' | 'schedule';
+type Section = 'students' | 'content' | 'schedule' | 'workbooks';
 
 // ---- Helpers ----
 function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
