@@ -10,6 +10,7 @@ import { Trash2 } from 'lucide-react';
 import { subscribe } from '../lib/storage';
 import ThemeToggle from '../components/ThemeToggle';
 import AdminDictionary from '../components/AdminDictionary';
+import WorkbookBuilder from '../components/WorkbookBuilder';
 import { giftStars, loadStarProfile, awardStars, findAvatar } from '../lib/stars';
 
 // Small inline avatar that shows the equipped emoji avatar or the name initial
@@ -26,7 +27,7 @@ function UserAvatar({ user, size = 'md' }: { user: { name: string; avatarId?: st
 
 const DAYS_EN = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
-type Section = 'students' | 'content' | 'schedule';
+type Section = 'students' | 'content' | 'schedule' | 'workbooks';
 
 // ---- Helpers ----
 function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -731,6 +732,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
             { id:'students' as Section, label:t(lang,'admin_students_tab') },
             { id:'content' as Section, label:t(lang,'admin_content_tab') },
             { id:'schedule' as Section, label:t(lang,'admin_schedule_tab') },
+            { id:'workbooks' as Section, label:'🧱 Воркбуки' },
           ].map(sec => (
             <button key={sec.id} onClick={() => setActiveSection(sec.id)}
               className={`px-6 py-2.5 rounded-2xl font-body font-600 text-sm transition-all ${activeSection===sec.id?'bg-gradient-to-r from-pink-400 to-purple-400 text-white shadow-lg':'glass text-purple-600 hover:bg-pink-50'}`}>
@@ -1318,6 +1320,13 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                   </div>
                 </div>
               )}
+            </motion.div>
+          )}
+
+          {/* ===== WORKBOOKS ===== */}
+          {activeSection === 'workbooks' && (
+            <motion.div key="workbooks" initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-20 }}>
+              <WorkbookBuilder />
             </motion.div>
           )}
 

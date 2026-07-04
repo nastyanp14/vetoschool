@@ -9,9 +9,10 @@ import { Lang, t } from '../lib/i18n';
 import ThemeToggle from '../components/ThemeToggle';
 import DictionaryView from '../components/DictionaryView';
 import AvatarShop, { StarCelebration } from '../components/AvatarShop';
+import InteractiveLessonMap from '../components/InteractiveLessonMap';
 import { loadStarProfile, clearCelebration, findAvatar } from '../lib/stars';
 
-type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades' | 'shop';
+type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades' | 'shop' | 'interactive';
 
 // ---- Audio player ----
 function AudioPlayer({ dataUrl }: { dataUrl: string }) {
@@ -287,6 +288,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
   const tabs: { id: Tab; label: string; emoji: string }[] = [
     { id: 'overview', label: t(lang, 'dash_overview'), emoji: '🏠' },
+    { id: 'interactive', label: '🎮 Интерактив', emoji: '🗺️' },
     { id: 'lessons', label: t(lang, 'dash_lessons'), emoji: '📚' },
     { id: 'homework', label: t(lang, 'dash_homework'), emoji: '✏️' },
     { id: 'schedule', label: t(lang, 'dash_schedule'), emoji: '📅' },
@@ -637,6 +639,12 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
             {activeTab === 'shop' && (
               <AvatarShop userId={effectiveUserId} hasAccess={user.hasAccess} lang={lang} onChange={refreshStars} />
             )}
+
+            {/* INTERACTIVE LESSONS */}
+            {activeTab === 'interactive' && (
+              <InteractiveLessonMap userId={effectiveUserId} hasAccess={user.hasAccess} onStarsChanged={refreshStars} />
+            )}
+
 
           </motion.div>
         </AnimatePresence>
