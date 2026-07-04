@@ -9,9 +9,10 @@ import { Lang, t } from '../lib/i18n';
 import ThemeToggle from '../components/ThemeToggle';
 import DictionaryView from '../components/DictionaryView';
 import AvatarShop, { StarCelebration } from '../components/AvatarShop';
+import InteractiveLessonMap from '../components/InteractiveLessonMap';
 import { loadStarProfile, clearCelebration, findAvatar } from '../lib/stars';
 
-type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades' | 'shop';
+type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades' | 'shop' | 'interactive';
 
 // ---- Audio player ----
 function AudioPlayer({ dataUrl }: { dataUrl: string }) {
