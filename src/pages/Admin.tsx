@@ -10,6 +10,7 @@ import { Trash2 } from 'lucide-react';
 import { subscribe } from '../lib/storage';
 import ThemeToggle from '../components/ThemeToggle';
 import AdminDictionary from '../components/AdminDictionary';
+import WorkbookBuilder from '../components/WorkbookBuilder';
 import { giftStars, loadStarProfile, awardStars, findAvatar } from '../lib/stars';
 
 // Small inline avatar that shows the equipped emoji avatar or the name initial
