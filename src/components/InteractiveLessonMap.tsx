@@ -7,13 +7,14 @@ import {
 } from '../lib/workbooks';
 import { canReward } from '../lib/mechanics';
 import InteractiveLessonRoom from './InteractiveLessonRoom';
+import { Lang, t } from '../lib/i18n';
 
 const KIND_EMOJI: Record<string, string> = {
   theory: '📖', class_task: '👩‍🏫', homework: '✏️', practice: '🎮', checkpoint: '🏁',
 };
 
-export default function InteractiveLessonMap({ userId, hasAccess, onStarsChanged }: {
-  userId: string; hasAccess: boolean; onStarsChanged?: () => void;
+export default function InteractiveLessonMap({ userId, hasAccess, lang = 'ru', onStarsChanged }: {
+  userId: string; hasAccess: boolean; lang?: Lang; onStarsChanged?: () => void;
 }) {
   const [workbooks, setWorkbooks] = useState<Workbook[]>([]);
   const [units, setUnits] = useState<Record<string, Unit[]>>({});
@@ -45,8 +46,8 @@ export default function InteractiveLessonMap({ userId, hasAccess, onStarsChanged
     return (
       <div className="glass rounded-3xl p-12 text-center">
         <div className="text-6xl mb-3">🗺️</div>
-        <h3 className="font-display font-bold text-2xl text-purple-700 mb-2">Карта пуста</h3>
-        <p className="font-body text-purple-400">Скоро здесь появятся интерактивные уроки.</p>
+        <h3 className="font-display font-bold text-2xl text-purple-700 mb-2">{t(lang, 'map_empty_title')}</h3>
+        <p className="font-body text-purple-400">{t(lang, 'map_empty_desc')}</p>
       </div>
     );
   }

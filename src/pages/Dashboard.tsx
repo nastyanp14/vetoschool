@@ -288,7 +288,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
   const tabs: { id: Tab; label: string; emoji: string }[] = [
     { id: 'overview', label: t(lang, 'dash_overview'), emoji: '🏠' },
-    { id: 'interactive', label: '🎮 Интерактив', emoji: '🗺️' },
+    { id: 'interactive', label: t(lang, 'dash_interactive'), emoji: '🗺️' },
     { id: 'lessons', label: t(lang, 'dash_lessons'), emoji: '📚' },
     { id: 'homework', label: t(lang, 'dash_homework'), emoji: '✏️' },
     { id: 'schedule', label: t(lang, 'dash_schedule'), emoji: '📅' },
@@ -642,7 +642,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
             {/* INTERACTIVE LESSONS */}
             {activeTab === 'interactive' && (
-              <InteractiveLessonMap userId={effectiveUserId} hasAccess={user.hasAccess} onStarsChanged={refreshStars} />
+              <InteractiveLessonMap userId={effectiveUserId} hasAccess={user.hasAccess} lang={lang} onStarsChanged={refreshStars} />
             )}
 
 

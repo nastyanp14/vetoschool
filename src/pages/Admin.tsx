@@ -6,6 +6,7 @@ import { getStudentSchedule, saveStudentSchedule, loadStudentSchedule, setSlotCo
 import { ensureStudentContent, saveStudentContent, loadStudentContent, ContentItem, ContentType, getStudentRating, fileToDataUrl, uploadContentFile, deleteContentItem, deleteModule } from '../lib/content';
 import { Lang, t } from '../lib/i18n';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Trash2 } from 'lucide-react';
 import { subscribe } from '../lib/storage';
 import ThemeToggle from '../components/ThemeToggle';
@@ -860,10 +861,12 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
 
                 <div className="mb-6">
                   <label className="font-body font-600 text-purple-600 text-sm mb-2 block">{t(lang,'admin_select_student')}</label>
-                  <select value={contentUserId} onChange={e => { setContentUserId(e.target.value); setEditingId(null); setShowNewModule(false); setShowNewExtra(false); }} className="input-magic">
-                    <option value="">— {t(lang,'admin_select_student')} —</option>
-                    {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
-                  </select>
+                  <Select value={contentUserId || undefined} onValueChange={v => { setContentUserId(v); setEditingId(null); setShowNewModule(false); setShowNewExtra(false); }}>
+                    <SelectTrigger className="input-magic h-auto"><SelectValue placeholder={`— ${t(lang,'admin_select_student')} —`} /></SelectTrigger>
+                    <SelectContent className="rounded-2xl border-2 border-purple-200 bg-white/95 backdrop-blur">
+                      {users.map(u => <SelectItem key={u.id} value={u.id} className="rounded-xl font-body">{u.name} ({u.email})</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {contentUserId && (
@@ -1217,10 +1220,12 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                 <p className="font-body text-sm text-purple-400 mb-6">{t(lang,'admin_schedule_desc')}</p>
                 <div className="mb-6">
                   <label className="font-body font-600 text-purple-600 text-sm mb-2 block">{t(lang,'admin_select_student')}</label>
-                  <select value={schedUserId} onChange={e => setSchedUserId(e.target.value)} className="input-magic">
-                    <option value="">— {t(lang,'admin_select_student')} —</option>
-                    {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
-                  </select>
+                  <Select value={schedUserId || undefined} onValueChange={v => setSchedUserId(v)}>
+                    <SelectTrigger className="input-magic h-auto"><SelectValue placeholder={`— ${t(lang,'admin_select_student')} —`} /></SelectTrigger>
+                    <SelectContent className="rounded-2xl border-2 border-purple-200 bg-white/95 backdrop-blur">
+                      {users.map(u => <SelectItem key={u.id} value={u.id} className="rounded-xl font-body">{u.name} ({u.email})</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 {schedUserId && (
                   <AnimatePresence>
@@ -1240,9 +1245,12 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                             </div>
                             <div className="flex-1">
                               <label className="font-body text-xs text-purple-500 font-600 mb-1 block">{t(lang,'admin_day')}</label>
-                              <select value={slot.day} onChange={e => updateSlot(slot.id,'day',e.target.value)} className="input-magic text-sm py-2">
-                                {DAYS_EN.map(d => <option key={d} value={d}>{d}</option>)}
-                              </select>
+                              <Select value={slot.day} onValueChange={v => updateSlot(slot.id,'day',v)}>
+                                <SelectTrigger className="input-magic h-auto text-sm py-2"><SelectValue /></SelectTrigger>
+                                <SelectContent className="rounded-2xl border-2 border-purple-200 bg-white/95 backdrop-blur">
+                                  {DAYS_EN.map(d => <SelectItem key={d} value={d} className="rounded-xl font-body">{d}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
                             </div>
                             <div className="w-full sm:w-32">
                               <label className="font-body text-xs text-purple-500 font-600 mb-1 block">{t(lang,'admin_time')}</label>
@@ -1326,7 +1334,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
           {/* ===== WORKBOOKS ===== */}
           {activeSection === 'workbooks' && (
             <motion.div key="workbooks" initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-20 }}>
-              <WorkbookBuilder />
+              <WorkbookBuilder lang={lang} />
             </motion.div>
           )}
 

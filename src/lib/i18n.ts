@@ -351,6 +351,19 @@ const ru = {
   admin_bonus_amount: 'Сколько звёзд начислить?',
   admin_bonus_grant: 'Начислить',
   admin_bonus_done: '✨ Начислено! Ученик получит салют ⭐',
+
+  // Interactive lessons (RU)
+  dash_interactive: '🎮 Интерактив',
+  map_empty_title: 'Карта пуста',
+  map_empty_desc: 'Скоро здесь появятся интерактивные уроки.',
+  wb_title: '🧱 Конструктор воркбуков',
+  wb_subtitle: 'Дерево: Воркбук → Юнит → Урок → Задания',
+  wb_empty: 'Пока нет воркбуков — создайте первый.',
+  wb_create: 'Создать воркбук',
+  wb_create_title: 'Новый воркбук',
+  wb_name_placeholder: 'Например: My First Words',
+  wb_save: 'Сохранить',
+  wb_cancel: 'Отмена',
 };
 
 const en: typeof ru = {
@@ -657,6 +670,19 @@ const en: typeof ru = {
   admin_bonus_amount: 'How many stars to award?',
   admin_bonus_grant: 'Grant',
   admin_bonus_done: '✨ Sent! Student will see a star burst ⭐',
+
+  // Interactive lessons (EN)
+  dash_interactive: '🎮 Interactive',
+  map_empty_title: 'The map is empty',
+  map_empty_desc: 'Interactive lessons will appear here soon.',
+  wb_title: '🧱 Workbook Builder',
+  wb_subtitle: 'Tree: Workbook → Unit → Lesson → Tasks',
+  wb_empty: 'No workbooks yet — create your first one.',
+  wb_create: 'Create Workbook',
+  wb_create_title: 'New Workbook',
+  wb_name_placeholder: 'e.g. My First Words',
+  wb_save: 'Save',
+  wb_cancel: 'Cancel',
 };
 
 const ua: typeof ru = {
@@ -963,6 +989,19 @@ const ua: typeof ru = {
   admin_bonus_amount: 'Скільки зірок нарахувати?',
   admin_bonus_grant: 'Нарахувати',
   admin_bonus_done: '✨ Нараховано! Учень побачить салют ⭐',
+
+  // Interactive lessons (UA)
+  dash_interactive: '🎮 Інтерактив',
+  map_empty_title: 'Карта порожня',
+  map_empty_desc: 'Скоро тут з\'являться інтерактивні уроки.',
+  wb_title: '🧱 Конструктор воркбуків',
+  wb_subtitle: 'Дерево: Воркбук → Юніт → Урок → Завдання',
+  wb_empty: 'Поки немає воркбуків — створіть перший.',
+  wb_create: 'Створити воркбук',
+  wb_create_title: 'Новий воркбук',
+  wb_name_placeholder: 'Наприклад: My First Words',
+  wb_save: 'Зберегти',
+  wb_cancel: 'Скасувати',
 };
 
 export const translations = { ru, en, ua };

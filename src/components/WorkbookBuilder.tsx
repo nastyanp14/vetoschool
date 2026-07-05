@@ -10,6 +10,8 @@ import {
   uploadWorkbookAsset, signedUrlFor,
 } from '../lib/workbooks';
 import { MECHANICS, MechanicType, canReward, LessonKind, REWARDABLE_KINDS } from '../lib/mechanics';
+import { Lang, t } from '../lib/i18n';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 const LESSON_KINDS: LessonKind[] = ['theory','class_task','homework','practice','checkpoint'];
 
@@ -286,41 +288,79 @@ function WorkbookNode({ wb, onChanged }: { wb: Workbook; onChanged: () => void }
 }
 
 // ---------- ROOT ----------
-export default function WorkbookBuilder() {
+export default function WorkbookBuilder({ lang = 'ru' }: { lang?: Lang }) {
   const [workbooks, setWorkbooks] = useState<Workbook[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [creating, setCreating] = useState(false);
 
   const refresh = async () => { setLoading(true); setWorkbooks(await listWorkbooks()); setLoading(false); };
   useEffect(() => { refresh(); }, []);
 
-  const addWorkbook = async () => {
-    const title = prompt('Название воркбука:');
+  const openCreate = () => { setNewTitle(''); setShowCreate(true); };
+  const submitCreate = async () => {
+    const title = newTitle.trim();
     if (!title) return;
-    await createWorkbook(title);
-    refresh();
+    setCreating(true);
+    const created = await createWorkbook(title);
+    setCreating(false);
+    setShowCreate(false);
+    setNewTitle('');
+    if (created) {
+      // Optimistic + authoritative refresh
+      setWorkbooks(prev => [...prev, created]);
+    }
+    await refresh();
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-display font-bold text-xl text-purple-700">🧱 Конструктор воркбуков</h3>
-          <p className="font-body text-sm text-purple-400">Дерево: Воркбук → Юнит → Урок → Задания</p>
+          <h3 className="font-display font-bold text-xl text-purple-700">{t(lang, 'wb_title')}</h3>
+          <p className="font-body text-sm text-purple-400">{t(lang, 'wb_subtitle')}</p>
         </div>
-        <button onClick={addWorkbook} className="bg-gradient-to-r from-pink-400 to-purple-400 text-white px-4 py-2 rounded-2xl font-body font-600 text-sm shadow-lg hover:scale-105 transition-transform inline-flex items-center gap-1">
-          <Plus className="w-4 h-4"/> Создать воркбук
+        <button onClick={openCreate} className="bg-gradient-to-r from-pink-400 to-purple-400 text-white px-4 py-2 rounded-2xl font-body font-600 text-sm shadow-lg hover:scale-105 transition-transform inline-flex items-center gap-1">
+          <Plus className="w-4 h-4"/> {t(lang, 'wb_create')}
         </button>
       </div>
-      {loading && <p className="text-sm text-purple-400">Загрузка…</p>}
+      {loading && <p className="text-sm text-purple-400">…</p>}
       {!loading && workbooks.length === 0 && (
         <div className="glass rounded-3xl p-10 text-center">
           <div className="text-5xl mb-3">📚</div>
-          <p className="font-body text-purple-500">Пока нет воркбуков — создайте первый.</p>
+          <p className="font-body text-purple-500">{t(lang, 'wb_empty')}</p>
         </div>
       )}
       <div className="space-y-3">
         {workbooks.map(w => <WorkbookNode key={w.id} wb={w} onChanged={refresh} />)}
       </div>
+
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="bg-gradient-to-br from-pink-50 via-white to-purple-50 border-2 border-purple-200 rounded-3xl shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl text-purple-700">✨ {t(lang, 'wb_create_title')}</DialogTitle>
+          </DialogHeader>
+          <input
+            autoFocus
+            value={newTitle}
+            onChange={e => setNewTitle(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && newTitle.trim()) submitCreate(); }}
+            placeholder={t(lang, 'wb_name_placeholder')}
+            className="input-magic w-full"
+          />
+          <DialogFooter className="gap-2">
+            <button onClick={() => setShowCreate(false)}
+              className="px-4 py-2 rounded-2xl bg-white border border-purple-200 text-purple-600 font-body font-600 text-sm hover:bg-purple-50">
+              {t(lang, 'wb_cancel')}
+            </button>
+            <button onClick={submitCreate} disabled={!newTitle.trim() || creating}
+              className="px-5 py-2 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-400 text-white font-body font-600 text-sm shadow-lg hover:scale-105 transition-transform disabled:opacity-50 disabled:cursor-not-allowed">
+              {creating ? '…' : t(lang, 'wb_save')}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
