@@ -670,6 +670,19 @@ const en: typeof ru = {
   admin_bonus_amount: 'How many stars to award?',
   admin_bonus_grant: 'Grant',
   admin_bonus_done: '✨ Sent! Student will see a star burst ⭐',
+
+  // Interactive lessons (EN)
+  dash_interactive: '🎮 Interactive',
+  map_empty_title: 'The map is empty',
+  map_empty_desc: 'Interactive lessons will appear here soon.',
+  wb_title: '🧱 Workbook Builder',
+  wb_subtitle: 'Tree: Workbook → Unit → Lesson → Tasks',
+  wb_empty: 'No workbooks yet — create your first one.',
+  wb_create: 'Create Workbook',
+  wb_create_title: 'New Workbook',
+  wb_name_placeholder: 'e.g. My First Words',
+  wb_save: 'Save',
+  wb_cancel: 'Cancel',
 };
 
 const ua: typeof ru = {
