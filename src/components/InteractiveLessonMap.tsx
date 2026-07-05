@@ -7,13 +7,14 @@ import {
 } from '../lib/workbooks';
 import { canReward } from '../lib/mechanics';
 import InteractiveLessonRoom from './InteractiveLessonRoom';
+import { Lang, t } from '../lib/i18n';
 
 const KIND_EMOJI: Record<string, string> = {
   theory: '📖', class_task: '👩‍🏫', homework: '✏️', practice: '🎮', checkpoint: '🏁',
 };
 
-export default function InteractiveLessonMap({ userId, hasAccess, onStarsChanged }: {
-  userId: string; hasAccess: boolean; onStarsChanged?: () => void;
+export default function InteractiveLessonMap({ userId, hasAccess, lang = 'ru', onStarsChanged }: {
+  userId: string; hasAccess: boolean; lang?: Lang; onStarsChanged?: () => void;
 }) {
   const [workbooks, setWorkbooks] = useState<Workbook[]>([]);
   const [units, setUnits] = useState<Record<string, Unit[]>>({});
