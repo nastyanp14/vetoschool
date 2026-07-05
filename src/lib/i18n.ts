@@ -351,6 +351,19 @@ const ru = {
   admin_bonus_amount: 'Сколько звёзд начислить?',
   admin_bonus_grant: 'Начислить',
   admin_bonus_done: '✨ Начислено! Ученик получит салют ⭐',
+
+  // Interactive lessons (RU)
+  dash_interactive: '🎮 Интерактив',
+  map_empty_title: 'Карта пуста',
+  map_empty_desc: 'Скоро здесь появятся интерактивные уроки.',
+  wb_title: '🧱 Конструктор воркбуков',
+  wb_subtitle: 'Дерево: Воркбук → Юнит → Урок → Задания',
+  wb_empty: 'Пока нет воркбуков — создайте первый.',
+  wb_create: 'Создать воркбук',
+  wb_create_title: 'Новый воркбук',
+  wb_name_placeholder: 'Например: My First Words',
+  wb_save: 'Сохранить',
+  wb_cancel: 'Отмена',
 };
 
 const en: typeof ru = {
