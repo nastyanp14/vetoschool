@@ -642,7 +642,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
             {/* INTERACTIVE LESSONS */}
             {activeTab === 'interactive' && (
-              <InteractiveLessonMap userId={effectiveUserId} hasAccess={user.hasAccess} onStarsChanged={refreshStars} />
+              <InteractiveLessonMap userId={effectiveUserId} hasAccess={user.hasAccess} lang={lang} onStarsChanged={refreshStars} />
             )}
 
 
