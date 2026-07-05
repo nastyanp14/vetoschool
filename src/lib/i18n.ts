@@ -989,6 +989,19 @@ const ua: typeof ru = {
   admin_bonus_amount: 'Скільки зірок нарахувати?',
   admin_bonus_grant: 'Нарахувати',
   admin_bonus_done: '✨ Нараховано! Учень побачить салют ⭐',
+
+  // Interactive lessons (UA)
+  dash_interactive: '🎮 Інтерактив',
+  map_empty_title: 'Карта порожня',
+  map_empty_desc: 'Скоро тут з\'являться інтерактивні уроки.',
+  wb_title: '🧱 Конструктор воркбуків',
+  wb_subtitle: 'Дерево: Воркбук → Юніт → Урок → Завдання',
+  wb_empty: 'Поки немає воркбуків — створіть перший.',
+  wb_create: 'Створити воркбук',
+  wb_create_title: 'Новий воркбук',
+  wb_name_placeholder: 'Наприклад: My First Words',
+  wb_save: 'Зберегти',
+  wb_cancel: 'Скасувати',
 };
 
 export const translations = { ru, en, ua };
