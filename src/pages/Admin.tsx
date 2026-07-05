@@ -1245,9 +1245,12 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                             </div>
                             <div className="flex-1">
                               <label className="font-body text-xs text-purple-500 font-600 mb-1 block">{t(lang,'admin_day')}</label>
-                              <select value={slot.day} onChange={e => updateSlot(slot.id,'day',e.target.value)} className="input-magic text-sm py-2">
-                                {DAYS_EN.map(d => <option key={d} value={d}>{d}</option>)}
-                              </select>
+                              <Select value={slot.day} onValueChange={v => updateSlot(slot.id,'day',v)}>
+                                <SelectTrigger className="input-magic h-auto text-sm py-2"><SelectValue /></SelectTrigger>
+                                <SelectContent className="rounded-2xl border-2 border-purple-200 bg-white/95 backdrop-blur">
+                                  {DAYS_EN.map(d => <SelectItem key={d} value={d} className="rounded-xl font-body">{d}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
                             </div>
                             <div className="w-full sm:w-32">
                               <label className="font-body text-xs text-purple-500 font-600 mb-1 block">{t(lang,'admin_time')}</label>
