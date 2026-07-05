@@ -10,6 +10,8 @@ import {
   uploadWorkbookAsset, signedUrlFor,
 } from '../lib/workbooks';
 import { MECHANICS, MechanicType, canReward, LessonKind, REWARDABLE_KINDS } from '../lib/mechanics';
+import { Lang, t } from '../lib/i18n';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 const LESSON_KINDS: LessonKind[] = ['theory','class_task','homework','practice','checkpoint'];
 
