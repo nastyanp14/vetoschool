@@ -861,10 +861,12 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
 
                 <div className="mb-6">
                   <label className="font-body font-600 text-purple-600 text-sm mb-2 block">{t(lang,'admin_select_student')}</label>
-                  <select value={contentUserId} onChange={e => { setContentUserId(e.target.value); setEditingId(null); setShowNewModule(false); setShowNewExtra(false); }} className="input-magic">
-                    <option value="">— {t(lang,'admin_select_student')} —</option>
-                    {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
-                  </select>
+                  <Select value={contentUserId || undefined} onValueChange={v => { setContentUserId(v); setEditingId(null); setShowNewModule(false); setShowNewExtra(false); }}>
+                    <SelectTrigger className="input-magic h-auto"><SelectValue placeholder={`— ${t(lang,'admin_select_student')} —`} /></SelectTrigger>
+                    <SelectContent className="rounded-2xl border-2 border-purple-200 bg-white/95 backdrop-blur">
+                      {users.map(u => <SelectItem key={u.id} value={u.id} className="rounded-xl font-body">{u.name} ({u.email})</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {contentUserId && (
