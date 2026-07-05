@@ -6,6 +6,7 @@ import { getStudentSchedule, saveStudentSchedule, loadStudentSchedule, setSlotCo
 import { ensureStudentContent, saveStudentContent, loadStudentContent, ContentItem, ContentType, getStudentRating, fileToDataUrl, uploadContentFile, deleteContentItem, deleteModule } from '../lib/content';
 import { Lang, t } from '../lib/i18n';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Trash2 } from 'lucide-react';
 import { subscribe } from '../lib/storage';
 import ThemeToggle from '../components/ThemeToggle';
