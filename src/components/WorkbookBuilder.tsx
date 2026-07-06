@@ -12,6 +12,7 @@ import {
 import { MECHANICS, MechanicType, canReward, LessonKind, REWARDABLE_KINDS } from '../lib/mechanics';
 import { Lang, t } from '../lib/i18n';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 
 const LESSON_KINDS: LessonKind[] = ['theory','class_task','homework','practice','checkpoint'];
 
@@ -295,7 +296,16 @@ export default function WorkbookBuilder({ lang = 'ru' }: { lang?: Lang }) {
   const [newTitle, setNewTitle] = useState('');
   const [creating, setCreating] = useState(false);
 
-  const refresh = async () => { setLoading(true); setWorkbooks(await listWorkbooks()); setLoading(false); };
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      setWorkbooks(await listWorkbooks());
+    } catch (error: any) {
+      toast.error('Ошибка базы: ' + (error?.message || 'не удалось загрузить воркбуки'));
+    } finally {
+      setLoading(false);
+    }
+  };
   useEffect(() => { refresh(); }, []);
 
   const openCreate = () => { setNewTitle(''); setShowCreate(true); };
@@ -303,15 +313,20 @@ export default function WorkbookBuilder({ lang = 'ru' }: { lang?: Lang }) {
     const title = newTitle.trim();
     if (!title) return;
     setCreating(true);
-    const created = await createWorkbook(title);
-    setCreating(false);
-    setShowCreate(false);
-    setNewTitle('');
-    if (created) {
-      // Optimistic + authoritative refresh
-      setWorkbooks(prev => [...prev, created]);
+    try {
+      const created = await createWorkbook(title);
+      if (created) {
+        setWorkbooks(prev => [...prev, created]);
+      }
+      toast.success('Воркбук создан!');
+      setShowCreate(false);
+      setNewTitle('');
+      await refresh();
+    } catch (error: any) {
+      toast.error('Ошибка базы: ' + (error?.message || 'неизвестная ошибка'));
+    } finally {
+      setCreating(false);
     }
-    await refresh();
   };
 
   return (

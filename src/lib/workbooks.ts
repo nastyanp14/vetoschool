@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { WORKBOOK_ASSETS_BUCKET, MechanicType, LessonKind, canReward } from './mechanics';
 
-export interface Workbook { id: string; title: string; description: string | null; order: number; is_published: boolean; }
+export interface Workbook { id: string; title: string; description: string | null; order?: number; is_published: boolean; is_global?: boolean; }
 export interface Unit { id: string; workbook_id: string; title: string; emoji: string; order: number; }
 export interface Lesson {
   id: string; unit_id: string; title: string; lesson_number: number; order: number;
@@ -13,18 +13,31 @@ export interface InteractiveTask {
 
 // ==================== WORKBOOKS ====================
 export async function listWorkbooks(): Promise<Workbook[]> {
-  const { data } = await supabase.from('workbooks').select('*').order('order');
-  return (data as any) || [];
+  const { data, error } = await supabase.from('workbooks').select('*').order('created_at');
+  if (error) throw error;
+  return ((data as any) || []).map((wb: any) => ({
+    ...wb,
+    is_published: wb.is_published ?? wb.is_global ?? true,
+  }));
 }
 export async function createWorkbook(title: string): Promise<Workbook | null> {
-  const { data: existing } = await supabase.from('workbooks').select('order').order('order', { ascending: false }).limit(1);
-  const nextOrder = ((existing?.[0] as any)?.order ?? -1) + 1;
-  const { data, error } = await supabase.from('workbooks').insert({ title, order: nextOrder } as any).select().single();
-  if (error) { console.error(error); return null; }
-  return data as any;
+  const { data, error } = await supabase
+    .from('workbooks')
+    .insert({ title, is_global: true } as any)
+    .select()
+    .single();
+  if (error) throw error;
+  return { ...(data as any), is_published: (data as any).is_global ?? true } as any;
 }
 export async function updateWorkbook(id: string, patch: Partial<Workbook>) {
-  await supabase.from('workbooks').update(patch as any).eq('id', id);
+  const clean: any = { ...patch };
+  if ('is_published' in clean) {
+    clean.is_global = clean.is_published;
+    delete clean.is_published;
+  }
+  delete clean.order;
+  const { error } = await supabase.from('workbooks').update(clean).eq('id', id);
+  if (error) throw error;
 }
 export async function deleteWorkbook(id: string) {
   await supabase.from('workbooks').delete().eq('id', id);
