@@ -840,6 +840,7 @@ const ua: typeof ru = {
   admin_students_tab: '👥 Учні',
   admin_content_tab: '📁 Контент і оцінки',
   admin_schedule_tab: '📅 Розклад',
+  admin_workbooks_tab: '🧱 Воркбуки',
   admin_total: 'Всього учнів',
   admin_active: 'Активних',
   admin_pending: 'Очікують',
