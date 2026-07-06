@@ -184,6 +184,7 @@ const ru = {
   admin_students_tab: '👥 Ученики',
   admin_content_tab: '📁 Контент и оценки',
   admin_schedule_tab: '📅 Расписание',
+  admin_workbooks_tab: '🧱 Воркбуки',
 
   // Admin — stats
   admin_total: 'Всего учеников',
@@ -519,6 +520,7 @@ const en: typeof ru = {
   admin_students_tab: '👥 Students',
   admin_content_tab: '📁 Content & Grades',
   admin_schedule_tab: '📅 Schedules',
+  admin_workbooks_tab: '🧱 Workbooks',
   admin_total: 'Total Students',
   admin_active: 'Active',
   admin_pending: 'Pending',
@@ -838,6 +840,7 @@ const ua: typeof ru = {
   admin_students_tab: '👥 Учні',
   admin_content_tab: '📁 Контент і оцінки',
   admin_schedule_tab: '📅 Розклад',
+  admin_workbooks_tab: '🧱 Воркбуки',
   admin_total: 'Всього учнів',
   admin_active: 'Активних',
   admin_pending: 'Очікують',
