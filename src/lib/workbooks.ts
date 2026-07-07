@@ -21,6 +21,21 @@ export async function listWorkbooks(): Promise<Workbook[]> {
   }));
 }
 export async function createWorkbook(title: string): Promise<Workbook | null> {
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData.user) {
+    throw new Error(authError?.message || 'Нужно войти в аккаунт администратора');
+  }
+
+  const { data: adminRole, error: roleError } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', authData.user.id)
+    .eq('role', 'admin')
+    .maybeSingle();
+
+  if (roleError) throw roleError;
+  if (!adminRole) throw new Error('Создавать воркбуки может только администратор');
+
   const { data, error } = await supabase
     .from('workbooks')
     .insert({ title, is_global: true } as any)
