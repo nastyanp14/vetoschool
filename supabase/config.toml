@@ -1,1 +1,4 @@
 project_id = "teapriepxqctgjfhposm"
+
+[functions.generate-card-audio]
+verify_jwt = true

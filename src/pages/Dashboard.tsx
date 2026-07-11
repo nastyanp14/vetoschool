@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type MouseEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getCurrentUser, logout } from '../lib/auth';
 import { getStudentSchedule } from '../lib/schedule';
-import { ensureStudentContent, ContentItem, getStudentRating, downloadDataUrl, loadStudentContent, openOrDownload } from '../lib/content';
+import { ensureStudentContent, ContentItem, getStudentRating, loadStudentContent, openOrDownload } from '../lib/content';
 import { loadStudentSchedule } from '../lib/schedule';
 import { Lang, t } from '../lib/i18n';
 import ThemeToggle from '../components/ThemeToggle';
@@ -32,8 +32,29 @@ function FileModal({ item, onClose, lang }: { item: ContentItem; onClose: () => 
   const hasContent = !!dataUrl || !!item.externalLink;
   const isImage = /\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(dataUrl) || dataUrl.startsWith('data:image');
   const isAudio = /\.(mp3|wav|ogg|m4a)(\?|$)/i.test(dataUrl) || dataUrl.startsWith('data:audio') || (item.type === 'listening' && !!dataUrl);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
 
   const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
+  const unavailableText = lang === 'en'
+    ? 'File is unavailable for download'
+    : lang === 'ua'
+      ? 'Файл недоступний для завантаження'
+      : 'Файл недоступен для скачивания';
+  const handleDownload = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDownloadError('');
+    setIsDownloading(true);
+    try {
+      await openOrDownload(item);
+    } catch (error) {
+      console.error('download failed', error);
+      setDownloadError(unavailableText);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -101,14 +122,20 @@ function FileModal({ item, onClose, lang }: { item: ContentItem; onClose: () => 
             {/* Download button — prevent long-press context menu on mobile */}
             <div className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-2xl p-4 border border-pink-100">
               <button
-                onClick={e => { e.preventDefault(); e.stopPropagation(); openOrDownload(item); }}
-                className="btn-magic w-full py-3.5 text-white font-display font-bold text-base flex items-center justify-center gap-3 select-none"
+                onClick={handleDownload}
+                disabled={isDownloading}
+                className="btn-magic w-full py-3.5 text-white font-display font-bold text-base flex items-center justify-center gap-3 select-none disabled:cursor-wait disabled:opacity-70"
               >
-                <span className="text-xl">{item.externalLink ? '🔗' : '⬇️'}</span>
-                {item.externalLink
+                <span className="text-xl">{isDownloading ? '…' : item.externalLink ? '🔗' : '⬇️'}</span>
+                {isDownloading
+                  ? (lang === 'en' ? 'Preparing...' : lang === 'ua' ? 'Готуємо...' : 'Готовим...')
+                  : item.externalLink
                   ? (lang === 'en' ? 'Open link' : lang === 'ua' ? 'Відкрити посилання' : 'Открыть ссылку')
                   : t(lang, 'dash_download')}
               </button>
+              {downloadError && (
+                <p className="mt-2 text-center font-body text-xs font-700 text-rose-500">{downloadError}</p>
+              )}
             </div>
 
             {/* Star rating */}

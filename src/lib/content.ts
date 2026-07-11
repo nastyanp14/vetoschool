@@ -25,6 +25,11 @@ export interface ContentItem {
 export const fileToDataUrl = _fileToDataUrl;
 
 const key = (uid: string) => `content:${uid}`;
+export const GRADED_CONTENT_TYPES: ContentType[] = ['homework', 'practice', 'grammar', 'listening', 'checkpoint'];
+
+export function isGradedContentType(type?: ContentType | null) {
+  return !!type && GRADED_CONTENT_TYPES.includes(type);
+}
 
 function rowToItem(r: any): ContentItem {
   return {
@@ -97,7 +102,7 @@ export async function deleteModule(userId: string, moduleId: string): Promise<vo
 
 export function getStudentRating(userId: string): { avg: number; count: number } {
   const items = ensureStudentContent(userId);
-  const graded = items.filter(i => (i.type === 'homework' || i.type === 'practice' || i.type === 'checkpoint') && i.starRating && i.starRating > 0);
+  const graded = items.filter(i => isGradedContentType(i.type) && i.starRating && i.starRating > 0);
   if (!graded.length) return { avg: 0, count: 0 };
   const sum = graded.reduce((s, i) => s + (i.starRating || 0), 0);
   return { avg: Math.round((sum / graded.length) * 10) / 10, count: graded.length };
@@ -114,10 +119,60 @@ export async function uploadContentFile(userId: string, file: File): Promise<{ u
 }
 
 async function resolveFileUrl(stored: string): Promise<string> {
+  if (/^data:/i.test(stored)) return stored;
   if (/^https?:\/\//i.test(stored)) return stored; // legacy public URL
   const { data, error } = await supabase.storage.from('content').createSignedUrl(stored, 60 * 60);
   if (error || !data) throw error || new Error('Could not sign URL');
   return data.signedUrl;
+}
+
+function extensionFromMime(mime?: string | null) {
+  if (!mime) return '';
+  if (mime.includes('png')) return '.png';
+  if (mime.includes('jpeg') || mime.includes('jpg')) return '.jpg';
+  if (mime.includes('gif')) return '.gif';
+  if (mime.includes('webp')) return '.webp';
+  if (mime.includes('pdf')) return '.pdf';
+  if (mime.includes('mpeg')) return '.mp3';
+  if (mime.includes('wav')) return '.wav';
+  return '';
+}
+
+function sanitizeFileName(name: string) {
+  return name.replace(/[\\/:*?"<>|]+/g, '_').trim();
+}
+
+function fileNameFor(item: ContentItem, blob?: Blob) {
+  const raw = item.fileName || item.title || '';
+  const safe = sanitizeFileName(raw);
+  if (safe && /\.[a-z0-9]{2,8}$/i.test(safe)) return safe;
+  const ext = extensionFromMime(blob?.type) || '.png';
+  return `${safe || 'vetoschool-file'}${ext}`;
+}
+
+function saveBlob(blob: Blob, name: string) {
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = name;
+  a.rel = 'noopener noreferrer';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+async function downloadResolvedUrl(url: string, name: string) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Файл недоступен для скачивания');
+    const blob = await response.blob();
+    if (!blob.size) throw new Error('Файл недоступен для скачивания');
+    saveBlob(blob, fileNameFor({ id: '', moduleId: '', type: 'lesson', title: name, emoji: '📎', unlocked: true }, blob));
+  } catch (error) {
+    console.error('download failed', error);
+    throw new Error('Файл недоступен для скачивания');
+  }
 }
 
 // ---- Smart download/open ----
@@ -126,20 +181,20 @@ export async function openOrDownload(item: ContentItem) {
     window.open(item.externalLink, '_blank', 'noopener,noreferrer');
     return;
   }
-  if (item.fileUrl) {
-    const url = await resolveFileUrl(item.fileUrl);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = item.fileName || item.title || 'file';
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a); a.click(); a.remove();
-  }
+  const stored = item.fileUrl || item.fileDataUrl;
+  if (!stored) throw new Error('Файл недоступен для скачивания');
+  const url = await resolveFileUrl(stored);
+  await downloadResolvedUrl(url, fileNameFor(item));
 }
 
 /** Legacy helper kept so existing modal code compiles */
 export function downloadDataUrl(url: string, name: string) {
-  const a = document.createElement('a');
-  a.href = url; a.download = name; a.target = '_blank'; a.rel = 'noopener noreferrer';
-  document.body.appendChild(a); a.click(); a.remove();
+  fetch(url)
+    .then(res => res.blob())
+    .then(blob => saveBlob(blob, sanitizeFileName(name) || fileNameFor({ id: '', moduleId: '', type: 'lesson', title: 'vetoschool-file', emoji: '📎', unlocked: true }, blob)))
+    .catch(() => {
+      const a = document.createElement('a');
+      a.href = url; a.download = sanitizeFileName(name) || 'vetoschool-file';
+      document.body.appendChild(a); a.click(); a.remove();
+    });
 }

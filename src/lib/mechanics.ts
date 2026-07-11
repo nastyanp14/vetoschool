@@ -3,6 +3,7 @@
 // `payload_json` shape is mechanic-specific and documented alongside each entry.
 
 export type MechanicType =
+  | 'theory_content'
   | 'word_lego'
   | 'matching'
   | 'odd_one_out'

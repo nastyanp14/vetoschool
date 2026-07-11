@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { getCurrentUser, getUsers, loadAllUsers } from '../lib/auth';
-import { ensureStudentContent, getStudentRating, ContentItem, loadStudentContent } from '../lib/content';
+import { ensureStudentContent, getStudentRating, ContentItem, loadStudentContent, isGradedContentType } from '../lib/content';
 import { getStudentSchedule, loadStudentSchedule } from '../lib/schedule';
 import { Lang, t } from '../lib/i18n';
 import { findAvatar } from '../lib/stars';
@@ -187,10 +187,10 @@ function SectionBlock({ title, items, locale, emptyMsg }: {
               }`}>
                 {item.unlocked ? '🔓' : '🔒'}
               </span>
-              {(item.type === 'homework' || item.type === 'practice' || item.type === 'checkpoint') && item.starRating && item.starRating > 0 && (
+              {isGradedContentType(item.type) && item.starRating && item.starRating > 0 && (
                 <StarRow value={item.starRating} size="text-sm" />
               )}
-              {(item.type === 'homework' || item.type === 'practice' || item.type === 'checkpoint') && (!item.starRating || item.starRating === 0) && item.unlocked && (
+              {isGradedContentType(item.type) && (!item.starRating || item.starRating === 0) && item.unlocked && (
                 <span className="text-xs text-purple-300 font-body">{emptyMsg}</span>
               )}
             </div>
@@ -239,13 +239,14 @@ export default function Analytics({ lang, setLang }: { lang: Lang; setLang: (l: 
   const listening = content.filter(i => i.type === 'listening');
   const checkpoint = content.filter(i => i.type === 'checkpoint');
 
-  const gradedHW = homework.filter(i => i.starRating && i.starRating > 0);
+  const gradableItems = content.filter(i => isGradedContentType(i.type));
+  const gradedItems = gradableItems.filter(i => i.starRating && i.starRating > 0);
   const totalUnlocked = content.filter(i => i.unlocked).length;
   const unlockedLessons = lessons.filter(i => i.unlocked).length;
 
   const typeColors: Record<string, string> = {
     lesson: '#FF8DC7', homework: '#C8B3FF', practice: '#7EC8FF',
-    grammar: '#FFD47E', listening: '#7EFFC8',
+    grammar: '#FFD47E', listening: '#7EFFC8', checkpoint: '#FFB36E',
   };
 
   const labels = {
@@ -255,20 +256,20 @@ export default function Analytics({ lang, setLang }: { lang: Lang; setLang: (l: 
       joined: 'Зарегистрирован',
       active: '🟢 Активен', pending: '🟡 Ожидает',
       unlocked: 'Открыто', rating: 'Рейтинг',
-      graded: 'ДЗ оценено', scheduled: 'Занятий',
+      graded: 'Оценено', scheduled: 'Занятий',
       of: 'из',
       progressTitle: '📈 Прогресс по разделам',
-      chartTitle: '📊 График успеваемости (оценки за ДЗ)',
+      chartTitle: '📊 График успеваемости',
       timelineTitle: '🗓 Хронология открытых материалов',
-      hwTitle: '⭐ Оценки за домашние задания',
+      hwTitle: '⭐ Оценки и результаты',
       allContentTitle: '📚 Все материалы',
       scheduleTitle: '📅 Расписание занятий',
       lessonsLbl: 'Уроки', hwLbl: 'Домашние задания',
-      practiceLbl: 'Практика', grammarLbl: 'Грамматика', listeningLbl: 'Аудирование',
+      practiceLbl: 'Практика', grammarLbl: 'Грамматика', listeningLbl: 'Аудирование', checkpointLbl: 'Контрольные',
       empty: 'Нет данных', noGraded: 'Оценок пока нет', noSchedule: 'Расписание не назначено',
       notGraded: 'не оценено', basedOn: 'на основе', grades: 'оценок',
       lessonsSection: '📚 Уроки', hwSection: '✏️ Домашние задания',
-      practiceSection: '🎮 Практика', grammarSection: '📝 Грамматика', listeningSection: '🎧 Аудирование',
+      practiceSection: '🎮 Практика', grammarSection: '📝 Грамматика', listeningSection: '🎧 Аудирование', checkpointSection: '🏁 Контрольные',
     },
     en: {
       back: '← Back to panel',
@@ -276,20 +277,20 @@ export default function Analytics({ lang, setLang }: { lang: Lang; setLang: (l: 
       joined: 'Registered',
       active: '🟢 Active', pending: '🟡 Pending',
       unlocked: 'Unlocked', rating: 'Rating',
-      graded: 'HW graded', scheduled: 'Lessons',
+      graded: 'Graded', scheduled: 'Lessons',
       of: 'of',
       progressTitle: '📈 Progress by section',
-      chartTitle: '📊 Performance chart (HW grades)',
+      chartTitle: '📊 Performance chart',
       timelineTitle: '🗓 Unlocked materials timeline',
-      hwTitle: '⭐ Homework grades',
+      hwTitle: '⭐ Grades and results',
       allContentTitle: '📚 All materials',
       scheduleTitle: '📅 Schedule',
       lessonsLbl: 'Lessons', hwLbl: 'Homework',
-      practiceLbl: 'Practice', grammarLbl: 'Grammar', listeningLbl: 'Listening',
+      practiceLbl: 'Practice', grammarLbl: 'Grammar', listeningLbl: 'Listening', checkpointLbl: 'Checkpoints',
       empty: 'No data', noGraded: 'No grades yet', noSchedule: 'No schedule assigned',
       notGraded: 'not graded', basedOn: 'based on', grades: 'grades',
       lessonsSection: '📚 Lessons', hwSection: '✏️ Homework',
-      practiceSection: '🎮 Practice', grammarSection: '📝 Grammar', listeningSection: '🎧 Listening',
+      practiceSection: '🎮 Practice', grammarSection: '📝 Grammar', listeningSection: '🎧 Listening', checkpointSection: '🏁 Checkpoints',
     },
     ua: {
       back: '← Назад до панелі',
@@ -297,20 +298,20 @@ export default function Analytics({ lang, setLang }: { lang: Lang; setLang: (l: 
       joined: 'Зареєстровано',
       active: '🟢 Активний', pending: '🟡 Очікує',
       unlocked: 'Відкрито', rating: 'Рейтинг',
-      graded: 'ДЗ оцінено', scheduled: 'Занять',
+      graded: 'Оцінено', scheduled: 'Занять',
       of: 'з',
       progressTitle: '📈 Прогрес за розділами',
-      chartTitle: '📊 Графік успішності (оцінки за ДЗ)',
+      chartTitle: '📊 Графік успішності',
       timelineTitle: '🗓 Хронологія відкритих матеріалів',
-      hwTitle: '⭐ Оцінки за домашні завдання',
+      hwTitle: '⭐ Оцінки та результати',
       allContentTitle: '📚 Всі матеріали',
       scheduleTitle: '📅 Розклад занять',
       lessonsLbl: 'Уроки', hwLbl: 'Домашні завдання',
-      practiceLbl: 'Практика', grammarLbl: 'Граматика', listeningLbl: 'Аудіювання',
+      practiceLbl: 'Практика', grammarLbl: 'Граматика', listeningLbl: 'Аудіювання', checkpointLbl: 'Контрольні',
       empty: 'Немає даних', noGraded: 'Оцінок поки немає', noSchedule: 'Розклад не призначено',
       notGraded: 'не оцінено', basedOn: 'на основі', grades: 'оцінок',
       lessonsSection: '📚 Уроки', hwSection: '✏️ Домашні завдання',
-      practiceSection: '🎮 Практика', grammarSection: '📝 Граматика', listeningSection: '🎧 Аудіювання',
+      practiceSection: '🎮 Практика', grammarSection: '📝 Граматика', listeningSection: '🎧 Аудіювання', checkpointSection: '🏁 Контрольні',
     },
   };
   const lbl = labels[lang] || labels.ru;
@@ -321,6 +322,7 @@ export default function Analytics({ lang, setLang }: { lang: Lang; setLang: (l: 
     { label: lbl.practiceLbl, done: practice.filter(i => i.unlocked).length, total: practice.length, color: typeColors.practice },
     { label: lbl.grammarLbl, done: grammar.filter(i => i.unlocked).length, total: grammar.length, color: typeColors.grammar },
     { label: lbl.listeningLbl, done: listening.filter(i => i.unlocked).length, total: listening.length, color: typeColors.listening },
+    { label: lbl.checkpointLbl, done: checkpoint.filter(i => i.unlocked).length, total: checkpoint.length, color: typeColors.checkpoint },
   ].filter(s => s.total > 0);
 
   const overallPct = pct(totalUnlocked, content.length);
@@ -395,7 +397,7 @@ export default function Analytics({ lang, setLang }: { lang: Lang; setLang: (l: 
           {[
             { emoji: '📂', label: lbl.unlocked, value: `${totalUnlocked}/${content.length}`, color: 'bg-gradient-to-br from-pink-100 to-rose-100 border border-pink-200' },
             { emoji: '⭐', label: lbl.rating, value: rating.avg > 0 ? `${rating.avg}★` : '—', color: 'bg-gradient-to-br from-yellow-100 to-amber-100 border border-yellow-200' },
-            { emoji: '✏️', label: lbl.graded, value: `${gradedHW.length}/${homework.length}`, color: 'bg-gradient-to-br from-purple-100 to-violet-100 border border-purple-200' },
+            { emoji: '✏️', label: lbl.graded, value: `${gradedItems.length}/${gradableItems.length}`, color: 'bg-gradient-to-br from-purple-100 to-violet-100 border border-purple-200' },
             { emoji: '📅', label: lbl.scheduled, value: `${schedule.length}`, color: 'bg-gradient-to-br from-blue-100 to-cyan-100 border border-blue-200' },
           ].map((s, i) => (
             <motion.div key={s.label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.08 }}
@@ -457,9 +459,11 @@ export default function Analytics({ lang, setLang }: { lang: Lang; setLang: (l: 
 
         {/* ── Three chart+list sections: HW / Practice / Checkpoint ────────── */}
         {([
-          { key: 'hw', items: homework, chartTitle: t(lang, 'analytics_hw_chart'), listTitle: t(lang, 'analytics_hw_list') },
-          { key: 'practice', items: practice, chartTitle: t(lang, 'analytics_practice_chart'), listTitle: t(lang, 'analytics_practice_list') },
-          { key: 'checkpoint', items: checkpoint, chartTitle: t(lang, 'analytics_checkpoint_chart'), listTitle: t(lang, 'analytics_checkpoint_list') },
+          { key: 'hw', items: homework, chartTitle: lbl.hwSection, listTitle: lbl.hwSection },
+          { key: 'practice', items: practice, chartTitle: lbl.practiceSection, listTitle: lbl.practiceSection },
+          { key: 'grammar', items: grammar, chartTitle: lbl.grammarSection, listTitle: lbl.grammarSection },
+          { key: 'listening', items: listening, chartTitle: lbl.listeningSection, listTitle: lbl.listeningSection },
+          { key: 'checkpoint', items: checkpoint, chartTitle: lbl.checkpointSection, listTitle: lbl.checkpointSection },
         ] as const).map((sec, idx) => {
           const graded = sec.items.filter(i => i.starRating && i.starRating > 0);
           return (
@@ -509,6 +513,7 @@ export default function Analytics({ lang, setLang }: { lang: Lang; setLang: (l: 
             { title: lbl.practiceSection, items: practice },
             { title: lbl.grammarSection, items: grammar },
             { title: lbl.listeningSection, items: listening },
+            { title: lbl.checkpointSection, items: checkpoint },
           ].map((sec, i) => sec.items.length > 0 && (
             <motion.div key={sec.title} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 + i * 0.05 }}>
               <SectionBlock title={sec.title} items={sec.items} locale={locale} emptyMsg={lbl.notGraded} />

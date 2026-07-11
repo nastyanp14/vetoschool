@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { getCurrentUser, getUsers, grantAccess, revokeAccess, deleteUser, logout, loadAllUsers, setAccess, User } from '../lib/auth';
 import { getStudentSchedule, saveStudentSchedule, loadStudentSchedule, setSlotConducted, ScheduleSlot } from '../lib/schedule';
-import { ensureStudentContent, saveStudentContent, loadStudentContent, ContentItem, ContentType, getStudentRating, fileToDataUrl, uploadContentFile, deleteContentItem, deleteModule } from '../lib/content';
+import { ensureStudentContent, saveStudentContent, loadStudentContent, ContentItem, ContentType, getStudentRating, fileToDataUrl, uploadContentFile, deleteContentItem, deleteModule, isGradedContentType } from '../lib/content';
 import { Lang, t } from '../lib/i18n';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -12,6 +12,7 @@ import { subscribe } from '../lib/storage';
 import ThemeToggle from '../components/ThemeToggle';
 import AdminDictionary from '../components/AdminDictionary';
 import WorkbookBuilder from '../components/WorkbookBuilder';
+import LiveLessonMonitor from '../components/LiveLessonMonitor';
 import { giftStars, loadStarProfile, awardStars, findAvatar } from '../lib/stars';
 
 // Small inline avatar that shows the equipped emoji avatar or the name initial
@@ -28,7 +29,7 @@ function UserAvatar({ user, size = 'md' }: { user: { name: string; avatarId?: st
 
 const DAYS_EN = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
-type Section = 'students' | 'content' | 'schedule' | 'workbooks';
+type Section = 'students' | 'content' | 'schedule' | 'workbooks' | 'live';
 
 // ---- Helpers ----
 function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -104,7 +105,7 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
   const grammar = content.filter(i => i.type === 'grammar');
   const listening = content.filter(i => i.type === 'listening');
   const unlockedCount = content.filter(i => i.unlocked).length;
-  const gradedHW = homework.filter(h => h.starRating && h.starRating > 0);
+  const gradedItems = content.filter(h => isGradedContentType(h.type) && h.starRating && h.starRating > 0);
 
   // Access toggle
   const [accessSaving, setAccessSaving] = useState(false);
@@ -117,11 +118,12 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
   const typeColor: Record<string, string> = {
     lesson: 'bg-pink-100 text-pink-600', homework: 'bg-purple-100 text-purple-600',
     practice: 'bg-blue-100 text-blue-600', grammar: 'bg-yellow-100 text-yellow-600', listening: 'bg-green-100 text-green-600',
+    checkpoint: 'bg-orange-100 text-orange-600',
   };
-  const typeEmoji: Record<string, string> = { lesson: '📚', homework: '✏️', practice: '🎮', grammar: '📝', listening: '🎧' };
+  const typeEmoji: Record<string, string> = { lesson: '📚', homework: '✏️', practice: '🎮', grammar: '📝', listening: '🎧', checkpoint: '🏁' };
 
   const labels = {
-    ru: { content: 'Контент', rating: 'Оценка', graded: 'ДЗ проверено', schedule: 'Расписание',
+    ru: { content: 'Контент', rating: 'Оценка', graded: 'Оценено', schedule: 'Расписание',
           basedOn: 'на основе', grades: 'оценок', lessons: '📚 Уроки', homework: '✏️ Домашние задания',
           practice: '🎮 Практика', grammar: '📝 Грамматика', listening: '🎧 Аудирование',
           scheduleTitle: '📅 Расписание', openDash: '📊 Аналитика ученика',
@@ -129,7 +131,7 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
           confirmLabel: 'Подтвердить пароль', saveBtn: 'Сохранить', cancelBtn: 'Отмена',
           passHint: 'Оставьте пустым, если не меняете пароль', active: '🟢 Активен', pending: '🟡 Ожидает',
           showPass: 'Показать', hidePass: 'Скрыть', due: 'До:' },
-    en: { content: 'Content', rating: 'Rating', graded: 'HW graded', schedule: 'Schedule',
+    en: { content: 'Content', rating: 'Rating', graded: 'Graded', schedule: 'Schedule',
           basedOn: 'based on', grades: 'grades', lessons: '📚 Lessons', homework: '✏️ Homework',
           practice: '🎮 Practice', grammar: '📝 Grammar', listening: '🎧 Listening',
           scheduleTitle: '📅 Schedule', openDash: '📊 Student Analytics',
@@ -137,7 +139,7 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
           confirmLabel: 'Confirm password', saveBtn: 'Save', cancelBtn: 'Cancel',
           passHint: 'Leave empty to keep current password', active: '🟢 Active', pending: '🟡 Pending',
           showPass: 'Show', hidePass: 'Hide', due: 'Due:' },
-    ua: { content: 'Контент', rating: 'Оцінка', graded: 'ДЗ перевірено', schedule: 'Розклад',
+    ua: { content: 'Контент', rating: 'Оцінка', graded: 'Оцінено', schedule: 'Розклад',
           basedOn: 'на основі', grades: 'оцінок', lessons: '📚 Уроки', homework: '✏️ Домашні завдання',
           practice: '🎮 Практика', grammar: '📝 Граматика', listening: '🎧 Аудіювання',
           scheduleTitle: '📅 Розклад', openDash: '📊 Аналітика учня',
@@ -205,7 +207,7 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
             {[
               { label: lbl.content, value: `${unlockedCount}/${content.length}`, emoji: '📂', color: 'from-pink-100 to-rose-100', border: 'border-pink-200' },
               { label: lbl.rating, value: avg > 0 ? `${avg}★` : '—', emoji: '⭐', color: 'from-yellow-100 to-amber-100', border: 'border-yellow-200' },
-              { label: lbl.graded, value: `${gradedHW.length}/${homework.length}`, emoji: '✏️', color: 'from-purple-100 to-violet-100', border: 'border-purple-200' },
+              { label: lbl.graded, value: `${gradedItems.length}/${content.filter(i => isGradedContentType(i.type)).length}`, emoji: '✏️', color: 'from-purple-100 to-violet-100', border: 'border-purple-200' },
               { label: lbl.schedule, value: `${schedule.length}`, emoji: '📅', color: 'from-blue-100 to-cyan-100', border: 'border-blue-200' },
             ].map(s => (
               <div key={s.label} className={`bg-gradient-to-br ${s.color} border ${s.border} rounded-2xl p-3 text-center`}>
@@ -502,7 +504,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   };
   const saveEdit = async (itemId: string, type: ContentType) => {
     const prev = contentItems.find(i => i.id === itemId);
-    const isGradedType = type === 'homework' || type === 'practice' || type === 'checkpoint';
+    const isGradedType = isGradedContentType(type);
     const wasGraded = !!(prev?.starRating && prev.starRating > 0);
     const willBeGraded = isGradedType && editStars > 0;
     const updated = contentItems.map(i => i.id === itemId ? {
@@ -734,6 +736,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
             { id:'content' as Section, label:t(lang,'admin_content_tab') },
             { id:'schedule' as Section, label:t(lang,'admin_schedule_tab') },
             { id:'workbooks' as Section, label:t(lang,'admin_workbooks_tab') },
+            { id:'live' as Section, label:lang === 'en' ? '📡 Live' : lang === 'ua' ? '📡 Live-уроки' : '📡 Live-уроки' },
           ].map(sec => (
             <button key={sec.id} onClick={() => setActiveSection(sec.id)}
               className={`px-6 py-2.5 rounded-2xl font-body font-600 text-sm transition-all ${activeSection===sec.id?'bg-gradient-to-r from-pink-400 to-purple-400 text-white shadow-lg':'glass text-purple-600 hover:bg-pink-50'}`}>
@@ -869,6 +872,26 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                   </Select>
                 </div>
 
+                {!contentUserId && (
+                  <div className="rounded-3xl border border-purple-100 bg-gradient-to-br from-white via-pink-50/60 to-purple-50/70 p-6 shadow-sm">
+                    <div className="flex items-start gap-4">
+                      <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">📂</span>
+                      <div>
+                        <h4 className="font-display text-xl font-black text-purple-700">
+                          {lang === 'en' ? 'Choose a student' : lang === 'ua' ? 'Оберіть учня' : 'Выберите ученика'}
+                        </h4>
+                        <p className="mt-1 font-body text-sm font-600 text-purple-400">
+                          {lang === 'en'
+                            ? 'Select a student to view content, grades and progress. Empty values are hidden until a student is selected.'
+                            : lang === 'ua'
+                              ? 'Оберіть учня, щоб переглянути контент, оцінки та прогрес. Порожні значення приховані до вибору учня.'
+                              : 'Выберите ученика, чтобы увидеть контент, оценки и прогресс. Пустые значения не показываются как реальные данные.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {contentUserId && (
                   <AnimatePresence>
                     <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }}>
@@ -994,7 +1017,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                             <input type="url" value={editExternalLink} onChange={e => setEditExternalLink(e.target.value)} placeholder={`🔗 ${linkPlaceholder}`}
                                               className="input-magic text-sm py-2 mt-2" />
                                           </div>
-                                          {(item.type === 'homework' || item.type === 'practice' || item.type === 'checkpoint') && (
+                                          {isGradedContentType(item.type) && (
                                             <div>
                                               <label className="font-body text-xs text-purple-500 font-600 mb-2 block">{t(lang,'admin_stars_label')}</label>
                                               <StarPicker value={editStars} onChange={setEditStars} />
@@ -1334,7 +1357,14 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
           {/* ===== WORKBOOKS ===== */}
           {activeSection === 'workbooks' && (
             <motion.div key="workbooks" initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-20 }}>
-              <WorkbookBuilder lang={lang} />
+              <WorkbookBuilder lang={lang} students={users} />
+            </motion.div>
+          )}
+
+          {/* ===== LIVE LESSONS ===== */}
+          {activeSection === 'live' && (
+            <motion.div key="live" initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-20 }}>
+              <LiveLessonMonitor users={users} lang={lang} />
             </motion.div>
           )}
 

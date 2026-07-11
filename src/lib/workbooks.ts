@@ -1,8 +1,23 @@
 import { supabase } from '@/integrations/supabase/client';
 import { WORKBOOK_ASSETS_BUCKET, MechanicType, LessonKind, canReward } from './mechanics';
+import { awardStars } from './stars';
 
 export interface Workbook { id: string; title: string; description: string | null; order?: number; is_published: boolean; is_global?: boolean; }
-export interface Unit { id: string; workbook_id: string; title: string; emoji: string; order: number; }
+export interface WorkbookAssignment {
+  id: string;
+  workbook_id: string;
+  assignee_type: 'student' | 'group';
+  user_id: string | null;
+  group_id: string | null;
+}
+export interface Unit {
+  id: string;
+  workbook_id: string;
+  title: string;
+  emoji?: string | null;
+  unit_number: number;
+  order?: number;
+}
 export interface Lesson {
   id: string; unit_id: string; title: string; lesson_number: number; order: number;
   type: LessonKind; stars_reward: number;
@@ -19,6 +34,75 @@ export async function listWorkbooks(): Promise<Workbook[]> {
     ...wb,
     is_published: wb.is_published ?? wb.is_global ?? true,
   }));
+}
+
+export async function listAvailableWorkbooks(userId: string): Promise<Workbook[]> {
+  const all = await listWorkbooks();
+  const global = all.filter(wb => wb.is_published);
+
+  try {
+    const { data: direct, error: directError } = await (supabase as any)
+      .from('workbook_assignments')
+      .select('workbook_id')
+      .eq('assignee_type', 'student')
+      .eq('user_id', userId);
+    if (directError) throw directError;
+
+    const { data: memberships, error: membershipError } = await (supabase as any)
+      .from('student_group_members')
+      .select('group_id')
+      .eq('user_id', userId);
+    if (membershipError) throw membershipError;
+
+    const groupIds = ((memberships as any[]) || []).map(row => row.group_id).filter(Boolean);
+    let groupAssigned: any[] = [];
+    if (groupIds.length > 0) {
+      const { data, error } = await (supabase as any)
+        .from('workbook_assignments')
+        .select('workbook_id')
+        .eq('assignee_type', 'group')
+        .in('group_id', groupIds);
+      if (error) throw error;
+      groupAssigned = data || [];
+    }
+
+    const assignedIds = new Set([...(direct || []), ...groupAssigned].map(row => row.workbook_id));
+    const assigned = all.filter(wb => assignedIds.has(wb.id));
+    const byId = new Map<string, Workbook>();
+    [...global, ...assigned].forEach(wb => byId.set(wb.id, wb));
+    return Array.from(byId.values());
+  } catch (error) {
+    // Assignment tables may not exist yet in older Supabase projects.
+    return global;
+  }
+}
+
+export async function listWorkbookAssignments(workbookId: string): Promise<WorkbookAssignment[]> {
+  const { data, error } = await (supabase as any)
+    .from('workbook_assignments')
+    .select('*')
+    .eq('workbook_id', workbookId);
+  if (error) throw error;
+  return (data as WorkbookAssignment[]) || [];
+}
+
+export async function setWorkbookStudentAssignments(workbookId: string, userIds: string[]) {
+  const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
+  const { error: deleteError } = await (supabase as any)
+    .from('workbook_assignments')
+    .delete()
+    .eq('workbook_id', workbookId)
+    .eq('assignee_type', 'student');
+  if (deleteError) throw deleteError;
+
+  if (uniqueIds.length === 0) return;
+  const rows = uniqueIds.map(userId => ({
+    workbook_id: workbookId,
+    assignee_type: 'student',
+    user_id: userId,
+  }));
+  const { error } = await (supabase as any).from('workbook_assignments').insert(rows);
+  if (error) throw error;
 }
 export async function createWorkbook(title: string): Promise<Workbook | null> {
   const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -60,21 +144,51 @@ export async function deleteWorkbook(id: string) {
 
 // ==================== UNITS ====================
 export async function listUnits(workbookId: string): Promise<Unit[]> {
-  const { data } = await supabase.from('units').select('*').eq('workbook_id', workbookId).order('order');
-  return (data as any) || [];
+  const { data, error } = await supabase
+    .from('units')
+    .select('*')
+    .eq('workbook_id', workbookId)
+    .order('unit_number');
+  if (error) throw error;
+  return ((data as any) || []).map((unit: any) => ({
+    ...unit,
+    unit_number: unit.unit_number ?? unit.order ?? 1,
+    order: unit.order ?? unit.unit_number ?? 1,
+  }));
 }
 export async function createUnit(workbookId: string, title: string, emoji = '🏝️'): Promise<Unit | null> {
-  const { data: existing } = await supabase.from('units').select('order').eq('workbook_id', workbookId).order('order', { ascending: false }).limit(1);
-  const nextOrder = ((existing?.[0] as any)?.order ?? -1) + 1;
-  const { data, error } = await supabase.from('units').insert({ workbook_id: workbookId, title, emoji, order: nextOrder } as any).select().single();
-  if (error) { console.error(error); return null; }
-  return data as any;
+  const { data: existing, error: existingError } = await supabase
+    .from('units')
+    .select('unit_number')
+    .eq('workbook_id', workbookId)
+    .order('unit_number', { ascending: false })
+    .limit(1);
+  if (existingError) throw existingError;
+
+  const nextNumber = ((existing?.[0] as any)?.unit_number ?? 0) + 1;
+  const { data, error } = await supabase
+    .from('units')
+    .insert({ workbook_id: workbookId, title, unit_number: nextNumber } as any)
+    .select()
+    .single();
+  if (error) throw error;
+  return {
+    ...(data as any),
+    emoji,
+    unit_number: (data as any).unit_number ?? nextNumber,
+    order: (data as any).unit_number ?? nextNumber,
+  } as any;
 }
 export async function updateUnit(id: string, patch: Partial<Unit>) {
-  await supabase.from('units').update(patch as any).eq('id', id);
+  const clean: any = { ...patch };
+  delete clean.emoji;
+  delete clean.order;
+  const { error } = await supabase.from('units').update(clean).eq('id', id);
+  if (error) throw error;
 }
 export async function deleteUnit(id: string) {
-  await supabase.from('units').delete().eq('id', id);
+  const { error } = await supabase.from('units').delete().eq('id', id);
+  if (error) throw error;
 }
 
 // ==================== LESSONS ====================
@@ -149,6 +263,13 @@ export async function markLessonComplete(userId: string, lesson: Lesson): Promis
   const existing = await (supabase as any).from('lesson_progress').select('id, stars_awarded').eq('user_id', userId).eq('lesson_id', lesson.id).maybeSingle();
   if (existing.data) return 0;
   const stars = canReward(lesson.type) ? (lesson.stars_reward || 0) : 0;
-  await (supabase as any).from('lesson_progress').insert({ user_id: userId, lesson_id: lesson.id, stars_awarded: stars });
+  const { error } = await (supabase as any).from('lesson_progress').insert({ user_id: userId, lesson_id: lesson.id, stars_awarded: stars });
+  if (error) {
+    if ((error as any).code === '23505') return 0;
+    throw error;
+  }
+  if (stars > 0) {
+    await awardStars(userId, stars);
+  }
   return stars;
 }
