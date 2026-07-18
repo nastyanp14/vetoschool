@@ -285,34 +285,40 @@ export type Database = {
       }
       profiles: {
         Row: {
+          access_status: Database["public"]["Enums"]["access_status"]
           avatar_id: string | null
           created_at: string
           email: string
           has_access: boolean
           id: string
           name: string
+          payment_status: Database["public"]["Enums"]["payment_status"]
           pending_celebration: number
           star_balance: number
           total_stars_earned: number
         }
         Insert: {
+          access_status?: Database["public"]["Enums"]["access_status"]
           avatar_id?: string | null
           created_at?: string
           email: string
           has_access?: boolean
           id: string
           name?: string
+          payment_status?: Database["public"]["Enums"]["payment_status"]
           pending_celebration?: number
           star_balance?: number
           total_stars_earned?: number
         }
         Update: {
+          access_status?: Database["public"]["Enums"]["access_status"]
           avatar_id?: string | null
           created_at?: string
           email?: string
           has_access?: boolean
           id?: string
           name?: string
+          payment_status?: Database["public"]["Enums"]["payment_status"]
           pending_celebration?: number
           star_balance?: number
           total_stars_earned?: number
@@ -449,6 +455,7 @@ export type Database = {
       }
     }
     Enums: {
+      access_status: "pending" | "active" | "suspended" | "cancelled"
       app_role: "admin" | "student"
       content_type:
         | "lesson"
@@ -463,6 +470,7 @@ export type Database = {
         | "homework"
         | "practice"
         | "checkpoint"
+      payment_status: "unpaid" | "pending_review" | "paid" | "refunded"
     }
     CompositeTypes: {
       [_ in never]: never

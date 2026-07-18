@@ -6,6 +6,14 @@ import Navbar from '../components/Navbar';
 import Home from './Home';
 import Login from './Login';
 import Register from './Register';
+import CheckEmail from './CheckEmail';
+import AuthCallback from './AuthCallback';
+import EmailConfirmed from './EmailConfirmed';
+import AuthLinkExpired from './AuthLinkExpired';
+import ForgotPassword from './ForgotPassword';
+import ResetPassword from './ResetPassword';
+import AccountSecurity from './AccountSecurity';
+import PendingActivation from './PendingActivation';
 import Dashboard from './Dashboard';
 import Admin from './Admin';
 import Analytics from './Analytics';
@@ -56,10 +64,20 @@ const seo = {
   },
 };
 
-function ProtectedRoute({ children, role }: { children: JSX.Element; role?: 'admin' | 'student' }) {
+function ProtectedRoute({
+  children,
+  role,
+  requirePaidAccess = false,
+}: {
+  children: JSX.Element;
+  role?: 'admin' | 'student';
+  requirePaidAccess?: boolean;
+}) {
   const user = getCurrentUser();
   if (!user) return <Navigate to="/login" replace />;
+  if (!user.emailConfirmed) return <Navigate to={`/auth/check-email?email=${encodeURIComponent(user.email)}`} replace />;
   if (role && user.role !== role) return <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />;
+  if (requirePaidAccess && user.role !== 'admin' && !user.hasAccess) return <Navigate to="/pending-activation" replace />;
   return children;
 }
 
@@ -92,7 +110,15 @@ export default function Index() {
       <Route path="/" element={<><Seo {...seo.home} schema={homeSchoolSchema} /><Navbar lang={lang} setLang={setLang} /><Home lang={lang} /></>} />
       <Route path="/login" element={<><Seo {...seo.login} /><Login lang={lang} /></>} />
       <Route path="/register" element={<><Seo {...seo.register} /><Register lang={lang} /></>} />
-      <Route path="/dashboard" element={<><Seo {...seo.dashboard} /><ProtectedRoute><Dashboard lang={lang} /></ProtectedRoute></>} />
+      <Route path="/auth/check-email" element={<><Seo title="Check Email | Vetoschool" description="Confirm your Vetoschool email address." path="/auth/check-email" noindex /><CheckEmail lang={lang} /></>} />
+      <Route path="/auth/callback" element={<><Seo title="Auth Callback | Vetoschool" description="Vetoschool authentication callback." path="/auth/callback" noindex /><AuthCallback lang={lang} /></>} />
+      <Route path="/auth/confirmed" element={<><Seo title="Email Confirmed | Vetoschool" description="Vetoschool email confirmation success." path="/auth/confirmed" noindex /><EmailConfirmed lang={lang} /></>} />
+      <Route path="/auth/link-expired" element={<><Seo title="Auth Link Expired | Vetoschool" description="Vetoschool authentication link expired." path="/auth/link-expired" noindex /><AuthLinkExpired lang={lang} /></>} />
+      <Route path="/forgot-password" element={<><Seo title="Forgot Password | Vetoschool" description="Recover your Vetoschool password." path="/forgot-password" noindex /><ForgotPassword lang={lang} /></>} />
+      <Route path="/reset-password" element={<><Seo title="Reset Password | Vetoschool" description="Reset your Vetoschool password." path="/reset-password" noindex /><ResetPassword lang={lang} /></>} />
+      <Route path="/pending-activation" element={<><Seo title="Pending Activation | Vetoschool" description="Vetoschool paid access pending activation." path="/pending-activation" noindex /><ProtectedRoute><PendingActivation lang={lang} /></ProtectedRoute></>} />
+      <Route path="/account/security" element={<><Seo title="Account Security | Vetoschool" description="Manage Vetoschool account security." path="/account/security" noindex /><ProtectedRoute><AccountSecurity lang={lang} /></ProtectedRoute></>} />
+      <Route path="/dashboard" element={<><Seo {...seo.dashboard} /><ProtectedRoute requirePaidAccess><Dashboard lang={lang} /></ProtectedRoute></>} />
       <Route path="/admin" element={<><Seo {...seo.admin} /><ProtectedRoute role="admin"><Admin lang={lang} setLang={setLang} /></ProtectedRoute></>} />
       <Route path="/analytics/:userId" element={<><Seo {...seo.analytics} /><ProtectedRoute role="admin"><Analytics lang={lang} setLang={setLang} /></ProtectedRoute></>} />
       <Route path="*" element={<><Seo {...seo.notFound} /><NotFound /></>} />
