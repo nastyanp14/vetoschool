@@ -10,6 +10,51 @@ import Dashboard from './Dashboard';
 import Admin from './Admin';
 import Analytics from './Analytics';
 import NotFound from './NotFound';
+import { Seo, homeSchoolSchema } from '../components/Seo';
+
+const seo = {
+  home: {
+    title: 'Vetoschool | Online English School for Kids',
+    description: 'Vetoschool offers playful online English lessons for children ages 5-12 with interactive practice, homework, listening, and grammar.',
+    path: '/',
+  },
+  login: {
+    title: 'Login | Vetoschool',
+    description: 'Sign in to the private Vetoschool learning account for students, teachers, and administrators.',
+    path: '/login',
+    noindex: true,
+  },
+  register: {
+    title: 'Register | Vetoschool',
+    description: 'Create a private Vetoschool learning account for access to student lessons and homework.',
+    path: '/register',
+    noindex: true,
+  },
+  dashboard: {
+    title: 'Student Dashboard | Vetoschool',
+    description: 'Private Vetoschool student dashboard with lessons, practice, progress, and homework.',
+    path: '/dashboard',
+    noindex: true,
+  },
+  admin: {
+    title: 'Admin | Vetoschool',
+    description: 'Private Vetoschool admin area for managing students, lessons, and learning content.',
+    path: '/admin',
+    noindex: true,
+  },
+  analytics: {
+    title: 'Student Analytics | Vetoschool',
+    description: 'Private Vetoschool analytics page for reviewing individual student learning progress.',
+    path: '/analytics',
+    noindex: true,
+  },
+  notFound: {
+    title: 'Page Not Found | Vetoschool',
+    description: 'The requested Vetoschool page could not be found.',
+    path: '/',
+    noindex: true,
+  },
+};
 
 function ProtectedRoute({ children, role }: { children: JSX.Element; role?: 'admin' | 'student' }) {
   const user = getCurrentUser();
@@ -44,13 +89,13 @@ export default function Index() {
 
   return (
     <Routes>
-      <Route path="/" element={<><Navbar lang={lang} setLang={setLang} /><Home lang={lang} /></>} />
-      <Route path="/login" element={<Login lang={lang} />} />
-      <Route path="/register" element={<Register lang={lang} />} />
-      <Route path="/dashboard" element={<ProtectedRoute><Dashboard lang={lang} /></ProtectedRoute>} />
-      <Route path="/admin" element={<ProtectedRoute role="admin"><Admin lang={lang} setLang={setLang} /></ProtectedRoute>} />
-      <Route path="/analytics/:userId" element={<ProtectedRoute role="admin"><Analytics lang={lang} setLang={setLang} /></ProtectedRoute>} />
-      <Route path="*" element={<NotFound />} />
+      <Route path="/" element={<><Seo {...seo.home} schema={homeSchoolSchema} /><Navbar lang={lang} setLang={setLang} /><Home lang={lang} /></>} />
+      <Route path="/login" element={<><Seo {...seo.login} /><Login lang={lang} /></>} />
+      <Route path="/register" element={<><Seo {...seo.register} /><Register lang={lang} /></>} />
+      <Route path="/dashboard" element={<><Seo {...seo.dashboard} /><ProtectedRoute><Dashboard lang={lang} /></ProtectedRoute></>} />
+      <Route path="/admin" element={<><Seo {...seo.admin} /><ProtectedRoute role="admin"><Admin lang={lang} setLang={setLang} /></ProtectedRoute></>} />
+      <Route path="/analytics/:userId" element={<><Seo {...seo.analytics} /><ProtectedRoute role="admin"><Analytics lang={lang} setLang={setLang} /></ProtectedRoute></>} />
+      <Route path="*" element={<><Seo {...seo.notFound} /><NotFound /></>} />
     </Routes>
   );
 }
