@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, BookOpen, CheckCircle2, RotateCcw, Sparkles, Trophy, XCircle } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, Headphones, Mic, RotateCcw, Sparkles, Square, Trophy, Volume2, XCircle } from 'lucide-react';
 import {
   Lesson, InteractiveTask, listTasks, markLessonComplete, signedUrlFor,
 } from '../lib/workbooks';
@@ -11,8 +11,34 @@ import {
   listLiveEvents, subscribeLiveSessionEvents, updateLiveSession,
 } from '../lib/live';
 import TheoryLessonView from './TheoryLessonView';
+import type { Lang } from '../lib/i18n';
 
-type TaskTelemetry = (eventType: string, payload?: any) => void;
+type TaskTelemetry = (eventType: string, payload?: unknown) => void;
+type SpeakingMode = 'repeat_word' | 'read_sentence' | 'name_picture' | 'answer_question' | 'describe_animal' | 'speak_20_seconds';
+type SpeechRecognitionResult = 'great' | 'almost' | 'retry' | 'sound';
+type SpeakingPayload = Partial<{ mode: SpeakingMode; target: string; prompt: string; seconds: number; image: string; audio: string }>;
+type SpeechRecognitionEventLike = { results: ArrayLike<ArrayLike<{ transcript?: string }>> };
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+function getSpeechRecognitionConstructor() {
+  return ((window as Window & {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  }).SpeechRecognition || (window as Window & {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  }).webkitSpeechRecognition);
+}
 
 const tileBase = 'min-h-14 rounded-2xl border-2 px-4 py-3 font-body font-700 text-base shadow-sm transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-pink-200/70';
 const liveTile = 'bg-white/95 border-purple-100 text-purple-700 shadow-md shadow-purple-100/60 hover:-translate-y-0.5 hover:border-pink-300 hover:shadow-lg dark:bg-[#2b1a3d] dark:border-purple-700 dark:text-purple-100 dark:shadow-none dark:hover:border-pink-400';
@@ -33,6 +59,391 @@ function LessonProgress({ current, total }: { current: number; total: number }) 
   );
 }
 
+const mechanicCopy: Record<Lang, Partial<Record<MechanicType, { title: string; instruction: string }>>> = {
+  ru: {
+    matching: { title: 'Найди пары', instruction: 'Выбери карточку слева, затем соедини её с правильной карточкой справа.' },
+    word_lego: { title: 'Собери слова', instruction: 'Соедини две части, чтобы получилось правильное слово или фраза.' },
+    fill_letters: { title: 'Заполни пропуски', instruction: 'Впиши недостающие буквы или слова.' },
+    anagram_unscramble: { title: 'Собери анаграмму', instruction: 'Расставь перемешанные буквы в правильном порядке.' },
+    odd_one_out: { title: 'Найди лишнее', instruction: 'Выбери карточку, которая не подходит к остальным.' },
+    category_sorting: { title: 'Разложи по категориям', instruction: 'Выбирай карточки и отправляй их в подходящую группу.' },
+    cipher_decoder: { title: 'Расшифруй слово', instruction: 'Найди в алфавите букву под каждым числом и запиши получившееся слово.' },
+    word_search: { title: 'Найди слова', instruction: 'Нажми на первую и последнюю букву слова. Слова могут идти по горизонтали, вертикали и диагонали.' },
+    speaking_practice: { title: 'Говорим вслух', instruction: 'Нажми на микрофон, скажи фразу и получи мягкую подсказку по произношению.' },
+    digital_coloring: { title: 'Раскрась рисунок', instruction: 'Выбери цвет и закрась области с таким же кодом.' },
+  },
+  en: {
+    matching: { title: 'Match the pairs', instruction: 'Choose a card on the left, then connect it to the matching card on the right.' },
+    word_lego: { title: 'Build the words', instruction: 'Join two parts to make the correct word or phrase.' },
+    fill_letters: { title: 'Fill in the blanks', instruction: 'Type the missing letters or words.' },
+    anagram_unscramble: { title: 'Unscramble the word', instruction: 'Put the shuffled letters in the correct order.' },
+    odd_one_out: { title: 'Find the odd one out', instruction: 'Choose the card that does not belong with the others.' },
+    category_sorting: { title: 'Sort into categories', instruction: 'Choose each card and place it in the correct group.' },
+    cipher_decoder: { title: 'Decode the word', instruction: 'Find the letter for each number in the alphabet key, then type the word.' },
+    word_search: { title: 'Find the words', instruction: 'Tap the first and last letters. Words can run horizontally, vertically, or diagonally.' },
+    speaking_practice: { title: 'Speak out loud', instruction: 'Tap the microphone, say the phrase, and get a gentle pronunciation hint.' },
+    digital_coloring: { title: 'Color the picture', instruction: 'Choose a color and fill the regions with the matching code.' },
+  },
+  ua: {
+    matching: { title: 'Знайди пари', instruction: 'Обери картку ліворуч, потім з’єднай її з правильною карткою праворуч.' },
+    word_lego: { title: 'Склади слова', instruction: 'З’єднай дві частини, щоб утворити правильне слово або фразу.' },
+    fill_letters: { title: 'Заповни пропуски', instruction: 'Впиши пропущені літери або слова.' },
+    anagram_unscramble: { title: 'Склади анаграму', instruction: 'Розташуй перемішані літери у правильному порядку.' },
+    odd_one_out: { title: 'Знайди зайве', instruction: 'Обери картку, яка не пасує до інших.' },
+    category_sorting: { title: 'Розклади за категоріями', instruction: 'Обирай картки та відправляй їх до потрібної групи.' },
+    cipher_decoder: { title: 'Розшифруй слово', instruction: 'Знайди в алфавіті літеру під кожним числом і впиши слово.' },
+    word_search: { title: 'Знайди слова', instruction: 'Натисни першу та останню літери. Слова можуть бути по горизонталі, вертикалі чи діагоналі.' },
+    speaking_practice: { title: 'Говоримо вголос', instruction: 'Натисни на мікрофон, скажи фразу й отримай мʼяку підказку щодо вимови.' },
+    digital_coloring: { title: 'Розфарбуй малюнок', instruction: 'Обери колір і зафарбуй області з таким самим кодом.' },
+  },
+};
+
+const roomCopy = {
+  ru: {
+    exit: 'Выйти',
+    theoryLesson: 'Теоретический урок',
+    taskProgress: (current: number, total: number) => `Задание ${current} из ${total}`,
+    teacherHint: 'Учитель отправил подсказку',
+    loading: 'Загрузка…',
+    noTheory: 'Материал теоретического урока пока не добавлен.',
+    noTasks: 'В этом уроке пока нет заданий.',
+    backToMap: 'Назад к карте',
+    studied: 'Я изучил(а) материал',
+    mechanicWip: (name: string) => `Механика «${name}» ещё в разработке.`,
+    skip: 'Пропустить',
+    complete: 'Урок пройден!',
+    great: 'Отличная работа!',
+    toMap: 'На карту',
+  },
+  en: {
+    exit: 'Exit',
+    theoryLesson: 'Theory lesson',
+    taskProgress: (current: number, total: number) => `Task ${current} of ${total}`,
+    teacherHint: 'The teacher sent a hint',
+    loading: 'Loading…',
+    noTheory: 'Theory material has not been added yet.',
+    noTasks: 'This lesson has no tasks yet.',
+    backToMap: 'Back to map',
+    studied: 'I studied the material',
+    mechanicWip: (name: string) => `The “${name}” mechanic is still in progress.`,
+    skip: 'Skip',
+    complete: 'Lesson complete!',
+    great: 'Great job!',
+    toMap: 'To map',
+  },
+  ua: {
+    exit: 'Вийти',
+    theoryLesson: 'Теоретичний урок',
+    taskProgress: (current: number, total: number) => `Завдання ${current} з ${total}`,
+    teacherHint: 'Учитель надіслав підказку',
+    loading: 'Завантаження…',
+    noTheory: 'Матеріал теоретичного уроку ще не додано.',
+    noTasks: 'У цьому уроці поки немає завдань.',
+    backToMap: 'Назад до карти',
+    studied: 'Я вивчив/вивчила матеріал',
+    mechanicWip: (name: string) => `Механіка «${name}» ще в розробці.`,
+    skip: 'Пропустити',
+    complete: 'Урок пройдено!',
+    great: 'Чудова робота!',
+    toMap: 'До карти',
+  },
+} as const;
+
+const taskCopy = {
+  ru: {
+    matchingDone: 'Отлично! Все пары соединены',
+    built: 'Собрано',
+    partOne: 'Часть 1',
+    partTwo: 'Часть 2',
+    check: 'Проверить',
+    undoLast: 'Убрать последнюю',
+    addOptions: 'Добавьте варианты в конструкторе.',
+    option: 'Вариант',
+    addCategories: 'Добавьте категории и элементы в конструкторе.',
+    chooseCard: 'Выбери карточку',
+    sendToCategory: 'Отправь в категорию',
+    addWords: 'Добавьте слова в конструкторе.',
+    clear: 'Очистить',
+    addDots: 'Добавьте минимум две точки в конструкторе.',
+    nextPoint: 'Следующая точка',
+    addObjects: 'Добавьте объекты для поиска в конструкторе.',
+    addPalette: 'Добавьте палитру и области в конструкторе.',
+    colored: 'Закрашено',
+    choosePencil: 'Выбери карандаш',
+    coloringTodo: 'Что раскрасить',
+    listen: 'Послушать',
+    startSpeaking: 'Сказать',
+    stopSpeaking: 'Готово',
+    listeningNow: 'Слушаю...',
+    heard: 'Я услышал(а)',
+    noSpeech: 'Микрофон не распознал речь. Попробуй ещё раз.',
+    micUnsupported: 'Распознавание речи недоступно в этом браузере.',
+    micPermission: 'Разреши доступ к микрофону и попробуй ещё раз.',
+    greatPronunciation: 'Отлично',
+    almostPronunciation: 'Почти правильно',
+    retryPronunciation: 'Попробуй ещё раз',
+    soundPronunciation: 'Послушай сложный звук',
+    trickyPart: 'Сложный кусочек',
+    sayAnything: 'Говори свободно',
+    secondsLeft: 'сек.',
+    repeatWord: 'Повтори слово',
+    readSentence: 'Прочитай предложение',
+    namePicture: 'Назови картинку',
+    answerQuestion: 'Ответь на вопрос',
+    describeAnimal: 'Опиши животное',
+    speakTwentySeconds: 'Говори 20 секунд',
+    defaultPrompt: 'Скажи ответ вслух',
+    picturePrompt: 'Посмотри на картинку и скажи, что это.',
+    answerHidden: 'Ответ появится после попытки.',
+    hintAnswer: 'Подсказка',
+    missingExpected: 'Правильный ответ не добавлен в задании.',
+  },
+  en: {
+    matchingDone: 'Great! All pairs are matched',
+    built: 'Built',
+    partOne: 'Part 1',
+    partTwo: 'Part 2',
+    check: 'Check',
+    undoLast: 'Remove last',
+    addOptions: 'Add options in the builder.',
+    option: 'Option',
+    addCategories: 'Add categories and items in the builder.',
+    chooseCard: 'Choose a card',
+    sendToCategory: 'Send to category',
+    addWords: 'Add words in the builder.',
+    clear: 'Clear',
+    addDots: 'Add at least two points in the builder.',
+    nextPoint: 'Next point',
+    addObjects: 'Add objects to find in the builder.',
+    addPalette: 'Add a palette and regions in the builder.',
+    colored: 'Colored',
+    choosePencil: 'Choose a pencil',
+    coloringTodo: 'What to color',
+    listen: 'Listen',
+    startSpeaking: 'Speak',
+    stopSpeaking: 'Done',
+    listeningNow: 'Listening...',
+    heard: 'I heard',
+    noSpeech: 'The microphone did not catch speech. Try again.',
+    micUnsupported: 'Speech recognition is not available in this browser.',
+    micPermission: 'Allow microphone access and try again.',
+    greatPronunciation: 'Great',
+    almostPronunciation: 'Almost there',
+    retryPronunciation: 'Try again',
+    soundPronunciation: 'Listen to this sound',
+    trickyPart: 'Tricky part',
+    sayAnything: 'Speak freely',
+    secondsLeft: 'sec.',
+    repeatWord: 'Repeat the word',
+    readSentence: 'Read the sentence',
+    namePicture: 'Name the picture',
+    answerQuestion: 'Answer the question',
+    describeAnimal: 'Describe the animal',
+    speakTwentySeconds: 'Speak for 20 seconds',
+    defaultPrompt: 'Say the answer out loud',
+    picturePrompt: 'Look at the picture and say what it is.',
+    answerHidden: 'The answer appears after you try.',
+    hintAnswer: 'Hint',
+    missingExpected: 'The correct answer has not been added to this task.',
+  },
+  ua: {
+    matchingDone: 'Чудово! Усі пари зʼєднано',
+    built: 'Складено',
+    partOne: 'Частина 1',
+    partTwo: 'Частина 2',
+    check: 'Перевірити',
+    undoLast: 'Прибрати останню',
+    addOptions: 'Додайте варіанти в конструкторі.',
+    option: 'Варіант',
+    addCategories: 'Додайте категорії та елементи в конструкторі.',
+    chooseCard: 'Обери картку',
+    sendToCategory: 'Відправ у категорію',
+    addWords: 'Додайте слова в конструкторі.',
+    clear: 'Очистити',
+    addDots: 'Додайте щонайменше дві точки в конструкторі.',
+    nextPoint: 'Наступна точка',
+    addObjects: 'Додайте обʼєкти для пошуку в конструкторі.',
+    addPalette: 'Додайте палітру та області в конструкторі.',
+    colored: 'Зафарбовано',
+    choosePencil: 'Обери олівець',
+    coloringTodo: 'Що розфарбувати',
+    listen: 'Послухати',
+    startSpeaking: 'Сказати',
+    stopSpeaking: 'Готово',
+    listeningNow: 'Слухаю...',
+    heard: 'Я почув/почула',
+    noSpeech: 'Мікрофон не розпізнав мовлення. Спробуй ще раз.',
+    micUnsupported: 'Розпізнавання мовлення недоступне в цьому браузері.',
+    micPermission: 'Дозволь доступ до мікрофона й спробуй ще раз.',
+    greatPronunciation: 'Чудово',
+    almostPronunciation: 'Майже правильно',
+    retryPronunciation: 'Спробуй ще раз',
+    soundPronunciation: 'Послухай складний звук',
+    trickyPart: 'Складний шматочок',
+    sayAnything: 'Говори вільно',
+    secondsLeft: 'сек.',
+    repeatWord: 'Повтори слово',
+    readSentence: 'Прочитай речення',
+    namePicture: 'Назви картинку',
+    answerQuestion: 'Відповідай на запитання',
+    describeAnimal: 'Опиши тварину',
+    speakTwentySeconds: 'Говори 20 секунд',
+    defaultPrompt: 'Скажи відповідь уголос',
+    picturePrompt: 'Подивись на картинку і скажи, що це.',
+    answerHidden: 'Відповідь зʼявиться після спроби.',
+    hintAnswer: 'Підказка',
+    missingExpected: 'Правильну відповідь не додано до завдання.',
+  },
+} as const;
+
+function playFeedbackSound(kind: 'correct' | 'wrong') {
+  try {
+    const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const context = new AudioContextClass();
+    const master = context.createGain();
+    master.gain.setValueAtTime(0.0001, context.currentTime);
+    master.gain.exponentialRampToValueAtTime(kind === 'correct' ? 0.28 : 0.23, context.currentTime + 0.02);
+    master.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.7);
+    master.connect(context.destination);
+    const notes = kind === 'correct' ? [523.25, 659.25, 783.99, 1046.5] : [220, 196, 164.81];
+    notes.forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      const start = context.currentTime + index * (kind === 'correct' ? 0.075 : 0.105);
+      oscillator.type = kind === 'correct' ? 'triangle' : 'sawtooth';
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(kind === 'correct' ? 0.18 : 0.1, start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + (kind === 'correct' ? 0.28 : 0.24));
+      oscillator.connect(gain).connect(master);
+      oscillator.start(start);
+      oscillator.stop(start + 0.34);
+    });
+    window.setTimeout(() => context.close(), 1000);
+  } catch {
+    // Sound feedback is optional when a browser blocks Web Audio.
+  }
+}
+
+function playButtonSound(kind: 'check' | 'study' | 'task') {
+  try {
+    const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const context = new AudioContextClass();
+    const master = context.createGain();
+    master.gain.setValueAtTime(0.0001, context.currentTime);
+    master.gain.exponentialRampToValueAtTime(kind === 'study' ? 0.24 : 0.18, context.currentTime + 0.018);
+    master.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.62);
+    master.connect(context.destination);
+    const notes = kind === 'study'
+      ? [392, 523.25, 659.25, 783.99]
+      : kind === 'task'
+        ? [587.33, 739.99, 880]
+        : [440, 554.37];
+    notes.forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      const start = context.currentTime + index * 0.065;
+      oscillator.type = kind === 'check' ? 'square' : 'sine';
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(kind === 'study' ? 0.12 : 0.08, start + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.18);
+      oscillator.connect(gain).connect(master);
+      oscillator.start(start);
+      oscillator.stop(start + 0.22);
+    });
+    window.setTimeout(() => context.close(), 850);
+  } catch {
+    // Optional UI sound.
+  }
+}
+
+function playCompletionSound() {
+  try {
+    const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const context = new AudioContextClass();
+    const master = context.createGain();
+    master.gain.setValueAtTime(0.0001, context.currentTime);
+    master.gain.exponentialRampToValueAtTime(0.26, context.currentTime + 0.04);
+    master.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 1.25);
+    master.connect(context.destination);
+
+    [523.25, 659.25, 783.99, 1046.5].forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      const start = context.currentTime + index * 0.11;
+      oscillator.type = index === 3 ? 'triangle' : 'sine';
+      oscillator.frequency.setValueAtTime(frequency, start);
+      oscillator.frequency.exponentialRampToValueAtTime(frequency * 1.02, start + 0.22);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.34);
+      oscillator.connect(gain).connect(master);
+      oscillator.start(start);
+      oscillator.stop(start + 0.38);
+    });
+
+    [1318.51, 1567.98, 2093].forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      const start = context.currentTime + 0.48 + index * 0.055;
+      oscillator.type = 'sine';
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.08, start + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+      oscillator.connect(gain).connect(master);
+      oscillator.start(start);
+      oscillator.stop(start + 0.18);
+    });
+    window.setTimeout(() => context.close(), 1300);
+  } catch {
+    // Celebration visuals still carry the moment when audio is blocked.
+  }
+}
+
+function CompletionCelebration({ stars, copy, onExit }: { stars: number; copy: { complete: string; great: string; toMap: string }; onExit: () => void }) {
+  const confetti = [
+    ['⭐', -132, -120, 0.02], ['✦', -94, -164, 0.08], ['●', -42, -138, 0.14], ['✧', 36, -158, 0.04],
+    ['★', 86, -124, 0.12], ['●', 132, -92, 0.18], ['✦', -116, 42, 0.2], ['⭐', 116, 34, 0.1],
+  ] as const;
+  return (
+    <motion.div initial={{ scale: 0.92, opacity: 0, y: 18 }} animate={{ scale: 1, opacity: 1, y: 0 }} className="relative overflow-hidden rounded-[2rem] border border-pink-100 bg-gradient-to-br from-white via-pink-50 to-violet-50 px-5 py-8 text-center shadow-2xl shadow-purple-100/60 dark:border-purple-500/30 dark:from-[#241331] dark:via-[#1b1028] dark:to-[#261437] dark:shadow-none sm:px-10 sm:py-12">
+      <div className="pointer-events-none absolute inset-0">
+        {confetti.map(([symbol, x, y, delay], index) => (
+          <motion.span
+            key={`${symbol}-${index}`}
+            initial={{ opacity: 0, x: 0, y: 0, scale: 0.3, rotate: 0 }}
+            animate={{ opacity: [0, 1, 1, 0], x, y, scale: [0.3, 1.25, 1], rotate: index % 2 ? 26 : -22 }}
+            transition={{ duration: 1.45, delay, ease: 'easeOut', repeat: Infinity, repeatDelay: 1.7 }}
+            className={`absolute left-1/2 top-[42%] text-xl ${symbol === '●' ? 'text-pink-400 dark:text-fuchsia-300' : 'text-yellow-400 dark:text-yellow-300'}`}
+          >
+            {symbol}
+          </motion.span>
+        ))}
+      </div>
+      <motion.div
+        animate={{ scale: [1, 1.05, 1], rotate: [0, -2, 2, 0] }}
+        transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+        className="relative mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-[2rem] bg-gradient-to-br from-yellow-100 via-pink-100 to-purple-100 text-yellow-500 shadow-2xl shadow-pink-200/70 dark:from-yellow-300/20 dark:via-pink-400/20 dark:to-purple-500/25 dark:text-yellow-300 dark:shadow-purple-950/50"
+      >
+        <motion.span className="absolute inset-[-18px] rounded-[2.4rem] border border-yellow-200/70 dark:border-yellow-300/25" animate={{ scale: [0.9, 1.18, 0.9], opacity: [0.2, 0.7, 0.2] }} transition={{ duration: 1.7, repeat: Infinity }} />
+        <Trophy className="relative h-12 w-12" />
+      </motion.div>
+      <div className="relative">
+        <h3 className="mb-2 font-display text-3xl font-black text-purple-800 dark:text-purple-100 sm:text-4xl">{copy.complete}</h3>
+        {stars > 0
+          ? <p className="font-body text-xl font-black text-yellow-600 dark:text-yellow-300">+{stars} ⭐</p>
+          : <p className="font-body text-lg font-bold text-purple-500 dark:text-purple-200">{copy.great}</p>}
+        <button onClick={onExit} className="mt-6 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-400 px-7 py-3 font-body font-900 text-white shadow-xl shadow-pink-200/60 transition hover:-translate-y-0.5 hover:shadow-2xl dark:shadow-none">{copy.toMap}</button>
+      </div>
+    </motion.div>
+  );
+}
+
 // ==================== Utility: signed image ====================
 function SignedImg({ path, className }: { path: string; className?: string }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -41,8 +452,352 @@ function SignedImg({ path, className }: { path: string; className?: string }) {
   return <img src={url} alt="" className={className} />;
 }
 
+function normalizeSpeechText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-zа-яёіїєґ0-9\s'-]+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function levenshteinSimilarity(a: string, b: string) {
+  const left = normalizeSpeechText(a);
+  const right = normalizeSpeechText(b);
+  if (!left && !right) return 1;
+  if (!left || !right) return 0;
+  const rows = left.length + 1;
+  const cols = right.length + 1;
+  const dp = Array.from({ length: rows }, (_, row) => Array.from({ length: cols }, (_, col) => row === 0 ? col : col === 0 ? row : 0));
+  for (let row = 1; row < rows; row++) for (let col = 1; col < cols; col++) {
+    const cost = left[row - 1] === right[col - 1] ? 0 : 1;
+    dp[row][col] = Math.min(dp[row - 1][col] + 1, dp[row][col - 1] + 1, dp[row - 1][col - 1] + cost);
+  }
+  const distance = dp[left.length][right.length];
+  return 1 - distance / Math.max(left.length, right.length);
+}
+
+function wordSimilarityScores(expected: string, transcript: string) {
+  const expectedWords = normalizeSpeechText(expected).split(' ').filter(Boolean);
+  const heardWords = normalizeSpeechText(transcript).split(' ').filter(Boolean);
+  return expectedWords.map((word, index) => ({
+    word,
+    heard: heardWords[index] || '',
+    score: levenshteinSimilarity(word, heardWords[index] || ''),
+  }));
+}
+
+function speakingScore(expected: string, transcript: string, mode: SpeakingMode): { result: SpeechRecognitionResult; score: number; tricky: string } {
+  const cleanExpected = normalizeSpeechText(expected);
+  const cleanTranscript = normalizeSpeechText(transcript);
+  if (!cleanExpected) {
+    const wordCount = cleanTranscript.split(/\s+/).filter(Boolean).length;
+    const score = mode === 'speak_20_seconds' ? Math.min(1, wordCount / 18) : Math.min(1, wordCount / 8);
+    return { result: score > 0.72 ? 'great' : score > 0.38 ? 'almost' : 'retry', score, tricky: '' };
+  }
+  const wordScores = wordSimilarityScores(cleanExpected, cleanTranscript);
+  const averageWordScore = wordScores.length
+    ? wordScores.reduce((sum, item) => sum + item.score, 0) / wordScores.length
+    : levenshteinSimilarity(cleanExpected, cleanTranscript);
+  const lengthPenalty = Math.abs(cleanExpected.split(' ').filter(Boolean).length - cleanTranscript.split(' ').filter(Boolean).length) * 0.08;
+  const score = Math.max(0, Math.min(1, averageWordScore - lengthPenalty));
+  const weakest = wordScores.reduce((min, item) => item.score < min.score ? item : min, wordScores[0] || { word: '', heard: '', score: 1 });
+  const minWordScore = weakest.score;
+  const trickyWord = weakest.word || cleanExpected.split(' ')[0] || '';
+  if (score >= 0.9 && minWordScore >= 0.86) return { result: 'great', score, tricky: '' };
+  if (score >= 0.7 && minWordScore >= 0.58) return { result: 'almost', score, tricky: trickyWord };
+  if (score >= 0.42) return { result: 'sound', score, tricky: trickyWord };
+  return { result: 'retry', score, tricky: trickyWord };
+}
+
+function resultStyles(result?: SpeechRecognitionResult) {
+  if (result === 'great') return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200';
+  if (result === 'almost') return 'border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-yellow-500/30 dark:bg-yellow-500/10 dark:text-yellow-100';
+  if (result === 'sound') return 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100';
+  return 'border-purple-100 bg-white/85 text-purple-600 dark:border-purple-500/25 dark:bg-white/5 dark:text-purple-200';
+}
+
+function HighlightedSpeechTarget({ target, transcript }: { target: string; transcript: string }) {
+  const heardWords = normalizeSpeechText(transcript).split(' ').filter(Boolean);
+  const words = target.split(/(\s+)/);
+  let wordIndex = 0;
+  return (
+    <div className="flex flex-wrap justify-center gap-1.5">
+      {words.map((part, index) => {
+        if (/^\s+$/.test(part)) return <span key={index} className="w-1" />;
+        const heard = heardWords[wordIndex++] || '';
+        const score = transcript ? levenshteinSimilarity(part, heard) : 1;
+        const tone = !transcript
+          ? 'bg-white text-purple-700 dark:bg-white/10 dark:text-purple-100'
+          : score >= 0.86
+            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-100'
+            : score >= 0.68
+              ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-100'
+              : 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-100';
+        return <span key={index} className={`rounded-2xl px-3 py-1.5 font-display text-lg font-black shadow-sm ${tone}`}>{part}</span>;
+      })}
+    </div>
+  );
+}
+
+function speakText(text: string, lang: Lang) {
+  if (!('speechSynthesis' in window) || !text.trim()) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = lang === 'ua' ? 'uk-UA' : lang === 'ru' ? 'ru-RU' : 'en-US';
+  utterance.rate = 0.86;
+  utterance.volume = 1;
+  window.speechSynthesis.speak(utterance);
+}
+
+function speakingModeLabel(copy: typeof taskCopy.ru, mode: SpeakingMode) {
+  return {
+    repeat_word: copy.repeatWord,
+    read_sentence: copy.readSentence,
+    name_picture: copy.namePicture,
+    answer_question: copy.answerQuestion,
+    describe_animal: copy.describeAnimal,
+    speak_20_seconds: copy.speakTwentySeconds,
+  }[mode];
+}
+
+function defaultSpeakingPrompt(copy: typeof taskCopy.ru, mode: SpeakingMode) {
+  return {
+    repeat_word: copy.repeatWord,
+    read_sentence: copy.readSentence,
+    name_picture: copy.picturePrompt,
+    answer_question: copy.defaultPrompt,
+    describe_animal: copy.describeAnimal,
+    speak_20_seconds: copy.sayAnything,
+  }[mode];
+}
+
+function SpeakingPracticeTask({ payload, onDone, onEvent, lang }: { payload: SpeakingPayload; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
+  const copy = taskCopy[lang] || taskCopy.ru;
+  const mode = (payload?.mode || 'repeat_word') as SpeakingMode;
+  const target = String(payload?.target || '').trim();
+  const rawPrompt = String(payload?.prompt || '').trim();
+  const prompt = rawPrompt === 'Say the word' && !['repeat_word', 'read_sentence'].includes(mode) ? '' : rawPrompt;
+  const seconds = Math.max(5, Math.min(60, Number(payload?.seconds) || (mode === 'speak_20_seconds' ? 20 : 12)));
+  const image = String(payload?.image || '').trim();
+  const audio = String(payload?.audio || '').trim();
+  const expectedText = (() => {
+    if (mode === 'repeat_word' || mode === 'read_sentence') return target || prompt;
+    if (mode === 'name_picture' || mode === 'answer_question') return target;
+    return target;
+  })();
+  const visiblePrompt = mode === 'repeat_word' || mode === 'read_sentence'
+    ? defaultSpeakingPrompt(copy, mode)
+    : (prompt || defaultSpeakingPrompt(copy, mode));
+  const hidesAnswerInitially = ['name_picture', 'answer_question', 'describe_animal'].includes(mode);
+  const freeSpeakingMode = mode === 'speak_20_seconds' || mode === 'describe_animal';
+  const needsExpectedAnswer = !freeSpeakingMode;
+  const showMainPrompt = !['repeat_word', 'read_sentence'].includes(mode);
+  const [recording, setRecording] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const [hint, setHint] = useState('');
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [remaining, setRemaining] = useState(seconds);
+  const [attempted, setAttempted] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const timerRef = useRef<number | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const score = transcript && (expectedText || freeSpeakingMode) ? speakingScore(expectedText, transcript, mode) : null;
+  const resultLabel = score?.result === 'great'
+    ? copy.greatPronunciation
+    : score?.result === 'almost'
+      ? copy.almostPronunciation
+      : score?.result === 'sound'
+        ? copy.soundPronunciation
+        : copy.retryPronunciation;
+  const showAnswer = Boolean(expectedText) && (!hidesAnswerInitially || attempted || score?.result === 'great');
+
+  useEffect(() => () => {
+    recognitionRef.current?.stop?.();
+    if (timerRef.current) window.clearInterval(timerRef.current);
+    micStreamRef.current?.getTracks().forEach(track => track.stop());
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    if (!audio) {
+      setAudioUrl(null);
+      return;
+    }
+    if (/^(https?:|data:|blob:)/.test(audio)) setAudioUrl(audio);
+    else signedUrlFor(audio, 3600).then(url => { if (alive) setAudioUrl(url); });
+    return () => { alive = false; };
+  }, [audio]);
+
+  const stop = () => {
+    recognitionRef.current?.stop?.();
+    recognitionRef.current = null;
+    setRecording(false);
+    if (timerRef.current) window.clearInterval(timerRef.current);
+    timerRef.current = null;
+    micStreamRef.current?.getTracks().forEach(track => track.stop());
+    micStreamRef.current = null;
+  };
+
+  const start = async () => {
+    const SpeechRecognitionClass = getSpeechRecognitionConstructor();
+    if (!SpeechRecognitionClass) {
+      setHint(copy.micUnsupported);
+      onEvent('speech_unsupported', { mechanic: 'speaking_practice' });
+      return;
+    }
+    try {
+      if (navigator.mediaDevices?.getUserMedia) {
+        micStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+    } catch {
+      setHint(copy.micPermission);
+      onEvent('speech_permission_denied', { mechanic: 'speaking_practice' });
+      return;
+    }
+    setTranscript('');
+    setHint('');
+    setAttempted(false);
+    setRemaining(seconds);
+    const recognition = new SpeechRecognitionClass();
+    recognitionRef.current = recognition;
+    recognition.lang = 'en-US';
+    recognition.interimResults = true;
+    recognition.continuous = mode === 'speak_20_seconds' || mode === 'describe_animal';
+    recognition.onresult = (event: SpeechRecognitionEventLike) => {
+      const text = Array.from(event.results).map(result => Array.from(result)[0]?.transcript || '').join(' ').trim();
+      setTranscript(text);
+    };
+    recognition.onerror = () => {
+      setHint(copy.noSpeech);
+      setRecording(false);
+      micStreamRef.current?.getTracks().forEach(track => track.stop());
+      micStreamRef.current = null;
+      onEvent('speech_error', { mechanic: 'speaking_practice' });
+    };
+    recognition.onend = () => {
+      setRecording(false);
+      if (timerRef.current) window.clearInterval(timerRef.current);
+      timerRef.current = null;
+      micStreamRef.current?.getTracks().forEach(track => track.stop());
+      micStreamRef.current = null;
+    };
+    try {
+      recognition.start();
+      setRecording(true);
+      onEvent('speech_started', { mechanic: 'speaking_practice', mode });
+      timerRef.current = window.setInterval(() => {
+        setRemaining(value => {
+          if (value <= 1) {
+            stop();
+            return 0;
+          }
+          return value - 1;
+        });
+      }, 1000);
+    } catch {
+      setHint(copy.micUnsupported);
+      setRecording(false);
+      micStreamRef.current?.getTracks().forEach(track => track.stop());
+      micStreamRef.current = null;
+    }
+  };
+
+  const finishSpeakingTask = () => {
+    playButtonSound('check');
+    if (needsExpectedAnswer && !expectedText) {
+      setAttempted(true);
+      setHint(copy.missingExpected);
+      onEvent('answer_wrong', { mechanic: 'speaking_practice', mode, transcript, expected: '', score: 0, result: 'retry' });
+      return;
+    }
+    const finalScore = speakingScore(expectedText, transcript, mode);
+    setAttempted(true);
+    onEvent(finalScore.result === 'great' ? 'answer_correct' : 'answer_wrong', {
+      mechanic: 'speaking_practice',
+      mode,
+      transcript,
+      expected: expectedText,
+      score: Math.round(finalScore.score * 100),
+      result: finalScore.result,
+    });
+    if (finalScore.result !== 'great') return;
+    setTimeout(onDone, 650);
+  };
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-5">
+      <section className="overflow-hidden rounded-[2rem] border border-pink-100 bg-gradient-to-br from-white via-pink-50/70 to-sky-50 p-5 text-center shadow-xl shadow-purple-100/40 dark:border-purple-500/25 dark:from-[#251331] dark:via-[#211231] dark:to-[#102039] dark:shadow-none">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[1.4rem] bg-gradient-to-br from-pink-400 to-purple-500 text-white shadow-lg shadow-pink-200/50 dark:shadow-none">
+          <Mic className="h-8 w-8" />
+        </div>
+        <div className="mb-2 font-body text-xs font-black uppercase tracking-wider text-pink-400">{speakingModeLabel(copy, mode)}</div>
+        {showMainPrompt && <h3 className="mx-auto max-w-2xl font-display text-2xl font-black leading-tight text-purple-800 dark:text-purple-100 sm:text-3xl">{visiblePrompt}</h3>}
+        {image && (
+          <div className="mx-auto mt-4 max-w-sm overflow-hidden rounded-3xl border border-white bg-white/80 p-2 shadow-md dark:border-purple-500/20 dark:bg-white/5">
+            <SignedImg path={image} className="aspect-[4/3] w-full rounded-2xl object-cover" />
+          </div>
+        )}
+        {showAnswer && expectedText && (
+          <div className="mt-5 rounded-3xl border border-purple-100 bg-white/70 p-4 dark:border-purple-500/20 dark:bg-white/5">
+            {hidesAnswerInitially && attempted && score?.result !== 'great' && (
+              <div className="mb-2 font-body text-xs font-black uppercase tracking-wider text-orange-400">{copy.hintAnswer}</div>
+            )}
+            <HighlightedSpeechTarget target={expectedText} transcript={transcript} />
+          </div>
+        )}
+        {!showAnswer && expectedText && (
+          <div className="mt-5 rounded-3xl border border-dashed border-purple-100 bg-white/50 px-4 py-3 font-body text-sm font-black text-purple-300 dark:border-purple-500/20 dark:bg-white/5 dark:text-purple-300">{copy.answerHidden}</div>
+        )}
+        {!expectedText && <p className="mt-4 font-body text-sm font-bold text-purple-500 dark:text-purple-200">{copy.sayAnything}</p>}
+      </section>
+
+      <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+        <div className={`rounded-3xl border p-4 shadow-sm transition ${resultStyles(score?.result)}`}>
+          <div className="mb-1 flex items-center justify-between gap-3">
+            <span className="font-body text-xs font-black uppercase tracking-wider opacity-70">{score ? resultLabel : recording ? copy.listeningNow : copy.heard}</span>
+            {recording && <span className="rounded-full bg-white/70 px-3 py-1 font-body text-xs font-black text-purple-600 dark:bg-white/10 dark:text-purple-100">{remaining} {copy.secondsLeft}</span>}
+          </div>
+          <div className="min-h-7 font-display text-lg font-black">
+            {transcript || hint || '...'}
+          </div>
+          {score?.tricky && score.result !== 'great' && (
+            <div className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-orange-100 bg-white/70 px-3 py-2 font-body text-xs font-black text-orange-600 dark:border-orange-500/20 dark:bg-white/5 dark:text-orange-100">
+              <Headphones className="h-4 w-4" /> {copy.trickyPart}: {score.tricky}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center justify-center gap-2 rounded-3xl border border-purple-100 bg-white/80 p-3 shadow-sm dark:border-purple-500/25 dark:bg-white/5">
+          {audio && (
+            <button type="button" onClick={() => {
+              if (!audioUrl) return;
+              const audioElement = new Audio(audioUrl);
+              audioElement.volume = 1;
+              audioElement.play().catch(() => undefined);
+            }} disabled={!audioUrl} className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50 text-purple-500 transition hover:-translate-y-0.5 hover:bg-pink-50 hover:text-pink-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/10 dark:text-purple-100" aria-label={copy.listen}>
+              <Volume2 className="h-5 w-5" />
+            </button>
+          )}
+          <button type="button" onClick={recording ? stop : start} className={`flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-lg transition hover:-translate-y-0.5 ${recording ? 'bg-gradient-to-br from-rose-400 to-pink-500 shadow-rose-200/50' : 'bg-gradient-to-br from-pink-400 to-purple-500 shadow-pink-200/50'}`} aria-label={recording ? copy.stopSpeaking : copy.startSpeaking}>
+            {recording ? <Square className="h-5 w-5 fill-current" /> : <Mic className="h-6 w-6" />}
+          </button>
+          <button type="button" onClick={() => { setTranscript(''); setHint(''); setAttempted(false); setRemaining(seconds); }} className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50 text-purple-500 transition hover:-translate-y-0.5 hover:bg-purple-100 dark:bg-white/10 dark:text-purple-100" aria-label={copy.clear}>
+            <RotateCcw className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex justify-center">
+        <button type="button" onClick={finishSpeakingTask} disabled={!transcript.trim()} className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-500 px-6 py-3 font-body text-sm font-black text-white shadow-xl shadow-pink-200/50 transition hover:-translate-y-0.5 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-50 dark:shadow-none">
+          <CheckCircle2 className="h-5 w-5" /> {copy.check}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ==================== MATCHING ====================
-function MatchingTask({ payload, onDone, onEvent }: { payload: any; onDone: () => void; onEvent: TaskTelemetry }) {
+function MatchingTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
+  const copy = taskCopy[lang] || taskCopy.ru;
   const pairs = payload?.pairs || [];
   const [selectedLeft, setSelectedLeft] = useState<number | null>(null);
   const [matches, setMatches] = useState<Record<number, number>>({});
@@ -119,7 +874,7 @@ function MatchingTask({ payload, onDone, onEvent }: { payload: any; onDone: () =
             exit={{ opacity: 0 }}
             className="mx-auto flex w-fit items-center gap-2 rounded-3xl border border-emerald-100 bg-emerald-50 px-4 py-2 font-body text-sm font-800 text-emerald-600 shadow-sm dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
           >
-            <CheckCircle2 className="h-5 w-5" /> Отлично! Все пары соединены
+            <CheckCircle2 className="h-5 w-5" /> {copy.matchingDone}
           </motion.div>
         )}
       </AnimatePresence>
@@ -197,7 +952,8 @@ function MatchingTask({ payload, onDone, onEvent }: { payload: any; onDone: () =
 }
 
 // ==================== WORD LEGO ====================
-function WordLegoTask({ payload, onDone, onEvent }: { payload: any; onDone: () => void; onEvent: TaskTelemetry }) {
+function WordLegoTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
+  const copy = taskCopy[lang] || taskCopy.ru;
   // For word_lego, user builds by joining halves. We use same matching interaction visually different.
   const pairs = payload?.pairs || [];
   const [selectedLeft, setSelectedLeft] = useState<number | null>(null);
@@ -266,7 +1022,7 @@ function WordLegoTask({ payload, onDone, onEvent }: { payload: any; onDone: () =
       {built.length > 0 && (
         <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-4 shadow-sm dark:border-emerald-800 dark:bg-emerald-950">
           <div className="mb-2 flex items-center gap-2 text-xs font-body font-800 uppercase tracking-wider text-emerald-600">
-            <CheckCircle2 className="h-4 w-4" /> Собрано
+            <CheckCircle2 className="h-4 w-4" /> {copy.built}
           </div>
           <div className="flex flex-wrap gap-2">
             {built.map((b, i) => (
@@ -304,7 +1060,7 @@ function WordLegoTask({ payload, onDone, onEvent }: { payload: any; onDone: () =
           })}
         </svg>
         <div className="relative z-10">
-          <div className="mb-2 text-xs font-body font-800 uppercase tracking-wider text-purple-400">Часть 1</div>
+          <div className="mb-2 text-xs font-body font-800 uppercase tracking-wider text-purple-400">{copy.partOne}</div>
           <div className="flex flex-wrap gap-2">
             {pairs.map((p: any, i: number) => (
               <button key={i} disabled={usedLefts.has(i)} ref={el => { leftRefs.current[i] = el; }} onClick={() => { setSelectedLeft(i); onEvent('choice_selected', { mechanic: 'word_lego', side: 'left', index: i }); }}
@@ -315,7 +1071,7 @@ function WordLegoTask({ payload, onDone, onEvent }: { payload: any; onDone: () =
           </div>
         </div>
         <div className="relative z-10">
-          <div className="mb-2 text-xs font-body font-800 uppercase tracking-wider text-pink-400">Часть 2</div>
+          <div className="mb-2 text-xs font-body font-800 uppercase tracking-wider text-pink-400">{copy.partTwo}</div>
           <div className="flex flex-wrap gap-2">
             {rights.map((idx: number) => (
               <button key={idx} ref={el => { rightRefs.current[idx] = el; }} disabled={selectedLeft === null || usedRights.has(idx)} onClick={() => clickRight(idx)}
@@ -331,7 +1087,8 @@ function WordLegoTask({ payload, onDone, onEvent }: { payload: any; onDone: () =
 }
 
 // ==================== FILL LETTERS ====================
-function FillLettersTask({ payload, onDone, onEvent }: { payload: any; onDone: () => void; onEvent: TaskTelemetry }) {
+function FillLettersTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
+  const copy = taskCopy[lang] || taskCopy.ru;
   const text: string = payload?.text || '';
   const answers: string[] = payload?.answers || [];
   const parts = text.split('___');
@@ -339,6 +1096,7 @@ function FillLettersTask({ payload, onDone, onEvent }: { payload: any; onDone: (
   const [checked, setChecked] = useState(false);
 
   const check = () => {
+    playButtonSound('check');
     setChecked(true);
     const ok = values.every((v, i) => v.trim().toLowerCase() === (answers[i] || '').toLowerCase());
     onEvent(ok ? 'answer_correct' : 'answer_wrong', { mechanic: 'fill_letters', values, answers });
@@ -363,7 +1121,7 @@ function FillLettersTask({ payload, onDone, onEvent }: { payload: any; onDone: (
           </span>
         ))}
       </div>
-      <button onClick={check} className="rounded-2xl bg-gradient-to-r from-pink-400 to-purple-400 px-5 py-2.5 font-body font-800 text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl">Проверить</button>
+      <button onClick={check} className="rounded-2xl bg-gradient-to-r from-pink-400 to-purple-400 px-5 py-2.5 font-body font-800 text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl">{copy.check}</button>
     </div>
   );
 }
@@ -375,7 +1133,8 @@ function shuffleStr(s: string) {
   const joined = arr.join('');
   return joined.toUpperCase() === s.toUpperCase() ? shuffleStr(s) : joined;
 }
-function AnagramTask({ payload, onDone, onEvent }: { payload: any; onDone: () => void; onEvent: TaskTelemetry }) {
+function AnagramTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
+  const copy = taskCopy[lang] || taskCopy.ru;
   const answer: string = (payload?.answer || '').trim();
   const [tiles, setTiles] = useState<{ ch: string; used: boolean }[]>([]);
   const [picked, setPicked] = useState<number[]>([]);
@@ -429,14 +1188,15 @@ function AnagramTask({ payload, onDone, onEvent }: { payload: any; onDone: () =>
         ))}
       </div>
       <button onClick={undo} className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-body font-700 text-purple-500 shadow-sm transition hover:bg-white hover:text-purple-700 dark:bg-[#2b1a3d] dark:text-purple-200">
-        <RotateCcw className="h-4 w-4" /> Убрать последнюю
+        <RotateCcw className="h-4 w-4" /> {copy.undoLast}
       </button>
     </div>
   );
 }
 
 // ==================== ODD ONE OUT ====================
-function OddOneOutTask({ payload, onDone, onEvent }: { payload: any; onDone: () => void; onEvent: TaskTelemetry }) {
+function OddOneOutTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
+  const copy = taskCopy[lang] || taskCopy.ru;
   const items: Array<{ text?: string; image?: string; is_odd?: boolean }> = payload?.items || [];
   const [wrong, setWrong] = useState<number | null>(null);
   const [correct, setCorrect] = useState<number | null>(null);
@@ -455,7 +1215,7 @@ function OddOneOutTask({ payload, onDone, onEvent }: { payload: any; onDone: () 
   };
 
   if (items.length === 0) {
-    return <p className="text-center text-purple-500 dark:text-purple-200">Добавьте варианты в конструкторе.</p>;
+    return <p className="text-center text-purple-500 dark:text-purple-200">{copy.addOptions}</p>;
   }
 
   return (
@@ -469,7 +1229,7 @@ function OddOneOutTask({ payload, onDone, onEvent }: { payload: any; onDone: () 
           }`}
         >
           {item.image && <SignedImg path={item.image} className="mx-auto mb-2 h-20 w-20 rounded-2xl object-cover" />}
-          <span>{item.text || `Вариант ${i + 1}`}</span>
+          <span>{item.text || `${copy.option} ${i + 1}`}</span>
         </button>
       ))}
     </div>
@@ -477,7 +1237,8 @@ function OddOneOutTask({ payload, onDone, onEvent }: { payload: any; onDone: () 
 }
 
 // ==================== CATEGORY SORTING ====================
-function CategorySortingTask({ payload, onDone, onEvent }: { payload: any; onDone: () => void; onEvent: TaskTelemetry }) {
+function CategorySortingTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
+  const copy = taskCopy[lang] || taskCopy.ru;
   const categories: Array<{ name: string; items: Array<{ text?: string; image?: string }> }> = payload?.categories || [];
   const allItems = useMemo(() => categories.flatMap((cat, categoryIndex) =>
     (cat.items || []).map((item, itemIndex) => ({
@@ -509,13 +1270,13 @@ function CategorySortingTask({ payload, onDone, onEvent }: { payload: any; onDon
   };
 
   if (categories.length === 0 || allItems.length === 0) {
-    return <p className="text-center text-purple-500 dark:text-purple-200">Добавьте категории и элементы в конструкторе.</p>;
+    return <p className="text-center text-purple-500 dark:text-purple-200">{copy.addCategories}</p>;
   }
 
   return (
     <div className="space-y-5">
       <div>
-        <div className="mb-2 text-xs font-body font-800 uppercase tracking-wider text-purple-400">Выбери карточку</div>
+        <div className="mb-2 text-xs font-body font-800 uppercase tracking-wider text-purple-400">{copy.chooseCard}</div>
         <div className="flex flex-wrap gap-2">
           {allItems.map(item => (
             <button
@@ -533,7 +1294,7 @@ function CategorySortingTask({ payload, onDone, onEvent }: { payload: any; onDon
         </div>
       </div>
       <div>
-        <div className="mb-2 text-xs font-body font-800 uppercase tracking-wider text-pink-400">Отправь в категорию</div>
+        <div className="mb-2 text-xs font-body font-800 uppercase tracking-wider text-pink-400">{copy.sendToCategory}</div>
         <div className="grid gap-3 sm:grid-cols-2">
           {categories.map((cat, i) => (
             <button
@@ -564,11 +1325,24 @@ function encodeCipherAnswer(answer: string) {
   }).join(' ');
 }
 
-function CipherDecoderTask({ payload, onDone, onEvent }: { payload: any; onDone: () => void; onEvent: TaskTelemetry }) {
+const cipherCopy: Record<Lang, { key: string; decode: string; empty: string; placeholder: string; check: string }> = {
+  ru: { key: 'Ключ шифра', decode: 'Расшифруй слово', empty: 'Добавьте ответ для шифра в конструкторе.', placeholder: 'Напиши слово', check: 'Проверить' },
+  en: { key: 'Cipher key', decode: 'Decode the word', empty: 'Add a cipher answer in the builder.', placeholder: 'Type the word', check: 'Check' },
+  ua: { key: 'Ключ шифру', decode: 'Розшифруй слово', empty: 'Додайте відповідь для шифру в конструкторі.', placeholder: 'Напиши слово', check: 'Перевірити' },
+};
+
+const cipherAlphabet = Array.from({ length: 26 }, (_, index) => ({
+  letter: String.fromCharCode(65 + index),
+  number: index + 1,
+}));
+
+function CipherDecoderTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
   const answer = String(payload?.answer || '').trim();
+  const copy = cipherCopy[lang];
   const [value, setValue] = useState('');
   const [checked, setChecked] = useState<'ok' | 'wrong' | null>(null);
   const check = () => {
+    playButtonSound('check');
     const ok = value.trim().toLowerCase() === answer.toLowerCase();
     setChecked(ok ? 'ok' : 'wrong');
     onEvent(ok ? 'answer_correct' : 'answer_wrong', { mechanic: 'cipher_decoder', answer: value, expected: answer });
@@ -576,13 +1350,24 @@ function CipherDecoderTask({ payload, onDone, onEvent }: { payload: any; onDone:
   };
 
   if (!answer) {
-    return <p className="text-center text-purple-500 dark:text-purple-200">Добавьте ответ для шифра в конструкторе.</p>;
+    return <p className="text-center text-purple-500 dark:text-purple-200">{copy.empty}</p>;
   }
 
   return (
-    <div className="mx-auto max-w-xl space-y-4 text-center">
-      <div className="rounded-3xl border border-purple-100 bg-white p-5 shadow-sm dark:border-purple-800 dark:bg-[#241632]">
-        <div className="mb-2 text-xs font-body font-800 uppercase tracking-wider text-pink-400">Расшифруй</div>
+    <div className="mx-auto max-w-4xl space-y-5 text-center">
+      <section className="rounded-3xl border border-purple-100 bg-gradient-to-br from-white to-purple-50/70 p-4 shadow-sm dark:border-purple-600/30 dark:from-[#2b1a3d] dark:to-[#241632] sm:p-5">
+        <div className="mb-4 font-display text-lg font-black text-purple-700 dark:text-purple-100">{copy.key}</div>
+        <div className="grid grid-cols-5 gap-2 sm:grid-cols-9 lg:grid-cols-13">
+          {cipherAlphabet.map(item => (
+            <div key={item.letter} className="overflow-hidden rounded-xl border border-pink-100 bg-white shadow-sm dark:border-purple-500/25 dark:bg-[#321c47]">
+              <div className="bg-gradient-to-r from-pink-100 to-purple-100 py-1 text-[11px] font-black text-pink-500 dark:from-pink-500/15 dark:to-purple-500/15 dark:text-pink-200">{item.number}</div>
+              <div className="py-2 font-display text-lg font-black text-purple-700 dark:text-purple-100">{item.letter}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+      <div className="rounded-3xl border border-purple-100 bg-white p-5 shadow-sm dark:border-purple-600/30 dark:bg-[#241632]">
+        <div className="mb-2 text-xs font-body font-800 uppercase tracking-wider text-pink-400">{copy.decode}</div>
         <div className="font-mono text-2xl font-black tracking-widest text-purple-800 dark:text-purple-100">{encodeCipherAnswer(answer)}</div>
       </div>
       <input
@@ -590,10 +1375,10 @@ function CipherDecoderTask({ payload, onDone, onEvent }: { payload: any; onDone:
         onChange={e => { setValue(e.target.value); setChecked(null); }}
         onKeyDown={e => { if (e.key === 'Enter') check(); }}
         className={`input-magic w-full text-center text-lg font-900 ${checked === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : checked === 'wrong' ? 'border-rose-300 bg-rose-50 text-rose-600' : ''}`}
-        placeholder="Напиши слово"
+        placeholder={copy.placeholder}
       />
       <button onClick={check} className="rounded-2xl bg-gradient-to-r from-pink-400 to-purple-400 px-5 py-2.5 font-body font-800 text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl">
-        Проверить
+        {copy.check}
       </button>
     </div>
   );
@@ -604,55 +1389,76 @@ function normalizeSearchWord(word: string) {
   return word.trim().toUpperCase().replace(/\s+/g, '');
 }
 
-function makeWordSearchGrid(words: string[], size: number) {
+type SearchCell = { row: number; col: number; letter: string };
+
+function makeWordSearchGrid(words: string[], requestedSize: number) {
   const cleanWords = words.map(normalizeSearchWord).filter(Boolean);
-  const grid = Array.from({ length: size }, () => Array.from({ length: size }, () => ''));
   const directions = [
     { dr: 0, dc: 1 },
+    { dr: 0, dc: -1 },
     { dr: 1, dc: 0 },
+    { dr: -1, dc: 0 },
     { dr: 1, dc: 1 },
+    { dr: 1, dc: -1 },
+    { dr: -1, dc: 1 },
+    { dr: -1, dc: -1 },
   ];
-  const fits = (word: string, row: number, col: number, dr: number, dc: number) => {
-    const endRow = row + dr * (word.length - 1);
-    const endCol = col + dc * (word.length - 1);
-    if (endRow < 0 || endRow >= size || endCol < 0 || endCol >= size) return false;
-    return word.split('').every((ch, i) => {
-      const current = grid[row + dr * i][col + dc * i];
-      return current === '' || current === ch;
-    });
-  };
-  const place = (word: string, row: number, col: number, dr: number, dc: number) => {
-    word.split('').forEach((ch, i) => { grid[row + dr * i][col + dc * i] = ch; });
-  };
+  const longest = cleanWords.reduce((max, word) => Math.max(max, word.length), 0);
+  const minimumSize = Math.max(6, requestedSize, longest, cleanWords.length);
 
-  cleanWords.forEach((word, wordIndex) => {
-    const direction = directions[wordIndex % directions.length];
-    let placed = false;
-    for (let offset = 0; offset < size * size && !placed; offset++) {
-      const row = (wordIndex * 3 + offset) % size;
-      const col = (wordIndex * 5 + offset * 2) % size;
-      if (fits(word, row, col, direction.dr, direction.dc)) {
-        place(word, row, col, direction.dr, direction.dc);
-        placed = true;
+  for (let size = minimumSize; size <= Math.max(20, minimumSize); size++) {
+    const grid = Array.from({ length: size }, () => Array.from({ length: size }, () => ''));
+    let allPlaced = true;
+    for (const [wordIndex, word] of [...cleanWords].sort((a, b) => b.length - a.length).entries()) {
+      const candidates: Array<{ row: number; col: number; dr: number; dc: number }> = [];
+      for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) for (const direction of directions) {
+        const endRow = row + direction.dr * (word.length - 1);
+        const endCol = col + direction.dc * (word.length - 1);
+        if (endRow < 0 || endRow >= size || endCol < 0 || endCol >= size) continue;
+        if (word.split('').every((letter, index) => {
+          const current = grid[row + direction.dr * index][col + direction.dc * index];
+          return current === '' || current === letter;
+        })) candidates.push({ row, col, ...direction });
       }
+      if (candidates.length === 0) { allPlaced = false; break; }
+      const candidate = candidates[(wordIndex * 37 + word.length * 11) % candidates.length];
+      word.split('').forEach((letter, index) => {
+        grid[candidate.row + candidate.dr * index][candidate.col + candidate.dc * index] = letter;
+      });
     }
-  });
-
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  for (let row = 0; row < size; row++) {
-    for (let col = 0; col < size; col++) {
-      if (!grid[row][col]) grid[row][col] = alphabet[(row * 7 + col * 11) % alphabet.length];
+    if (!allPlaced) continue;
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) {
+      if (!grid[row][col]) grid[row][col] = alphabet[(row * 7 + col * 11 + size) % alphabet.length];
     }
+    return { grid, size };
   }
-  return grid;
+  return { grid: [['A']], size: 1 };
 }
 
-function WordSearchTask({ payload, onDone, onEvent }: { payload: any; onDone: () => void; onEvent: TaskTelemetry }) {
+function cellsOnLine(start: SearchCell, end: SearchCell, grid: string[][]): SearchCell[] | null {
+  const rowDelta = end.row - start.row;
+  const colDelta = end.col - start.col;
+  if (rowDelta !== 0 && colDelta !== 0 && Math.abs(rowDelta) !== Math.abs(colDelta)) return null;
+  const steps = Math.max(Math.abs(rowDelta), Math.abs(colDelta));
+  if (steps === 0) return [start];
+  const rowStep = Math.sign(rowDelta);
+  const colStep = Math.sign(colDelta);
+  return Array.from({ length: steps + 1 }, (_, index) => {
+    const row = start.row + rowStep * index;
+    const col = start.col + colStep * index;
+    return { row, col, letter: grid[row][col] };
+  });
+}
+
+function WordSearchTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
+  const copy = taskCopy[lang] || taskCopy.ru;
   const words = Array.from(new Set((payload?.words || []).map(normalizeSearchWord).filter(Boolean)));
   const longestWord = words.reduce((max, word) => Math.max(max, word.length), 0);
-  const size = Math.max(6, Math.min(14, Math.max(Number(payload?.size) || 10, longestWord)));
-  const grid = useMemo(() => makeWordSearchGrid(words, size), [words.join('|'), size]);
-  const [selected, setSelected] = useState<Array<{ row: number; col: number; letter: string }>>([]);
+  const requestedSize = Math.max(6, Math.min(18, Math.max(Number(payload?.size) || 10, longestWord)));
+  const generated = useMemo(() => makeWordSearchGrid(words, requestedSize), [words.join('|'), requestedSize]);
+  const { grid, size } = generated;
+  const [selected, setSelected] = useState<SearchCell[]>([]);
   const [found, setFound] = useState<Set<string>>(new Set());
   const [foundCells, setFoundCells] = useState<Set<string>>(new Set());
   const [wrong, setWrong] = useState(false);
@@ -664,18 +1470,21 @@ function WordSearchTask({ payload, onDone, onEvent }: { payload: any; onDone: ()
   const selectedWord = selected.map(cell => cell.letter).join('');
   const selectedKeys = new Set(selected.map(cell => `${cell.row}-${cell.col}`));
 
-  const toggleCell = (row: number, col: number) => {
+  const selectCell = (row: number, col: number) => {
     const letter = grid[row][col];
     const key = `${row}-${col}`;
     if (foundCells.has(key)) return;
     setWrong(false);
-    setSelected(prev => prev.some(cell => cell.row === row && cell.col === col)
-      ? prev.filter(cell => !(cell.row === row && cell.col === col))
-      : [...prev, { row, col, letter }]);
+    setSelected(previous => {
+      const current = { row, col, letter };
+      if (previous.length !== 1) return [current];
+      return cellsOnLine(previous[0], current, grid) || [current];
+    });
     onEvent('choice_selected', { mechanic: 'word_search', row, col, letter });
   };
 
   const check = () => {
+    playButtonSound('check');
     const reversed = selectedWord.split('').reverse().join('');
     const matched = words.find(word => !found.has(word) && (word === selectedWord || word === reversed));
     if (!matched) {
@@ -691,7 +1500,7 @@ function WordSearchTask({ payload, onDone, onEvent }: { payload: any; onDone: ()
   };
 
   if (words.length === 0) {
-    return <p className="text-center text-purple-500 dark:text-purple-200">Добавьте слова в конструкторе.</p>;
+    return <p className="text-center text-purple-500 dark:text-purple-200">{copy.addWords}</p>;
   }
 
   return (
@@ -712,7 +1521,7 @@ function WordSearchTask({ payload, onDone, onEvent }: { payload: any; onDone: ()
           return (
             <button
               key={key}
-              onClick={() => toggleCell(rowIndex, colIndex)}
+              onClick={() => selectCell(rowIndex, colIndex)}
               className={`aspect-square rounded-xl font-mono text-sm font-black transition sm:text-base ${
                 isFound ? 'bg-emerald-100 text-emerald-700' :
                 isSelected ? 'bg-gradient-to-br from-pink-400 to-purple-400 text-white shadow-md' :
@@ -729,10 +1538,10 @@ function WordSearchTask({ payload, onDone, onEvent }: { payload: any; onDone: ()
           {selectedWord || '...'}
         </span>
         <button onClick={check} disabled={selected.length === 0} className="rounded-2xl bg-gradient-to-r from-pink-400 to-purple-400 px-5 py-2.5 font-body font-800 text-white shadow-lg transition hover:-translate-y-0.5 disabled:opacity-50">
-          Проверить
+          {copy.check}
         </button>
         <button onClick={() => setSelected([])} className="rounded-2xl bg-white px-4 py-2 text-sm font-body font-800 text-purple-500 shadow-sm transition hover:bg-purple-50 dark:bg-[#2b1a3d] dark:text-purple-200">
-          Очистить
+          {copy.clear}
         </button>
       </div>
     </div>
@@ -740,7 +1549,8 @@ function WordSearchTask({ payload, onDone, onEvent }: { payload: any; onDone: ()
 }
 
 // ==================== CONNECT THE DOTS ====================
-function ConnectDotsTask({ payload, onDone, onEvent }: { payload: any; onDone: () => void; onEvent: TaskTelemetry }) {
+function ConnectDotsTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
+  const copy = taskCopy[lang] || taskCopy.ru;
   const points: Array<{ x: number; y: number; order: number }> = [...(payload?.points || [])].sort((a, b) => a.order - b.order);
   const [nextOrder, setNextOrder] = useState(1);
   const [wrong, setWrong] = useState<number | null>(null);
@@ -763,7 +1573,7 @@ function ConnectDotsTask({ payload, onDone, onEvent }: { payload: any; onDone: (
   };
 
   if (points.length < 2) {
-    return <p className="text-center text-purple-500 dark:text-purple-200">Добавьте минимум две точки в конструкторе.</p>;
+    return <p className="text-center text-purple-500 dark:text-purple-200">{copy.addDots}</p>;
   }
 
   const polyline = connected.map(point => `${point.x},${point.y}`).join(' ');
@@ -807,14 +1617,15 @@ function ConnectDotsTask({ payload, onDone, onEvent }: { payload: any; onDone: (
         </div>
       </div>
       <div className="text-center font-body text-sm font-800 text-purple-500 dark:text-purple-200">
-        Следующая точка: #{Math.min(nextOrder, points.length)}
+        {copy.nextPoint}: #{Math.min(nextOrder, points.length)}
       </div>
     </div>
   );
 }
 
 // ==================== SPOT & COUNT ====================
-function SpotAndCountTask({ payload, onDone, onEvent }: { payload: any; onDone: () => void; onEvent: TaskTelemetry }) {
+function SpotAndCountTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
+  const copy = taskCopy[lang] || taskCopy.ru;
   const spots: Array<{ x: number; y: number; r: number }> = payload?.spots || [];
   const expected = Number(payload?.expected_count) || spots.length;
   const [found, setFound] = useState<Set<number>>(new Set());
@@ -833,7 +1644,7 @@ function SpotAndCountTask({ payload, onDone, onEvent }: { payload: any; onDone: 
   };
 
   if (spots.length === 0) {
-    return <p className="text-center text-purple-500 dark:text-purple-200">Добавьте объекты для поиска в конструкторе.</p>;
+    return <p className="text-center text-purple-500 dark:text-purple-200">{copy.addObjects}</p>;
   }
 
   return (
@@ -882,13 +1693,20 @@ function SpotAndCountTask({ payload, onDone, onEvent }: { payload: any; onDone: 
 }
 
 // ==================== DIGITAL COLORING ====================
-function DigitalColoringTask({ payload, onDone, onEvent }: { payload: any; onDone: () => void; onEvent: TaskTelemetry }) {
+function DigitalColoringTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
+  const copy = taskCopy[lang] || taskCopy.ru;
   const palette: Array<{ code: string; color: string }> = payload?.palette || [];
-  const regions: Array<{ id: string; code: string }> = payload?.regions || [];
+  const regions: Array<{ id: string; code: string; label?: string; x?: number; y?: number; size?: number }> = payload?.regions || [];
+  const image = String(payload?.image || '').trim();
   const [selectedCode, setSelectedCode] = useState(palette[0]?.code || '');
   const [colored, setColored] = useState<Record<string, string>>({});
   const [wrongRegion, setWrongRegion] = useState<string | null>(null);
   const colorFor = (code: string) => palette.find(item => String(item.code) === String(code))?.color || '#f9a8d4';
+  const regionPosition = (region: typeof regions[number], index: number) => ({
+    x: Math.max(8, Math.min(92, Number(region.x ?? (24 + (index % 4) * 17)))),
+    y: Math.max(8, Math.min(92, Number(region.y ?? (28 + Math.floor(index / 4) * 18)))),
+    size: Math.max(8, Math.min(34, Number(region.size ?? 16))),
+  });
 
   useEffect(() => {
     if (regions.length > 0 && Object.keys(colored).length === regions.length) setTimeout(onDone, 900);
@@ -907,48 +1725,100 @@ function DigitalColoringTask({ payload, onDone, onEvent }: { payload: any; onDon
   };
 
   if (palette.length === 0 || regions.length === 0) {
-    return <p className="text-center text-purple-500 dark:text-purple-200">Добавьте палитру и области в конструкторе.</p>;
+    return <p className="text-center text-purple-500 dark:text-purple-200">{copy.addPalette}</p>;
   }
 
   return (
     <div className="space-y-5">
+      <div className="text-center font-display text-xl font-black text-purple-800 dark:text-purple-100">{copy.choosePencil}</div>
       <div className="flex flex-wrap justify-center gap-2">
         {palette.map(item => (
           <button
             key={item.code}
             onClick={() => setSelectedCode(String(item.code))}
-            className={`flex items-center gap-2 rounded-2xl border-2 bg-white px-3 py-2 font-body text-sm font-900 text-purple-700 shadow-sm transition hover:-translate-y-0.5 dark:bg-[#2b1a3d] dark:text-purple-100 ${
+            className={`flex items-center gap-2 rounded-2xl border-2 bg-white px-4 py-2 font-body text-sm font-900 text-purple-700 shadow-sm transition hover:-translate-y-0.5 dark:bg-[#2b1a3d] dark:text-purple-100 ${
               String(selectedCode) === String(item.code) ? 'border-pink-300 ring-4 ring-pink-100 dark:ring-purple-500/30' : 'border-purple-100 dark:border-purple-700'
             }`}
           >
-            <span className="h-5 w-5 rounded-full border border-white shadow-sm" style={{ background: item.color }} />
+            <span className="h-7 w-4 rounded-b-lg rounded-t-sm border border-white shadow-sm" style={{ background: item.color }} />
             {item.code}
           </button>
         ))}
       </div>
-      <div className="mx-auto grid max-w-2xl grid-cols-2 gap-3 sm:grid-cols-3">
-        {regions.map((region, index) => {
-          const paintedCode = colored[region.id];
-          const painted = Boolean(paintedCode);
-          return (
-            <motion.button
-              key={region.id}
-              animate={wrongRegion === region.id ? { x: [0, -6, 6, -4, 4, 0] } : { x: 0 }}
-              onClick={() => paint(region)}
-              className={`aspect-square rounded-[2rem] border-4 font-display text-3xl font-black shadow-lg transition hover:-translate-y-1 ${
-                wrongRegion === region.id ? 'border-rose-300 bg-rose-50 text-rose-500' :
-                painted ? 'border-white text-white' :
-                'border-purple-100 bg-white text-purple-300 dark:border-purple-700 dark:bg-[#2b1a3d] dark:text-purple-500'
-              }`}
-              style={painted ? { background: colorFor(paintedCode) } : undefined}
-            >
-              {painted ? <CheckCircle2 className="mx-auto h-9 w-9" /> : region.code || index + 1}
-            </motion.button>
-          );
-        })}
-      </div>
+      {image ? (
+        <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
+          <div className="relative mx-auto w-full max-w-3xl overflow-hidden rounded-[2rem] border border-white bg-white p-3 shadow-xl shadow-purple-100/50 dark:border-purple-500/20 dark:bg-white/5 dark:shadow-none">
+            <SignedImg path={image} className="w-full rounded-[1.5rem] object-contain" />
+            {regions.map((region, index) => {
+              const paintedCode = colored[region.id];
+              const painted = Boolean(paintedCode);
+              const position = regionPosition(region, index);
+              return (
+                <motion.button
+                  key={region.id}
+                  animate={wrongRegion === region.id ? { x: ['-50%', 'calc(-50% - 7px)', 'calc(-50% + 7px)', 'calc(-50% - 4px)', 'calc(-50% + 4px)', '-50%'] } : { x: '-50%' }}
+                  onClick={() => paint(region)}
+                  className={`absolute flex items-center justify-center rounded-full border-4 text-xs font-black shadow-lg backdrop-blur-[1px] transition hover:scale-105 ${
+                    wrongRegion === region.id ? 'border-rose-300 bg-rose-100/75 text-rose-600' :
+                    painted ? 'border-white text-white' :
+                    'border-purple-200 bg-white/35 text-purple-500 hover:bg-white/65 dark:border-purple-300/50 dark:bg-purple-950/30 dark:text-purple-100'
+                  }`}
+                  style={{
+                    left: `${position.x}%`,
+                    top: `${position.y}%`,
+                    width: `${position.size}%`,
+                    aspectRatio: '1 / 1',
+                    background: painted ? colorFor(paintedCode) : undefined,
+                    opacity: painted ? 0.78 : undefined,
+                  }}
+                  title={region.label || region.code}
+                >
+                  {painted ? <CheckCircle2 className="h-6 w-6" /> : (region.label || region.code || index + 1)}
+                </motion.button>
+              );
+            })}
+          </div>
+          <div className="rounded-[2rem] border border-purple-100 bg-white/85 p-4 shadow-sm dark:border-purple-500/25 dark:bg-white/5">
+            <div className="mb-3 font-body text-xs font-black uppercase tracking-wider text-purple-400">{copy.coloringTodo}</div>
+            <div className="space-y-2">
+              {regions.map((region, index) => {
+                const painted = Boolean(colored[region.id]);
+                return (
+                  <button key={region.id} type="button" onClick={() => paint(region)} className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-2 text-left transition hover:-translate-y-0.5 ${painted ? 'border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-100' : 'border-purple-100 bg-purple-50/70 text-purple-700 dark:border-purple-500/20 dark:bg-white/5 dark:text-purple-100'}`}>
+                    <span className="h-5 w-5 rounded-full border border-white shadow-sm" style={{ background: colorFor(region.code) }} />
+                    <span className="min-w-0 flex-1 font-body text-sm font-black">{region.label || `${copy.coloringTodo} ${index + 1}`}</span>
+                    <span className="font-body text-xs font-black opacity-70">{region.code}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mx-auto grid max-w-2xl grid-cols-2 gap-3 sm:grid-cols-3">
+          {regions.map((region, index) => {
+            const paintedCode = colored[region.id];
+            const painted = Boolean(paintedCode);
+            return (
+              <motion.button
+                key={region.id}
+                animate={wrongRegion === region.id ? { x: [0, -6, 6, -4, 4, 0] } : { x: 0 }}
+                onClick={() => paint(region)}
+                className={`aspect-square rounded-[2rem] border-4 font-display text-3xl font-black shadow-lg transition hover:-translate-y-1 ${
+                  wrongRegion === region.id ? 'border-rose-300 bg-rose-50 text-rose-500' :
+                  painted ? 'border-white text-white' :
+                  'border-purple-100 bg-white text-purple-300 dark:border-purple-700 dark:bg-[#2b1a3d] dark:text-purple-500'
+                }`}
+                style={painted ? { background: colorFor(paintedCode) } : undefined}
+              >
+                {painted ? <CheckCircle2 className="mx-auto h-9 w-9" /> : region.code || index + 1}
+              </motion.button>
+            );
+          })}
+        </div>
+      )}
       <div className="text-center font-body text-sm font-800 text-purple-500 dark:text-purple-200">
-        Закрашено: {Object.keys(colored).length} / {regions.length}
+        {copy.colored}: {Object.keys(colored).length} / {regions.length}
       </div>
     </div>
   );
@@ -956,13 +1826,15 @@ function DigitalColoringTask({ payload, onDone, onEvent }: { payload: any; onDon
 
 // ==================== ROOM ====================
 export default function InteractiveLessonRoom({
-  lesson, userId, onExit, onCompleted,
+  lesson, userId, onExit, onCompleted, lang = 'ru',
 }: {
   lesson: Lesson;
   userId: string;
+  lang?: Lang;
   onExit: () => void;
   onCompleted: (starsAwarded: number) => void;
 }) {
+  const copy = roomCopy[lang] || roomCopy.ru;
   const [tasks, setTasks] = useState<InteractiveTask[]>([]);
   const [idx, setIdx] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -972,7 +1844,7 @@ export default function InteractiveLessonRoom({
   const lastTeacherHintId = useRef<string | null>(null);
   const finishedRef = useRef<null | number>(null);
   const theoryTask = useMemo(() => tasks.find(task => task.mechanic_type === 'theory_content'), [tasks]);
-  const playableTasks = useMemo(() => tasks.filter(task => task.mechanic_type !== 'theory_content'), [tasks]);
+  const playableTasks = useMemo(() => tasks.filter(task => !['theory_content', 'connect_dots', 'spot_and_count'].includes(task.mechanic_type)), [tasks]);
   const displayedTasks = useMemo(
     () => lesson.type === 'theory' ? (theoryTask ? [theoryTask] : []) : playableTasks,
     [lesson.type, playableTasks, theoryTask],
@@ -1015,7 +1887,7 @@ export default function InteractiveLessonRoom({
     if (!liveSession) return;
     return subscribeLiveSessionEvents(liveSession.id, event => {
       if (event.actor_role !== 'teacher' || event.event_type !== 'teacher_hint') return;
-      const message = event.payload_json?.message || 'Учитель отправил подсказку';
+      const message = event.payload_json?.message || copy.teacherHint;
       showTeacherHint(event.id, message);
     });
   }, [liveSession?.id]);
@@ -1029,7 +1901,7 @@ export default function InteractiveLessonRoom({
         if (!alive) return;
         const latestHint = events.find(event => event.actor_role === 'teacher' && event.event_type === 'teacher_hint');
         if (!latestHint) return;
-        const message = latestHint.payload_json?.message || 'Учитель отправил подсказку';
+        const message = latestHint.payload_json?.message || copy.teacherHint;
         showTeacherHint(latestHint.id, message);
       } catch {
         // Realtime remains primary; polling is only a quiet backup for missed hint events.
@@ -1066,6 +1938,8 @@ export default function InteractiveLessonRoom({
   }, [liveSession?.id, displayedTasks, idx, lesson.id, userId]);
 
   const emitTaskEvent: TaskTelemetry = (eventType, payload = {}) => {
+    if (eventType === 'answer_correct') playFeedbackSound('correct');
+    if (eventType === 'answer_wrong') playFeedbackSound('wrong');
     const curTask = displayedTasks[idx];
     recordLiveEvent({
       sessionId: liveSession?.id ?? null,
@@ -1078,6 +1952,7 @@ export default function InteractiveLessonRoom({
   };
 
   const finish = async () => {
+    playCompletionSound();
     const stars = await markLessonComplete(userId, lesson);
     finishedRef.current = stars;
     if (liveSession) {
@@ -1095,7 +1970,10 @@ export default function InteractiveLessonRoom({
   };
   const nextTask = () => {
     if (idx + 1 >= displayedTasks.length) finish();
-    else setIdx(i => i + 1);
+    else {
+      playButtonSound('task');
+      setIdx(i => i + 1);
+    }
   };
 
   const exitLesson = async () => {
@@ -1110,12 +1988,12 @@ export default function InteractiveLessonRoom({
       <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 sm:px-6 lg:px-8">
         <div className="mb-5 flex items-center justify-between gap-3 rounded-3xl border border-white bg-white px-4 py-3 shadow-sm dark:border-purple-800 dark:bg-[#211331] dark:shadow-none">
           <button onClick={exitLesson} className="inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-body font-800 text-purple-500 transition hover:bg-purple-50 hover:text-purple-700 dark:text-purple-200 dark:hover:bg-purple-900 dark:hover:text-white">
-            <ArrowLeft className="h-4 w-4" /> Выйти
+            <ArrowLeft className="h-4 w-4" /> {copy.exit}
           </button>
           <div className="flex items-center gap-3">
             {lesson.type !== 'theory' && displayedTasks.length > 0 && finished === null && <LessonProgress current={idx} total={displayedTasks.length} />}
             <div className="rounded-2xl border border-pink-100 bg-pink-50 px-3 py-2 text-sm font-body font-800 text-pink-500 dark:border-purple-700 dark:bg-[#2b1a3d] dark:text-pink-200">
-              {finished === null && (lesson.type === 'theory' ? 'Теоретический урок' : displayedTasks.length > 0 && <>Задание {idx + 1} из {displayedTasks.length}</>)}
+              {finished === null && (lesson.type === 'theory' ? copy.theoryLesson : displayedTasks.length > 0 && copy.taskProgress(idx + 1, displayedTasks.length))}
             </div>
           </div>
         </div>
@@ -1140,20 +2018,20 @@ export default function InteractiveLessonRoom({
             {lesson.type !== 'theory' && <h2 className="font-display text-3xl font-black text-purple-800 sm:text-4xl dark:text-purple-100">{lesson.title}</h2>}
           </div>
 
-          {loading && <p className="text-center text-purple-500 dark:text-purple-200">Загрузка…</p>}
+          {loading && <p className="text-center text-purple-500 dark:text-purple-200">{copy.loading}</p>}
           {!loading && displayedTasks.length === 0 && (
             <div className="text-center py-8">
               <BookOpen className="mx-auto mb-3 h-12 w-12 text-purple-300" />
-              <p className="font-body font-bold text-purple-500 dark:text-purple-200">{lesson.type === 'theory' ? 'Материал теоретического урока пока не добавлен.' : 'В этом уроке пока нет заданий.'}</p>
-              <button onClick={exitLesson} className="mt-4 rounded-2xl bg-purple-500 px-5 py-2 text-white shadow-lg">Назад к карте</button>
+              <p className="font-body font-bold text-purple-500 dark:text-purple-200">{lesson.type === 'theory' ? copy.noTheory : copy.noTasks}</p>
+              <button onClick={exitLesson} className="mt-4 rounded-2xl bg-purple-500 px-5 py-2 text-white shadow-lg">{copy.backToMap}</button>
             </div>
           )}
           {!loading && lesson.type === 'theory' && theoryTask && finished === null && (
             <div className="space-y-6">
-              <TheoryLessonView content={theoryTask.payload_json} fallbackTitle={lesson.title} />
+              <TheoryLessonView content={theoryTask.payload_json} fallbackTitle={lesson.title} lang={lang} />
               <div className="flex justify-center border-t border-purple-100 pt-6 dark:border-purple-700">
-                <button onClick={finish} className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-500 px-6 py-3 font-display text-sm font-black text-white shadow-xl shadow-pink-200/50 transition hover:-translate-y-0.5 hover:shadow-2xl dark:shadow-none">
-                  <CheckCircle2 className="h-5 w-5" /> Я изучил(а) материал
+                <button onClick={() => { playButtonSound('study'); finish(); }} className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-500 px-6 py-3 font-display text-sm font-black text-white shadow-xl shadow-pink-200/50 transition hover:-translate-y-0.5 hover:shadow-2xl dark:shadow-none">
+                  <CheckCircle2 className="h-5 w-5" /> {copy.studied}
                 </button>
               </div>
             </div>
@@ -1161,38 +2039,38 @@ export default function InteractiveLessonRoom({
           {!loading && lesson.type !== 'theory' && cur && finished === null && (
             <AnimatePresence mode="wait">
               <motion.div key={cur.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}>
-                {cur.mechanic_type === 'matching' && <MatchingTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} />}
-                {cur.mechanic_type === 'word_lego' && <WordLegoTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} />}
-                {cur.mechanic_type === 'fill_letters' && <FillLettersTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} />}
-                {cur.mechanic_type === 'anagram_unscramble' && <AnagramTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} />}
-                {cur.mechanic_type === 'odd_one_out' && <OddOneOutTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} />}
-                {cur.mechanic_type === 'category_sorting' && <CategorySortingTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} />}
-                {cur.mechanic_type === 'cipher_decoder' && <CipherDecoderTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} />}
-                {cur.mechanic_type === 'word_search' && <WordSearchTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} />}
-                {cur.mechanic_type === 'connect_dots' && <ConnectDotsTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} />}
-                {cur.mechanic_type === 'spot_and_count' && <SpotAndCountTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} />}
-                {cur.mechanic_type === 'digital_coloring' && <DigitalColoringTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} />}
-                {!['matching','word_lego','fill_letters','anagram_unscramble','odd_one_out','category_sorting','cipher_decoder','word_search','connect_dots','spot_and_count','digital_coloring'].includes(cur.mechanic_type) && (
+                {mechanicCopy[lang][cur.mechanic_type] && (
+                  <div className="mx-auto mb-6 max-w-3xl rounded-3xl border border-pink-100 bg-gradient-to-r from-pink-50 via-purple-50 to-sky-50 px-5 py-4 text-center shadow-sm dark:border-purple-500/25 dark:from-pink-500/10 dark:via-purple-500/10 dark:to-sky-500/10">
+                    <h3 className="font-display text-xl font-black text-purple-700 dark:text-purple-100 sm:text-2xl">
+                      {mechanicCopy[lang][cur.mechanic_type]?.title}
+                    </h3>
+                    <p className="mt-1 font-body text-sm font-bold text-purple-500 dark:text-purple-200 sm:text-base">
+                      {mechanicCopy[lang][cur.mechanic_type]?.instruction}
+                    </p>
+                  </div>
+                )}
+                {cur.mechanic_type === 'matching' && <MatchingTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} lang={lang} />}
+                {cur.mechanic_type === 'word_lego' && <WordLegoTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} lang={lang} />}
+                {cur.mechanic_type === 'fill_letters' && <FillLettersTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} lang={lang} />}
+                {cur.mechanic_type === 'anagram_unscramble' && <AnagramTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} lang={lang} />}
+                {cur.mechanic_type === 'odd_one_out' && <OddOneOutTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} lang={lang} />}
+                {cur.mechanic_type === 'category_sorting' && <CategorySortingTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} lang={lang} />}
+                {cur.mechanic_type === 'cipher_decoder' && <CipherDecoderTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} lang={lang} />}
+                {cur.mechanic_type === 'word_search' && <WordSearchTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} lang={lang} />}
+                {cur.mechanic_type === 'speaking_practice' && <SpeakingPracticeTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} lang={lang} />}
+                {cur.mechanic_type === 'digital_coloring' && <DigitalColoringTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} lang={lang} />}
+                {!['matching','word_lego','fill_letters','anagram_unscramble','odd_one_out','category_sorting','cipher_decoder','word_search','speaking_practice','digital_coloring'].includes(cur.mechanic_type) && (
                   <div className="text-center py-8">
                     <div className="text-4xl mb-2">🚧</div>
-                    <p className="text-purple-500 dark:text-purple-200">Механика «{cur.mechanic_type}» ещё в разработке.</p>
-                    <button onClick={nextTask} className="mt-4 rounded-2xl bg-purple-500 px-5 py-2 text-white shadow-lg">Пропустить</button>
+                    <p className="text-purple-500 dark:text-purple-200">{copy.mechanicWip(cur.mechanic_type)}</p>
+                    <button onClick={nextTask} className="mt-4 rounded-2xl bg-purple-500 px-5 py-2 text-white shadow-lg">{copy.skip}</button>
                   </div>
                 )}
               </motion.div>
             </AnimatePresence>
           )}
           {finished !== null && (
-            <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center py-6">
-              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-gradient-to-br from-yellow-100 via-pink-100 to-purple-100 text-yellow-500 shadow-xl">
-                <Trophy className="h-10 w-10" />
-              </div>
-              <h3 className="font-display font-black text-3xl text-purple-800 mb-2 dark:text-purple-100">Урок пройден!</h3>
-              {finished > 0
-                ? <p className="text-yellow-600 font-body font-bold text-xl">+{finished} ⭐</p>
-                : <p className="text-purple-500 font-body dark:text-purple-200">Отличная работа!</p>}
-              <button onClick={exitLesson} className="mt-5 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-400 px-6 py-2.5 font-body font-800 text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl">На карту</button>
-            </motion.div>
+            <CompletionCelebration stars={finished} copy={copy} onExit={exitLesson} />
           )}
           </div>
         </div>

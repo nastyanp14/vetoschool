@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { cacheGet, cacheSet, fileToDataUrl as _fileToDataUrl } from './storage';
+import { notifyContentChanges, notifyContentDeleted } from './telegram';
 
 export type ContentType = 'lesson' | 'homework' | 'practice' | 'grammar' | 'listening' | 'checkpoint';
 
@@ -60,6 +61,8 @@ export function ensureStudentContent(userId: string): ContentItem[] {
 }
 
 export async function saveStudentContent(userId: string, items: ContentItem[]): Promise<void> {
+  const cachedBefore = ensureStudentContent(userId);
+  const before = cachedBefore.length ? cachedBefore : await loadStudentContent(userId);
   const isUuid = (s?: string) => !!s && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
   const rows = items.map(i => ({
     id: isUuid(i.id) ? i.id : crypto.randomUUID(),
@@ -81,13 +84,16 @@ export async function saveStudentContent(userId: string, items: ContentItem[]): 
     const { error } = await supabase.from('content_items').upsert(rows);
     if (error) { console.error('saveStudentContent error', error); throw error; }
   }
-  await loadStudentContent(userId);
+  const fresh = await loadStudentContent(userId);
+  await notifyContentChanges(userId, before, fresh);
 }
 
 export async function deleteContentItem(userId: string, id: string): Promise<void> {
+  const deletedItem = ensureStudentContent(userId).find(item => item.id === id);
   const { error } = await supabase.from('content_items').delete().eq('id', id);
   if (error) { console.error('deleteContentItem error', error); throw error; }
   await loadStudentContent(userId);
+  await notifyContentDeleted(userId, deletedItem);
 }
 
 export async function deleteModule(userId: string, moduleId: string): Promise<void> {

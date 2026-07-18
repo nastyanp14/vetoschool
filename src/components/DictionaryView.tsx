@@ -1,24 +1,66 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { Volume2 } from 'lucide-react';
 import { Lang, t } from '../lib/i18n';
 import { DictWord, loadDictionary } from '../lib/dictionary';
+import { signedUrlFor } from '../lib/workbooks';
 
 function FlipCard({ word, hint }: { word: DictWord; hint: string }) {
   const [flipped, setFlipped] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const playAudio = async () => {
+    setPlaying(true);
+    try {
+      if (word.audioUrl) {
+        const url = await signedUrlFor(word.audioUrl);
+        if (url) {
+          const audio = new Audio(url);
+          audio.volume = 0.95;
+          audio.onended = () => setPlaying(false);
+          audio.onerror = () => setPlaying(false);
+          await audio.play();
+          return;
+        }
+      }
+      if ('speechSynthesis' in window && word.word) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(word.word);
+        utterance.lang = 'en-US';
+        utterance.rate = 0.82;
+        utterance.pitch = 1.08;
+        utterance.onend = () => setPlaying(false);
+        utterance.onerror = () => setPlaying(false);
+        window.speechSynthesis.speak(utterance);
+        return;
+      }
+    } catch {
+      // Audio is an enhancement; flipping should still feel instant.
+    }
+    setPlaying(false);
+  };
   return (
     <div
       className={`flip-card cursor-pointer h-44 ${flipped ? 'flipped' : ''}`}
-      onClick={() => setFlipped(f => !f)}
+      onClick={() => {
+        setFlipped(f => !f);
+        playAudio();
+      }}
     >
       <div className="flip-card-inner">
         {/* Front */}
-        <div className="flip-card-face bg-gradient-to-br from-pink-100 via-purple-100 to-blue-100 border border-pink-200 shadow-lg">
+        <div className="flip-card-face bg-gradient-to-br from-pink-100 via-purple-100 to-blue-100 border border-pink-200 shadow-lg dark:border-purple-700 dark:from-[#2f1b42] dark:via-[#271739] dark:to-[#1c2944]">
+          <span className={`absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-2xl bg-white/80 text-purple-400 shadow-sm transition dark:bg-white/10 dark:text-pink-200 ${playing ? 'scale-110 text-pink-500' : ''}`}>
+            <Volume2 className="h-4 w-4" />
+          </span>
           <div className="text-5xl mb-2">{word.emoji}</div>
-          <div className="font-display font-black text-2xl text-purple-700 break-words">{word.word}</div>
+          <div className="font-display font-black text-2xl text-purple-700 break-words dark:text-purple-100">{word.word}</div>
           <div className="font-body text-[10px] uppercase tracking-wider text-purple-400 mt-2 opacity-80">{hint}</div>
         </div>
         {/* Back */}
-        <div className="flip-card-face flip-card-back bg-gradient-to-br from-purple-300 via-pink-300 to-pink-400 border border-purple-300 shadow-xl text-white">
+        <div className="flip-card-face flip-card-back bg-gradient-to-br from-purple-300 via-pink-300 to-pink-400 border border-purple-300 shadow-xl text-white dark:border-purple-500/40 dark:from-purple-800 dark:via-fuchsia-800 dark:to-pink-700">
+          <span className={`absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-2xl bg-white/20 text-white shadow-sm transition ${playing ? 'scale-110 bg-white/30' : ''}`}>
+            <Volume2 className="h-4 w-4" />
+          </span>
           <div className="text-3xl mb-2">💡</div>
           <div className="font-display font-black text-2xl break-words">{word.translation}</div>
           <div className="font-body text-xs mt-2 opacity-90">{word.word}</div>

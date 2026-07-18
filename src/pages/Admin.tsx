@@ -69,8 +69,8 @@ function DeleteModal({ name, onConfirm, onCancel, lang }: { name: string; onConf
 }
 
 // ---- Student Profile Modal ----
-function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAnalytics }: {
-  user: User; lang: Lang; onClose: () => void; onCredentialsSaved: (msg: string) => void; onOpenAnalytics: () => void;
+function StudentProfileModal({ user, users, lang, onClose, onCredentialsSaved, onOpenAnalytics }: {
+  user: User; users: User[]; lang: Lang; onClose: () => void; onCredentialsSaved: (msg: string) => void; onOpenAnalytics: () => void;
 }) {
   const [, force] = useState(0);
   const [tab, setTab] = useState<'profile' | 'dict'>('profile');
@@ -199,7 +199,7 @@ function StudentProfileModal({ user, lang, onClose, onCredentialsSaved, onOpenAn
           </div>
 
           {tab === 'dict' ? (
-            <AdminDictionary userId={user.id} lang={lang} />
+            <AdminDictionary userId={user.id} users={users} lang={lang} />
           ) : (<>
 
           {/* Stats */}
@@ -482,7 +482,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
     const next = !slot.isConducted;
     setSlots(p => p.map(s => s.id === slot.id ? { ...s, isConducted: next } : s));
     try {
-      await setSlotConducted(slot.id, next);
+      await setSlotConducted(slot.id, next, schedUserId);
       await loadStudentSchedule(schedUserId);
     } catch (e) {
       console.error(e);
@@ -517,9 +517,10 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
       starRating: isGradedType ? editStars : i.starRating,
     } : i);
     await saveStudentContent(contentUserId, updated);
-    // Auto-award +5★ on first-time grading of a task
+    // Award the same number of stars as the first manual grade.
     if (isGradedType && willBeGraded && !wasGraded && contentUserId) {
-      try { await awardStars(contentUserId, 5); showToast('⭐ +5 ' + t(lang, 'shop_stars')); }
+      const awardedStars = Math.max(1, Math.min(5, editStars));
+      try { await awardStars(contentUserId, awardedStars); showToast(`⭐ +${awardedStars} ${t(lang, 'shop_stars')}`); }
       catch (e) { console.error('awardStars failed', e); }
     }
     const fresh = await loadStudentContent(contentUserId);
@@ -656,6 +657,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
         {profileTarget && (
           <StudentProfileModal
             user={profileTarget}
+            users={users}
             lang={lang}
             onClose={() => setProfileTarget(null)}
             onCredentialsSaved={(msg) => { showToast(msg); setProfileTarget(null); refreshUsers(); }}

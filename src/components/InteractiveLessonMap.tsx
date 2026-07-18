@@ -55,6 +55,7 @@ const mapCopy = {
     workbook: 'Воркбук',
     unit: 'Unit',
     lessons: 'уроков',
+    of: 'из',
     completed: 'Пройдено',
     progress: 'Прогресс',
     earnedStars: 'звёзд заработано',
@@ -84,6 +85,7 @@ const mapCopy = {
     workbook: 'Workbook',
     unit: 'Unit',
     lessons: 'lessons',
+    of: 'of',
     completed: 'Completed',
     progress: 'Progress',
     earnedStars: 'stars earned',
@@ -113,6 +115,7 @@ const mapCopy = {
     workbook: 'Воркбук',
     unit: 'Unit',
     lessons: 'уроків',
+    of: 'з',
     completed: 'Пройдено',
     progress: 'Прогрес',
     earnedStars: 'зірок зароблено',
@@ -510,7 +513,7 @@ export default function InteractiveLessonMap({ userId, hasAccess, lang = 'ru', o
                                 />
                               </div>
                               <div className="mt-2 font-display text-xs font-bold text-pink-500 dark:text-pink-300">
-                                {copy.progress}: {unitDone} из {list.length} {copy.lessons}
+                                {copy.progress}: {unitDone} {copy.of} {list.length} {copy.lessons}
                               </div>
                             </div>
 
@@ -589,7 +592,7 @@ export default function InteractiveLessonMap({ userId, hasAccess, lang = 'ru', o
       })}
       {active && (
         <InteractiveLessonRoom
-          lesson={active} userId={userId}
+          lesson={active} userId={userId} lang={lang}
           onExit={() => { setActive(null); refresh(); onStarsChanged?.(); }}
           onCompleted={() => { onStarsChanged?.(); }}
         />

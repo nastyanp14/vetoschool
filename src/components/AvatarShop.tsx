@@ -170,12 +170,12 @@ export function StarCelebration({ amount, onDone, lang }: { amount: number; onDo
         })}
         <motion.div initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }}
           transition={{ type: 'spring', stiffness: 180 }}
-          className="relative glass rounded-3xl px-10 py-8 text-center shadow-2xl border-2 border-yellow-300">
+          className="star-celebration-card relative rounded-3xl px-10 py-8 text-center shadow-2xl">
           <div className="text-7xl mb-3 animate-bounce-soft">🎉</div>
-          <div className="font-display font-black text-3xl bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent mb-2">
+          <div className="star-celebration-amount font-display font-black text-3xl mb-2">
             +{amount} ⭐
           </div>
-          <p className="font-body text-purple-600 font-700">
+          <p className="star-celebration-copy font-body font-700">
             {lang === 'en' ? 'Bonus stars received!' : lang === 'ua' ? 'Бонусні зірки отримано!' : 'Бонусные звёзды получены!'}
           </p>
         </motion.div>

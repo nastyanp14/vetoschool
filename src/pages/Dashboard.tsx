@@ -11,6 +11,7 @@ import DictionaryView from '../components/DictionaryView';
 import AvatarShop, { StarCelebration } from '../components/AvatarShop';
 import InteractiveLessonMap from '../components/InteractiveLessonMap';
 import { loadStarProfile, clearCelebration, findAvatar } from '../lib/stars';
+import { createTelegramLink, listTelegramParents, TelegramParentAccount } from '../lib/telegram';
 
 type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades' | 'shop' | 'interactive';
 
@@ -22,6 +23,116 @@ function AudioPlayer({ dataUrl }: { dataUrl: string }) {
         <source src={dataUrl} />
         Your browser does not support audio.
       </audio>
+    </div>
+  );
+}
+
+function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lang }) {
+  const [parents, setParents] = useState<TelegramParentAccount[]>([]);
+  const [link, setLink] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    if (!link) return;
+    await navigator.clipboard?.writeText(link);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  };
+
+  const loadParents = async () => setParents(await listTelegramParents(studentId));
+  const createLink = async () => {
+    setLoading(true);
+    try {
+      const data = await createTelegramLink(studentId);
+      setLink(data.url);
+      setExpiresAt(data.expiresAt);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadParents(); }, [studentId]);
+
+  const text = {
+    ru: {
+      title: 'Telegram для родителей',
+      desc: 'Подключите Telegram, чтобы родители получали напоминания, домашние задания, оценки и переносы уроков.',
+      button: 'Подключить Telegram',
+      copy: copied ? 'Скопировано' : 'Скопировать ссылку',
+      expires: 'Ссылка активна до',
+      linked: 'Подключённые родители',
+      empty: 'Пока нет подключённых родителей',
+      settings: 'Настройки уведомлений меняются в боте: напоминания, домашки, оценки, переносы и отмены.',
+    },
+    ua: {
+      title: 'Telegram для батьків',
+      desc: 'Підключіть Telegram, щоб батьки отримували нагадування, домашні завдання, оцінки та перенесення уроків.',
+      button: 'Підключити Telegram',
+      copy: copied ? 'Скопійовано' : 'Скопіювати посилання',
+      expires: 'Посилання активне до',
+      linked: 'Підключені батьки',
+      empty: 'Поки немає підключених батьків',
+      settings: 'Налаштування сповіщень змінюються в боті: нагадування, домашки, оцінки, перенесення та скасування.',
+    },
+    en: {
+      title: 'Telegram for parents',
+      desc: 'Connect Telegram so parents receive reminders, homework, grades, reschedules and cancellations.',
+      button: 'Connect Telegram',
+      copy: copied ? 'Copied' : 'Copy link',
+      expires: 'Link active until',
+      linked: 'Connected parents',
+      empty: 'No connected parents yet',
+      settings: 'Notification settings are changed in the bot: reminders, homework, grades, reschedules and cancellations.',
+    },
+  }[lang];
+
+  return (
+    <div className="glass rounded-3xl p-6 border border-sky-100 bg-gradient-to-br from-white via-sky-50/50 to-purple-50/60">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+        <div>
+          <h3 className="font-display font-bold text-xl text-purple-700 mb-1">💬 {text.title}</h3>
+          <p className="font-body text-sm text-purple-400 max-w-2xl">{text.desc}</p>
+          <p className="font-body text-xs text-purple-400 mt-2">{text.settings}</p>
+        </div>
+        <button onClick={createLink} disabled={loading}
+          className="btn-magic px-5 py-3 text-white text-sm font-display font-bold disabled:opacity-60 flex-shrink-0">
+          {loading ? '...' : text.button}
+        </button>
+      </div>
+
+      {link && (
+        <div className="mt-4 rounded-2xl bg-white/80 border border-purple-100 p-3">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input readOnly value={link} className="input-magic text-sm py-2 flex-1" onFocus={e => e.currentTarget.select()} />
+            <button onClick={copy} className="btn-outline px-4 py-2 text-sm font-display font-bold">{text.copy}</button>
+          </div>
+          {expiresAt && (
+            <p className="font-body text-xs text-purple-400 mt-2">
+              {text.expires}: {new Date(expiresAt).toLocaleString(lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU')}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="mt-4">
+        <div className="font-body font-700 text-sm text-purple-600 mb-2">{text.linked}</div>
+        {parents.length === 0 ? (
+          <div className="font-body text-sm text-purple-400 bg-white/60 rounded-2xl px-4 py-3">{text.empty}</div>
+        ) : (
+          <div className="grid sm:grid-cols-2 gap-2">
+            {parents.map(parent => (
+              <div key={parent.id} className="rounded-2xl bg-white/70 border border-purple-100 px-4 py-3">
+                <div className="font-body font-700 text-purple-700 text-sm">
+                  {parent.parentName || parent.telegramUsername || 'Telegram'}
+                </div>
+                <div className="font-body text-xs text-purple-400 uppercase">{parent.language}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -263,8 +374,11 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const previewUserId = searchParams.get('preview');
+  const initialTabParam = searchParams.get('tab');
+  const allowedTabs: Tab[] = ['overview', 'interactive', 'lessons', 'homework', 'schedule', 'practice', 'grammar', 'listening', 'checkpoint', 'dictionary', 'grades', 'shop'];
+  const initialTab = allowedTabs.includes(initialTabParam as Tab) ? initialTabParam as Tab : 'overview';
 
-  const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [greeting, setGreeting] = useState('');
   const [schedule, setSchedule] = useState<ReturnType<typeof getStudentSchedule>>([]);
   const [content, setContent] = useState<ContentItem[]>([]);
@@ -452,6 +566,10 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                     </motion.div>
                   ))}
                 </div>
+
+                {!isPreview && (
+                  <TelegramConnectCard studentId={effectiveUserId} lang={lang} />
+                )}
 
                 {ratingAvg > 0 && (
                   <div className="glass rounded-3xl p-6">

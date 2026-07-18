@@ -99,11 +99,13 @@ export type Database = {
           emoji: string
           id: string
           lesson: string
+          audio_url: string | null
           translation: string
           user_id: string
           word: string
         }
         Insert: {
+          audio_url?: string | null
           category?: string
           created_at?: string
           emoji?: string
@@ -114,6 +116,7 @@ export type Database = {
           word: string
         }
         Update: {
+          audio_url?: string | null
           category?: string
           created_at?: string
           emoji?: string

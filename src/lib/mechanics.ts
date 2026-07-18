@@ -13,6 +13,7 @@ export type MechanicType =
   | 'connect_dots'
   | 'spot_and_count'
   | 'anagram_unscramble'
+  | 'speaking_practice'
   | 'digital_coloring'
   | 'cipher_decoder';
 
@@ -71,25 +72,18 @@ export const MECHANICS: MechanicDef[] = [
     payloadShape: '{ words: string[], size?: number }  // grid auto-generated from words',
   },
   {
-    id: 'connect_dots',
-    emoji: '🔵',
-    label: 'Connect the Dots',
-    description: 'Join numbered dots in order to reveal a picture.',
-    payloadShape: '{ points: Array<{ x: number, y: number, order: number }>, background_url?: string }',
-  },
-  {
-    id: 'spot_and_count',
-    emoji: '👀',
-    label: 'Spot & Count',
-    description: 'Count objects in a picture by tapping them.',
-    payloadShape: '{ background_url: string, spots: Array<{ x, y, r }>, expected_count: number }',
-  },
-  {
     id: 'anagram_unscramble',
     emoji: '🔤',
     label: 'Anagram Unscramble',
     description: 'Rebuild a word from shuffled letters.',
     payloadShape: '{ answer: string }  // system shuffles at render time',
+  },
+  {
+    id: 'speaking_practice',
+    emoji: '🎙️',
+    label: 'Speaking Practice',
+    description: 'Say a word, sentence, answer, or short free-speaking prompt aloud.',
+    payloadShape: '{ mode: "repeat_word"|"read_sentence"|"name_picture"|"answer_question"|"describe_animal"|"speak_20_seconds", prompt?: string, target?: string, image?: string, audio?: string, seconds?: number }',
   },
   {
     id: 'digital_coloring',
