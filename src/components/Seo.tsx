@@ -94,7 +94,7 @@ export const homeSchoolSchema = {
   '@type': 'School',
   name: 'Vetoschool',
   url: SITE_URL,
-  logo: `${SITE_URL}/favicon.svg`,
+  logo: `${SITE_URL}/favicon.ico`,
   image: DEFAULT_IMAGE,
   description: 'Vetoschool is an online English school for children ages 5-12 with interactive lessons, practice, homework, listening, and grammar.',
   areaServed: 'Europe',
