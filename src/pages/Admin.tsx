@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { getCurrentUser, getUsers, grantAccess, revokeAccess, deleteUser, logout, loadAllUsers, setAccess, setAccessStatus, User, AccessStatus, PaymentStatus } from '../lib/auth';
+import { getCurrentUser, getUsers, grantAccess, revokeAccess, deleteUser, logout, loadAllUsers, setAccess, setAccessStatus, friendlyActionError, User, AccessStatus, PaymentStatus } from '../lib/auth';
 import { getStudentSchedule, saveStudentSchedule, loadStudentSchedule, setSlotConducted, ScheduleSlot } from '../lib/schedule';
 import { ensureStudentContent, saveStudentContent, loadStudentContent, ContentItem, ContentType, getStudentRating, fileToDataUrl, uploadContentFile, deleteContentItem, deleteModule, isGradedContentType } from '../lib/content';
 import { Lang, t } from '../lib/i18n';
@@ -45,7 +45,7 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
   );
 }
 
-function DeleteModal({ name, onConfirm, onCancel, lang }: { name: string; onConfirm: () => void; onCancel: () => void; lang: Lang }) {
+function DeleteModal({ name, onConfirm, onCancel, lang, busy = false }: { name: string; onConfirm: () => void; onCancel: () => void; lang: Lang; busy?: boolean }) {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -58,9 +58,9 @@ function DeleteModal({ name, onConfirm, onCancel, lang }: { name: string; onConf
           {t(lang,'admin_delete_confirm')} <span className="font-700 text-purple-700">{name}</span> {t(lang,'admin_delete_warning')}
         </p>
         <div className="flex gap-3 justify-center">
-          <button onClick={onCancel} className="btn-outline px-6 py-3 font-display font-bold text-sm">{t(lang,'admin_cancel')}</button>
-          <button onClick={onConfirm} className="px-6 py-3 bg-gradient-to-r from-red-400 to-pink-500 text-white font-display font-bold text-sm rounded-full hover:scale-105 transition-transform shadow-lg">
-            {t(lang,'admin_do_delete')}
+          <button onClick={onCancel} disabled={busy} className="btn-outline px-6 py-3 font-display font-bold text-sm disabled:opacity-60">{t(lang,'admin_cancel')}</button>
+          <button onClick={onConfirm} disabled={busy} className="px-6 py-3 bg-gradient-to-r from-red-400 to-pink-500 text-white font-display font-bold text-sm rounded-full hover:scale-105 transition-transform shadow-lg disabled:opacity-60 disabled:hover:scale-100">
+            {busy ? '...' : t(lang,'admin_do_delete')}
           </button>
         </div>
       </motion.div>
@@ -374,6 +374,9 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const [activeSection, setActiveSection] = useState<Section>('students');
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [profileTarget, setProfileTarget] = useState<User | null>(null);
+  const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [deleteSaving, setDeleteSaving] = useState(false);
 
   // Schedule
   const [schedUserId, setSchedUserId] = useState('');
@@ -454,23 +457,43 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   useEffect(() => { if (contentUserId) loadStudentContent(contentUserId).then(setContentItems); else setContentItems([]); }, [contentUserId]);
 
   const refreshUsers = () => setUsers(getUsers().filter(u => u.role !== 'admin'));
-  const showToast = (msg: string, type: 'success'|'error' = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+  const refreshUsersFromServer = async () => {
+    const fresh = await loadAllUsers();
+    setUsers(fresh.filter(u => u.role !== 'admin'));
+  };
+  const showToast = (msg: string, type: 'success'|'error' = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), type === 'error' ? 5200 : 3000); };
 
-  const handleGrant = async (uid: string, name: string) => { await grantAccess(uid); refreshUsers(); showToast(`✅ ${name}`); };
-  const handleRevoke = async (uid: string, name: string) => { await revokeAccess(uid); refreshUsers(); showToast(`🔒 ${name}`, 'error'); };
+  const runStudentAction = async (uid: string, action: () => Promise<void>, success: string, type: 'success'|'error' = 'success') => {
+    setSavingUserId(uid);
+    try {
+      await action();
+      await refreshUsersFromServer();
+      showToast(success, type);
+    } catch (error) {
+      console.error(error);
+      showToast(friendlyActionError(error), 'error');
+    } finally {
+      setSavingUserId(null);
+    }
+  };
+
+  const handleGrant = (uid: string, name: string) => runStudentAction(uid, () => grantAccess(uid), `✅ ${name}`);
+  const handleRevoke = (uid: string, name: string) => runStudentAction(uid, () => revokeAccess(uid), `🔒 ${name}`, 'error');
   const doDelete = async () => {
     if (!deleteTarget) return;
+    setDeleteSaving(true);
     try {
       await deleteUser(deleteTarget.id);
-      const fresh = await loadAllUsers();
-      setUsers(fresh.filter(u => u.role !== 'admin'));
+      await refreshUsersFromServer();
       if (schedUserId === deleteTarget.id) setSchedUserId('');
       if (contentUserId === deleteTarget.id) setContentUserId('');
       showToast(`🗑️ ${deleteTarget.name}`);
       setDeleteTarget(null);
     } catch (error) {
       console.error(error);
-      showToast(deleteFailedText, 'error');
+      showToast(`${deleteFailedText}: ${friendlyActionError(error)}`, 'error');
+    } finally {
+      setDeleteSaving(false);
     }
   };
   const handleLogout = async () => { await logout(); navigate('/'); };
@@ -654,6 +677,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const linkLabel = lang === 'en' ? 'Attach link' : lang === 'ua' ? 'Прикріпити посилання' : 'Прикрепить ссылку';
   const linkPlaceholder = lang === 'en' ? 'https://example.com' : 'https://...';
   const paymentHeader = lang === 'en' ? 'Payment' : lang === 'ua' ? 'Оплата' : 'Оплата';
+  const accessHeader = lang === 'en' ? 'Access' : lang === 'ua' ? 'Доступ' : 'Доступ';
   const statusUpdatedText = lang === 'en' ? 'Status updated' : lang === 'ua' ? 'Статус оновлено' : 'Статус обновлён';
   const deleteFailedText = lang === 'en' ? 'Could not delete student' : lang === 'ua' ? 'Не вдалося видалити учня' : 'Не удалось удалить ученика';
   const grantAllDoneText = lang === 'en' ? 'Access opened for all pending students' : lang === 'ua' ? 'Доступ відкрито всім очікуючим' : 'Всем ожидающим открыт доступ!';
@@ -681,17 +705,16 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
     paid: 'bg-green-100 text-green-700 border-green-200',
     refunded: 'bg-purple-100 text-purple-600 border-purple-200',
   };
-  const handleStatusChange = async (uid: string, accessStatus: AccessStatus, paymentStatus?: PaymentStatus) => {
-    await setAccessStatus(uid, accessStatus, paymentStatus);
-    refreshUsers();
-    showToast(statusUpdatedText);
+  const statusPillBase = 'inline-flex min-h-9 min-w-[156px] items-center justify-center rounded-2xl border px-3 py-2 font-body text-xs font-700 shadow-sm';
+  const handleStatusChange = (uid: string, accessStatus: AccessStatus, paymentStatus?: PaymentStatus) => {
+    runStudentAction(uid, () => setAccessStatus(uid, accessStatus, paymentStatus), statusUpdatedText);
   };
 
   return (
     <div className="min-h-screen page-bg-admin">
 
       <AnimatePresence>
-        {deleteTarget && <DeleteModal name={deleteTarget.name} onConfirm={doDelete} onCancel={() => setDeleteTarget(null)} lang={lang} />}
+        {deleteTarget && <DeleteModal name={deleteTarget.name} onConfirm={doDelete} onCancel={() => setDeleteTarget(null)} lang={lang} busy={deleteSaving} />}
       </AnimatePresence>
 
       <AnimatePresence>
@@ -805,7 +828,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                 </div>
               </div>
 
-              <div className="glass rounded-3xl overflow-hidden mb-6">
+              <div className="glass rounded-3xl overflow-hidden mb-6 border border-white/70 shadow-xl">
                 {filtered.length === 0 ? (
                   <div className="text-center py-16">
                     <div className="text-5xl mb-4">🤔</div>
@@ -816,8 +839,8 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-purple-100">
-                          {[t(lang,'admin_student'), t(lang,'admin_email'), t(lang,'admin_joined'), t(lang,'admin_status'), paymentHeader, t(lang,'admin_actions')].map(h => (
+                        <tr className="border-b border-purple-100 bg-white/35">
+                          {[t(lang,'admin_student'), accessHeader, paymentHeader, t(lang,'admin_actions')].map(h => (
                             <th key={h} className="text-left px-4 md:px-6 py-4 font-display font-bold text-purple-600 text-sm">{h}</th>
                           ))}
                         </tr>
@@ -828,12 +851,16 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                             const { avg } = getStudentRating(user.id);
                             return (
                               <motion.tr key={user.id} initial={{ opacity:0, x:-20 }} animate={{ opacity:1, x:0 }} exit={{ opacity:0, x:20 }}
-                                transition={{ delay:i*0.05 }} className="border-b border-purple-50 hover:bg-purple-50/50 transition-colors">
-                                <td className="px-4 md:px-6 py-4">
+                                transition={{ delay:i*0.05 }} className="border-b border-purple-50 bg-white/20 hover:bg-pink-50/60 transition-colors">
+                                <td className="px-4 md:px-6 py-4 min-w-[260px]">
                                   <div className="flex items-center gap-3">
                                     <UserAvatar user={user} />
-                                    <div>
-                                      <div className="font-body font-600 text-purple-700 text-sm">{user.name}</div>
+                                    <div className="min-w-0">
+                                      <div className="font-body font-700 text-purple-700 text-sm">{user.name}</div>
+                                      <div className="font-body text-xs text-purple-400 truncate max-w-[210px]">{user.email}</div>
+                                      <div className="font-body text-[11px] text-pink-400">
+                                        {new Date(user.joinedAt).toLocaleDateString(lang==='en'?'en-GB':lang==='ua'?'uk-UA':'ru-RU', { day:'numeric', month:'short', year:'numeric' })}
+                                      </div>
                                       {avg > 0 && (
                                         <div className="flex gap-0.5 mt-0.5">
                                           {[1,2,3,4,5].map(s => <span key={s} className={`text-xs ${s<=Math.round(avg)?'text-yellow-400':'text-gray-200'}`}>★</span>)}
@@ -842,46 +869,47 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                     </div>
                                   </div>
                                 </td>
-                                <td className="px-4 md:px-6 py-4 font-body text-sm text-purple-500 hidden md:table-cell">{user.email}</td>
-                                <td className="px-4 md:px-6 py-4 font-body text-xs text-purple-400 hidden lg:table-cell">
-                                  {new Date(user.joinedAt).toLocaleDateString(lang==='en'?'en-GB':lang==='ua'?'uk-UA':'ru-RU', { day:'numeric', month:'short', year:'numeric' })}
-                                </td>
-                                <td className="px-4 md:px-6 py-4">
-                                  <Select value={user.accessStatus} onValueChange={v => handleStatusChange(user.id, v as AccessStatus)}>
-                                    <SelectTrigger className={`h-9 min-w-[150px] rounded-xl border px-3 text-xs font-body font-700 shadow-sm ${accessClasses[user.accessStatus]}`}>
-                                      <SelectValue />
+                                <td className="px-4 md:px-6 py-4 min-w-[190px]">
+                                  <Select disabled={savingUserId === user.id} value={user.accessStatus} onValueChange={v => handleStatusChange(user.id, v as AccessStatus)}>
+                                    <SelectTrigger className={`${statusPillBase} ${accessClasses[user.accessStatus]} hover:scale-[1.02] transition-transform focus:ring-pink-200`}>
+                                      <span>{savingUserId === user.id ? '...' : accessLabels[user.accessStatus]}</span>
                                     </SelectTrigger>
-                                    <SelectContent className="rounded-2xl border-2 border-purple-200 bg-white/95">
+                                    <SelectContent className="rounded-3xl border-2 border-purple-100 bg-white/95 p-2 text-purple-700 shadow-2xl backdrop-blur">
                                       {(['pending', 'active', 'suspended', 'cancelled'] as AccessStatus[]).map(status => (
-                                        <SelectItem key={status} value={status} className={`rounded-xl font-body text-xs font-700 ${accessClasses[status]}`}>
-                                          {accessLabels[status]}
+                                        <SelectItem key={status} value={status} className="rounded-2xl py-1.5 pl-8 pr-2 font-body text-xs font-700 text-purple-700 focus:bg-pink-50 focus:text-purple-700">
+                                          <span className={`${statusPillBase} ${accessClasses[status]} min-w-full justify-start shadow-none`}>
+                                            {accessLabels[status]}
+                                          </span>
                                         </SelectItem>
                                       ))}
                                     </SelectContent>
                                   </Select>
                                 </td>
-                                <td className="px-4 md:px-6 py-4">
-                                  <Select value={user.paymentStatus} onValueChange={v => handleStatusChange(user.id, user.accessStatus, v as PaymentStatus)}>
-                                    <SelectTrigger className={`h-9 min-w-[150px] rounded-xl border px-3 text-xs font-body font-700 shadow-sm ${paymentClasses[user.paymentStatus]}`}>
-                                      <SelectValue />
+                                <td className="px-4 md:px-6 py-4 min-w-[190px]">
+                                  <Select disabled={savingUserId === user.id} value={user.paymentStatus} onValueChange={v => handleStatusChange(user.id, user.accessStatus, v as PaymentStatus)}>
+                                    <SelectTrigger className={`${statusPillBase} ${paymentClasses[user.paymentStatus]} hover:scale-[1.02] transition-transform focus:ring-pink-200`}>
+                                      <span>{savingUserId === user.id ? '...' : paymentLabels[user.paymentStatus]}</span>
                                     </SelectTrigger>
-                                    <SelectContent className="rounded-2xl border-2 border-purple-200 bg-white/95">
+                                    <SelectContent className="rounded-3xl border-2 border-purple-100 bg-white/95 p-2 text-purple-700 shadow-2xl backdrop-blur">
                                       {(['unpaid', 'pending_review', 'paid', 'refunded'] as PaymentStatus[]).map(status => (
-                                        <SelectItem key={status} value={status} className={`rounded-xl font-body text-xs font-700 ${paymentClasses[status]}`}>
-                                          {paymentLabels[status]}
+                                        <SelectItem key={status} value={status} className="rounded-2xl py-1.5 pl-8 pr-2 font-body text-xs font-700 text-purple-700 focus:bg-pink-50 focus:text-purple-700">
+                                          <span className={`${statusPillBase} ${paymentClasses[status]} min-w-full justify-start shadow-none`}>
+                                            {paymentLabels[status]}
+                                          </span>
                                         </SelectItem>
                                       ))}
                                     </SelectContent>
                                   </Select>
                                 </td>
-                                <td className="px-4 md:px-6 py-4">
+                                <td className="px-4 md:px-6 py-4 min-w-[190px]">
                                   <div className="flex items-center gap-2">
                                     {user.hasAccess
-                                      ? <button onClick={() => handleRevoke(user.id, user.name)} className="text-xs bg-red-100 text-red-500 hover:bg-red-200 px-3 py-1.5 rounded-xl font-body font-600 transition-colors whitespace-nowrap">{t(lang,'admin_take')}</button>
-                                      : <button onClick={() => handleGrant(user.id, user.name)} className="text-xs bg-green-100 text-green-600 hover:bg-green-200 px-3 py-1.5 rounded-xl font-body font-600 transition-colors">{t(lang,'admin_give')}</button>
+                                      ? <button disabled={savingUserId === user.id} onClick={() => handleRevoke(user.id, user.name)} className="text-xs bg-red-100 text-red-500 hover:bg-red-200 px-3 py-2 rounded-2xl font-body font-700 transition-colors whitespace-nowrap disabled:opacity-60">{savingUserId === user.id ? '...' : t(lang,'admin_take')}</button>
+                                      : <button disabled={savingUserId === user.id} onClick={() => handleGrant(user.id, user.name)} className="text-xs bg-green-100 text-green-600 hover:bg-green-200 px-3 py-2 rounded-2xl font-body font-700 transition-colors disabled:opacity-60">{savingUserId === user.id ? '...' : t(lang,'admin_give')}</button>
                                     }
                                     <button onClick={() => setDeleteTarget(user)}
-                                      className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-500 rounded-xl transition-colors text-base" title={t(lang,'admin_delete_title')}>
+                                      disabled={savingUserId === user.id || deleteSaving}
+                                      className="w-9 h-9 flex items-center justify-center bg-pink-50 hover:bg-red-100 text-pink-400 hover:text-red-500 rounded-2xl transition-colors text-base disabled:opacity-60" title={t(lang,'admin_delete_title')}>
                                       🗑️
                                     </button>
                                   </div>
@@ -901,14 +929,22 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                   <h3 className="font-display font-bold text-lg text-purple-700 mb-3">{t(lang,'admin_quick_actions')}</h3>
                   <button
                     onClick={async () => {
-                      await Promise.all(users.filter(u => !u.hasAccess).map(u => grantAccess(u.id)));
-                      const fresh = await loadAllUsers();
-                      setUsers(fresh.filter(u => u.role !== 'admin'));
-                      showToast(`✅ ${grantAllDoneText}`);
+                      setBulkSaving(true);
+                      try {
+                        await Promise.all(users.filter(u => !u.hasAccess).map(u => grantAccess(u.id)));
+                        await refreshUsersFromServer();
+                        showToast(`✅ ${grantAllDoneText}`);
+                      } catch (error) {
+                        console.error(error);
+                        showToast(friendlyActionError(error), 'error');
+                      } finally {
+                        setBulkSaving(false);
+                      }
                     }}
-                    className="w-full text-left px-4 py-3 bg-green-50 hover:bg-green-100 border border-green-200 rounded-2xl font-body text-sm text-green-700 font-600 transition-colors"
+                    disabled={bulkSaving || users.every(u => u.hasAccess)}
+                    className="w-full text-left px-4 py-3 bg-green-50 hover:bg-green-100 border border-green-200 rounded-2xl font-body text-sm text-green-700 font-700 transition-colors disabled:opacity-60"
                   >
-                    {t(lang,'admin_grant_all_btn')}
+                    {bulkSaving ? '...' : t(lang,'admin_grant_all_btn')}
                   </button>
                 </div>
                 <div className="glass rounded-3xl p-6">

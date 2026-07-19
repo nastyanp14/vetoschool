@@ -49,6 +49,27 @@ function friendlyAuthError(message?: string) {
   return raw;
 }
 
+export function friendlyActionError(error: unknown) {
+  if (!error) return 'Действие не выполнено. Попробуйте ещё раз.';
+  if (typeof error === 'string') return friendlyAuthError(error);
+
+  const err = error as { message?: string; error?: string; details?: string; hint?: string; code?: string };
+  const message = err.error || err.message || err.details || 'Действие не выполнено. Попробуйте ещё раз.';
+  return friendlyAuthError(message);
+}
+
+function isMissingAccessStatusColumns(error: unknown) {
+  const err = error as { message?: string; details?: string; hint?: string; code?: string };
+  const text = `${err?.code || ''} ${err?.message || ''} ${err?.details || ''} ${err?.hint || ''}`.toLowerCase();
+  return (
+    text.includes('access_status') ||
+    text.includes('payment_status') ||
+    text.includes('schema cache') ||
+    text.includes('pgrst204') ||
+    text.includes('42703')
+  );
+}
+
 function profileNameFromEmail(email: string) {
   return email.split('@')[0] || 'Student';
 }
@@ -68,7 +89,19 @@ async function initializeProfile(authUserId: string, email: string, name?: strin
       has_access: false,
     } as any, { onConflict: 'id', ignoreDuplicates: true });
 
-  if (error) throw error;
+  if (!error) return;
+  if (!isMissingAccessStatusColumns(error)) throw error;
+
+  const { error: legacyError } = await supabase
+    .from('profiles')
+    .upsert({
+      id: authUserId,
+      email: normalizedEmail,
+      name: displayName,
+      has_access: false,
+    } as any, { onConflict: 'id', ignoreDuplicates: true });
+
+  if (legacyError) throw legacyError;
 }
 
 async function loadCurrentUser(authUserId: string): Promise<User | null> {
@@ -324,7 +357,24 @@ export async function setAccessStatus(userId: string, accessStatus: AccessStatus
   if (paymentStatus) patch.payment_status = paymentStatus;
 
   const { error } = await supabase.from('profiles').update(patch as any).eq('id', userId);
-  if (error) throw error;
+  if (error) {
+    if (!isMissingAccessStatusColumns(error)) throw error;
+
+    const isLegacyGrant = accessStatus === 'active' && (!paymentStatus || paymentStatus === 'paid');
+    const isLegacyClose = accessStatus === 'pending' && (!paymentStatus || paymentStatus === 'unpaid');
+    const isLegacyBlock = (accessStatus === 'suspended' || accessStatus === 'cancelled') && !paymentStatus;
+
+    if (!isLegacyGrant && !isLegacyClose && !isLegacyBlock) {
+      throw new Error('В базе ещё нет новых полей payment_status/access_status. Примените миграцию 20260719013000_secure_auth_access_status.sql, чтобы менять все статусы.');
+    }
+
+    const { error: legacyError } = await supabase
+      .from('profiles')
+      .update({ has_access: accessStatus === 'active' } as any)
+      .eq('id', userId);
+
+    if (legacyError) throw legacyError;
+  }
   await loadAllUsers();
 }
 
@@ -336,9 +386,17 @@ export const grantAccess = (id: string) => setAccess(id, true);
 export const revokeAccess = (id: string) => setAccess(id, false);
 
 export async function deleteUser(userId: string) {
-  const { error } = await supabase.functions.invoke('admin-delete-user', {
+  const { data, error } = await supabase.functions.invoke<{ success?: boolean; error?: string }>('admin-delete-user', {
     body: { userId },
   });
-  if (error) throw error;
+  if (error) {
+    const context = (error as { context?: unknown }).context;
+    if (context instanceof Response) {
+      const body = await context.json().catch(() => null) as { error?: string } | null;
+      throw new Error(body?.error || error.message);
+    }
+    throw error;
+  }
+  if (data?.error) throw new Error(data.error);
   await loadAllUsers();
 }
