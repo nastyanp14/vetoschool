@@ -7,6 +7,7 @@ const rootDir = path.resolve(__dirname, '..');
 
 const siteUrl = (process.env.SITE_URL || 'https://vetoschool.eu').replace(/\/$/, '');
 const outDir = path.resolve(rootDir, process.env.SEO_OUT_DIR || 'dist');
+const publicDir = path.resolve(rootDir, 'public');
 const today = new Date();
 const localToday = new Date(today.getTime() - today.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 const lastmod = process.env.SITEMAP_LASTMOD || localToday;
@@ -50,8 +51,18 @@ Allow: /
 Sitemap: ${siteUrl}/sitemap.xml
 `;
 
-await mkdir(outDir, { recursive: true });
-await writeFile(path.join(outDir, 'sitemap.xml'), sitemap, 'utf8');
-await writeFile(path.join(outDir, 'robots.txt'), robots, 'utf8');
+const headers = `/sitemap.xml
+  Content-Type: application/xml; charset=UTF-8
 
-console.log(`Generated sitemap.xml and robots.txt in ${path.relative(rootDir, outDir) || '.'}`);
+/robots.txt
+  Content-Type: text/plain; charset=UTF-8
+`;
+
+for (const dir of new Set([publicDir, outDir])) {
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, 'sitemap.xml'), sitemap, 'utf8');
+  await writeFile(path.join(dir, 'robots.txt'), robots, 'utf8');
+  await writeFile(path.join(dir, '_headers'), headers, 'utf8');
+}
+
+console.log(`Generated sitemap.xml, robots.txt, and _headers in public and ${path.relative(rootDir, outDir) || '.'}`);
