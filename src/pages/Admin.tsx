@@ -458,17 +458,20 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
 
   const handleGrant = async (uid: string, name: string) => { await grantAccess(uid); refreshUsers(); showToast(`✅ ${name}`); };
   const handleRevoke = async (uid: string, name: string) => { await revokeAccess(uid); refreshUsers(); showToast(`🔒 ${name}`, 'error'); };
-  const handleStatusChange = async (uid: string, accessStatus: AccessStatus, paymentStatus?: PaymentStatus) => {
-    await setAccessStatus(uid, accessStatus, paymentStatus);
-    refreshUsers();
-    showToast('Статус обновлён');
-  };
   const doDelete = async () => {
     if (!deleteTarget) return;
-    await deleteUser(deleteTarget.id); refreshUsers();
-    if (schedUserId === deleteTarget.id) setSchedUserId('');
-    if (contentUserId === deleteTarget.id) setContentUserId('');
-    showToast(`🗑️ ${deleteTarget.name}`); setDeleteTarget(null);
+    try {
+      await deleteUser(deleteTarget.id);
+      const fresh = await loadAllUsers();
+      setUsers(fresh.filter(u => u.role !== 'admin'));
+      if (schedUserId === deleteTarget.id) setSchedUserId('');
+      if (contentUserId === deleteTarget.id) setContentUserId('');
+      showToast(`🗑️ ${deleteTarget.name}`);
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error(error);
+      showToast(deleteFailedText, 'error');
+    }
   };
   const handleLogout = async () => { await logout(); navigate('/'); };
 
@@ -651,22 +654,37 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const linkLabel = lang === 'en' ? 'Attach link' : lang === 'ua' ? 'Прикріпити посилання' : 'Прикрепить ссылку';
   const linkPlaceholder = lang === 'en' ? 'https://example.com' : 'https://...';
   const paymentHeader = lang === 'en' ? 'Payment' : lang === 'ua' ? 'Оплата' : 'Оплата';
-  const bulkActivationDisabled = lang === 'en'
-    ? 'Bulk activation is disabled: access is opened manually after payment review.'
-    : lang === 'ua'
-      ? 'Масову активацію вимкнено: доступ відкривається вручну після перевірки оплати.'
-      : 'Массовая активация отключена: доступ открывается вручную после проверки оплаты.';
+  const statusUpdatedText = lang === 'en' ? 'Status updated' : lang === 'ua' ? 'Статус оновлено' : 'Статус обновлён';
+  const deleteFailedText = lang === 'en' ? 'Could not delete student' : lang === 'ua' ? 'Не вдалося видалити учня' : 'Не удалось удалить ученика';
+  const grantAllDoneText = lang === 'en' ? 'Access opened for all pending students' : lang === 'ua' ? 'Доступ відкрито всім очікуючим' : 'Всем ожидающим открыт доступ!';
   const accessLabels: Record<AccessStatus, string> = {
-    pending: lang === 'en' ? 'Pending' : lang === 'ua' ? 'Очікує' : 'Ожидает',
-    active: lang === 'en' ? 'Active' : lang === 'ua' ? 'Активний' : 'Активен',
-    suspended: lang === 'en' ? 'Suspended' : lang === 'ua' ? 'Призупинено' : 'Приостановлен',
-    cancelled: lang === 'en' ? 'Cancelled' : lang === 'ua' ? 'Скасовано' : 'Отменён',
+    pending: lang === 'en' ? '🟡 Pending' : lang === 'ua' ? '🟡 Очікує' : '🟡 Ожидает',
+    active: lang === 'en' ? '🟢 Active' : lang === 'ua' ? '🟢 Активний' : '🟢 Активен',
+    suspended: lang === 'en' ? '🟠 Suspended' : lang === 'ua' ? '🟠 Призупинено' : '🟠 Приостановлен',
+    cancelled: lang === 'en' ? '⚫ Cancelled' : lang === 'ua' ? '⚫ Скасовано' : '⚫ Отменён',
   };
   const paymentLabels: Record<PaymentStatus, string> = {
-    unpaid: lang === 'en' ? 'Unpaid' : lang === 'ua' ? 'Не оплачено' : 'Не оплачено',
-    pending_review: lang === 'en' ? 'Pending review' : lang === 'ua' ? 'На перевірці' : 'На проверке',
-    paid: lang === 'en' ? 'Paid' : lang === 'ua' ? 'Оплачено' : 'Оплачено',
-    refunded: lang === 'en' ? 'Refunded' : lang === 'ua' ? 'Повернено' : 'Возврат',
+    unpaid: lang === 'en' ? '🔴 Unpaid' : lang === 'ua' ? '🔴 Не оплачено' : '🔴 Не оплачено',
+    pending_review: lang === 'en' ? '🔵 Review' : lang === 'ua' ? '🔵 Перевірка' : '🔵 Проверка',
+    paid: lang === 'en' ? '💚 Paid' : lang === 'ua' ? '💚 Оплачено' : '💚 Оплачено',
+    refunded: lang === 'en' ? '↩️ Refunded' : lang === 'ua' ? '↩️ Повернено' : '↩️ Возврат',
+  };
+  const accessClasses: Record<AccessStatus, string> = {
+    pending: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    active: 'bg-green-100 text-green-700 border-green-200',
+    suspended: 'bg-orange-100 text-orange-700 border-orange-200',
+    cancelled: 'bg-gray-100 text-gray-500 border-gray-200',
+  };
+  const paymentClasses: Record<PaymentStatus, string> = {
+    unpaid: 'bg-red-100 text-red-500 border-red-200',
+    pending_review: 'bg-blue-100 text-blue-500 border-blue-200',
+    paid: 'bg-green-100 text-green-700 border-green-200',
+    refunded: 'bg-purple-100 text-purple-600 border-purple-200',
+  };
+  const handleStatusChange = async (uid: string, accessStatus: AccessStatus, paymentStatus?: PaymentStatus) => {
+    await setAccessStatus(uid, accessStatus, paymentStatus);
+    refreshUsers();
+    showToast(statusUpdatedText);
   };
 
   return (
@@ -830,12 +848,12 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                 </td>
                                 <td className="px-4 md:px-6 py-4">
                                   <Select value={user.accessStatus} onValueChange={v => handleStatusChange(user.id, v as AccessStatus)}>
-                                    <SelectTrigger className="h-9 min-w-[132px] rounded-xl border-purple-100 bg-white/70 text-xs text-purple-700">
+                                    <SelectTrigger className={`h-9 min-w-[150px] rounded-xl border px-3 text-xs font-body font-700 shadow-sm ${accessClasses[user.accessStatus]}`}>
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent className="rounded-2xl border-2 border-purple-200 bg-white/95">
                                       {(['pending', 'active', 'suspended', 'cancelled'] as AccessStatus[]).map(status => (
-                                        <SelectItem key={status} value={status} className="rounded-xl font-body text-xs">
+                                        <SelectItem key={status} value={status} className={`rounded-xl font-body text-xs font-700 ${accessClasses[status]}`}>
                                           {accessLabels[status]}
                                         </SelectItem>
                                       ))}
@@ -844,12 +862,12 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                 </td>
                                 <td className="px-4 md:px-6 py-4">
                                   <Select value={user.paymentStatus} onValueChange={v => handleStatusChange(user.id, user.accessStatus, v as PaymentStatus)}>
-                                    <SelectTrigger className="h-9 min-w-[132px] rounded-xl border-purple-100 bg-white/70 text-xs text-purple-700">
+                                    <SelectTrigger className={`h-9 min-w-[150px] rounded-xl border px-3 text-xs font-body font-700 shadow-sm ${paymentClasses[user.paymentStatus]}`}>
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent className="rounded-2xl border-2 border-purple-200 bg-white/95">
                                       {(['unpaid', 'pending_review', 'paid', 'refunded'] as PaymentStatus[]).map(status => (
-                                        <SelectItem key={status} value={status} className="rounded-xl font-body text-xs">
+                                        <SelectItem key={status} value={status} className={`rounded-xl font-body text-xs font-700 ${paymentClasses[status]}`}>
                                           {paymentLabels[status]}
                                         </SelectItem>
                                       ))}
@@ -860,7 +878,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                   <div className="flex items-center gap-2">
                                     {user.hasAccess
                                       ? <button onClick={() => handleRevoke(user.id, user.name)} className="text-xs bg-red-100 text-red-500 hover:bg-red-200 px-3 py-1.5 rounded-xl font-body font-600 transition-colors whitespace-nowrap">{t(lang,'admin_take')}</button>
-                                      : <button onClick={() => handleGrant(user.id, user.name)} className="text-xs bg-green-100 text-green-600 hover:bg-green-200 px-3 py-1.5 rounded-xl font-body font-600 transition-colors">✅ {t(lang,'admin_give')}</button>
+                                      : <button onClick={() => handleGrant(user.id, user.name)} className="text-xs bg-green-100 text-green-600 hover:bg-green-200 px-3 py-1.5 rounded-xl font-body font-600 transition-colors">{t(lang,'admin_give')}</button>
                                     }
                                     <button onClick={() => setDeleteTarget(user)}
                                       className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-500 rounded-xl transition-colors text-base" title={t(lang,'admin_delete_title')}>
@@ -881,9 +899,17 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="glass rounded-3xl p-6">
                   <h3 className="font-display font-bold text-lg text-purple-700 mb-3">{t(lang,'admin_quick_actions')}</h3>
-                  <div className="w-full px-4 py-3 bg-blue-50 border border-blue-100 rounded-2xl font-body text-sm text-blue-600 font-600">
-                    {bulkActivationDisabled}
-                  </div>
+                  <button
+                    onClick={async () => {
+                      await Promise.all(users.filter(u => !u.hasAccess).map(u => grantAccess(u.id)));
+                      const fresh = await loadAllUsers();
+                      setUsers(fresh.filter(u => u.role !== 'admin'));
+                      showToast(`✅ ${grantAllDoneText}`);
+                    }}
+                    className="w-full text-left px-4 py-3 bg-green-50 hover:bg-green-100 border border-green-200 rounded-2xl font-body text-sm text-green-700 font-600 transition-colors"
+                  >
+                    {t(lang,'admin_grant_all_btn')}
+                  </button>
                 </div>
                 <div className="glass rounded-3xl p-6">
                   <h3 className="font-display font-bold text-lg text-purple-700 mb-3">{t(lang,'admin_overview')}</h3>

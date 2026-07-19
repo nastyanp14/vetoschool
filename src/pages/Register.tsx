@@ -8,21 +8,21 @@ import { AuthAlert, AuthFooterLink, AuthHeader, AuthPageShell, GoogleButton } fr
 const text = {
   ru: {
     google: 'Продолжить с Google',
-    divider: 'или через email',
+    divider: 'или',
     passPlaceholder: 'Минимум 6 символов',
-    telegram: 'После регистрации и оплаты напишите Vetoschool в Telegram и отправьте подтверждение оплаты. Доступ к урокам вручную активирует администратор.',
+    hint: '👋 Подтвердите email кодом. Доступ к урокам откроет администратор после оплаты.',
   },
   ua: {
     google: 'Продовжити з Google',
-    divider: 'або через email',
+    divider: 'або',
     passPlaceholder: 'Мінімум 6 символів',
-    telegram: 'Після реєстрації та оплати напишіть Vetoschool у Telegram і надішліть підтвердження оплати. Доступ до уроків вручну активує адміністратор.',
+    hint: '👋 Підтвердьте email кодом. Доступ до уроків відкриє адміністратор після оплати.',
   },
   en: {
     google: 'Continue with Google',
-    divider: 'or use email',
+    divider: 'or',
     passPlaceholder: 'Minimum 6 characters',
-    telegram: 'After registration and payment, contact Vetoschool through Telegram and send proof of payment. Lesson access is activated manually by an administrator.',
+    hint: '👋 Confirm your email with a code. Lesson access is opened by an administrator after payment.',
   },
 };
 
@@ -72,16 +72,7 @@ export default function Register({ lang }: { lang: Lang }) {
     <AuthPageShell tone="blue">
       <AuthHeader icon="✨" title={t(lang, 'reg_title')} subtitle={t(lang, 'reg_sub')} />
 
-      <div className="space-y-4">
-        <GoogleButton onClick={handleGoogle} loading={googleLoading} label={copy.google} />
-        <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-purple-100" />
-          <span className="font-body text-xs text-purple-300">{copy.divider}</span>
-          <div className="h-px flex-1 bg-purple-100" />
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="font-body font-600 text-purple-600 text-sm mb-2 block">{t(lang, 'reg_name')}</label>
           <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Sofia" className="input-magic" required />
@@ -101,17 +92,22 @@ export default function Register({ lang }: { lang: Lang }) {
 
         {error && <AuthAlert>{error}</AuthAlert>}
 
-        <AuthAlert type="info">
-          {copy.telegram}{' '}
-          <a href="https://t.me/vetoschool_bot" target="_blank" rel="noopener noreferrer" className="font-700 underline">
-            Telegram
-          </a>
-        </AuthAlert>
+        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3">
+          <p className="font-body text-xs text-blue-500 text-center">{copy.hint}</p>
+        </div>
 
         <button type="submit" disabled={loading} className="btn-magic w-full py-4 text-white font-display font-bold text-lg mt-2 disabled:opacity-70">
           {loading ? t(lang, 'reg_loading') : t(lang, 'reg_btn')}
         </button>
       </form>
+
+      <div className="my-5 flex items-center gap-3">
+        <div className="h-px flex-1 bg-purple-100" />
+        <span className="font-body text-xs text-purple-300">{copy.divider}</span>
+        <div className="h-px flex-1 bg-purple-100" />
+      </div>
+
+      <GoogleButton onClick={handleGoogle} loading={googleLoading} label={copy.google} />
 
       <AuthFooterLink to="/login" muted={t(lang, 'reg_have')} label={t(lang, 'reg_signin')} />
     </AuthPageShell>

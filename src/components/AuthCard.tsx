@@ -77,9 +77,14 @@ export function GoogleButton({ onClick, loading, label }: { onClick: () => void;
       type="button"
       onClick={onClick}
       disabled={loading}
-      className="w-full py-3.5 rounded-2xl bg-white/80 border border-purple-100 text-purple-700 font-display font-bold text-sm hover:bg-white transition-colors disabled:opacity-60"
+      className="group w-full rounded-2xl bg-white/80 border border-purple-100 px-4 py-3.5 text-purple-700 font-display font-bold text-sm shadow-sm hover:bg-white hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-60"
     >
-      {loading ? '...' : label}
+      <span className="flex items-center justify-center gap-3">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm font-display text-sm text-blue-500 group-hover:scale-105 transition-transform">
+          G
+        </span>
+        <span>{loading ? '...' : label}</span>
+      </span>
     </button>
   );
 }

@@ -495,12 +495,12 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                 : user.name[0].toUpperCase()}
             </div>
             {!isPreview && (
-              <>
-                <Link to="/account/security" className="text-xs text-purple-400 hover:text-pink-500 transition-colors font-body">
-                  {lang === 'en' ? 'Security' : lang === 'ua' ? 'Безпека' : 'Безопасность'}
+              <div className="flex flex-col items-start leading-tight">
+                <button onClick={handleLogout} className="font-body text-xs text-purple-400 hover:text-pink-500 transition-colors">{t(lang, 'nav_logout')}</button>
+                <Link to="/account/security" className="mt-1 font-body text-[11px] text-purple-300 hover:text-pink-500 transition-colors">
+                  {lang === 'en' ? 'Security' : lang === 'ua' ? 'Безпека' : '🔒 Пароль'}
                 </Link>
-                <button onClick={handleLogout} className="text-xs text-purple-400 hover:text-pink-500 transition-colors font-body">{t(lang, 'nav_logout')}</button>
-              </>
+              </div>
             )}
           </div>
         </div>

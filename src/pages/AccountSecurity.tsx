@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
+import { ShieldCheck } from 'lucide-react';
 import { getCurrentUser, updatePassword } from '../lib/auth';
 import { validatePasswordPair } from '../lib/password';
 import { Lang } from '../lib/i18n';
@@ -8,34 +9,34 @@ import ThemeToggle from '../components/ThemeToggle';
 
 const text = {
   ru: {
-    title: 'Безопасность аккаунта',
-    sub: 'Измените пароль для входа в Vetoschool.',
+    title: 'Смена пароля',
+    sub: 'Обновите пароль для входа в Vetoschool.',
     pass: 'Новый пароль',
-    confirm: 'Повторите новый пароль',
-    save: 'Обновить пароль',
-    success: 'Пароль успешно обновлён.',
-    reauth: 'Если Supabase запросит повторную авторизацию, выйдите и войдите снова перед сменой пароля.',
-    back: 'Назад',
+    confirm: 'Повторите пароль',
+    save: 'Сохранить',
+    success: 'Пароль обновлён.',
+    reauth: 'Если сессия устарела, выйдите и войдите снова.',
+    back: 'Назад в кабинет',
   },
   ua: {
-    title: 'Безпека акаунта',
-    sub: 'Змініть пароль для входу у Vetoschool.',
+    title: 'Зміна пароля',
+    sub: 'Оновіть пароль для входу у Vetoschool.',
     pass: 'Новий пароль',
-    confirm: 'Повторіть новий пароль',
-    save: 'Оновити пароль',
-    success: 'Пароль успішно оновлено.',
-    reauth: 'Якщо Supabase запросить повторну авторизацію, вийдіть і увійдіть знову перед зміною пароля.',
-    back: 'Назад',
+    confirm: 'Повторіть пароль',
+    save: 'Зберегти',
+    success: 'Пароль оновлено.',
+    reauth: 'Якщо сесія застаріла, вийдіть і увійдіть знову.',
+    back: 'Назад до кабінету',
   },
   en: {
-    title: 'Account security',
-    sub: 'Change your Vetoschool sign-in password.',
+    title: 'Change Password',
+    sub: 'Update your Vetoschool sign-in password.',
     pass: 'New password',
-    confirm: 'Confirm new password',
-    save: 'Update password',
-    success: 'Password updated successfully.',
-    reauth: 'If Supabase requires re-authentication, log out and sign in again before changing your password.',
-    back: 'Back',
+    confirm: 'Confirm password',
+    save: 'Save',
+    success: 'Password updated.',
+    reauth: 'If your session expired, log out and sign in again.',
+    back: 'Back to account',
   },
 };
 
@@ -48,9 +49,7 @@ export default function AccountSecurity({ lang }: { lang: Lang }) {
   const [loading, setLoading] = useState(false);
   const copy = text[lang] || text.ru;
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
+  if (!user) return <Navigate to="/login" replace />;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -76,30 +75,41 @@ export default function AccountSecurity({ lang }: { lang: Lang }) {
   };
 
   return (
-    <div className="min-h-screen p-4" style={{ background: 'linear-gradient(135deg,#FFF0F6,#F5F0FF,#F0F8FF)' }}>
-      <div className="max-w-2xl mx-auto pt-8">
-        <div className="flex items-center justify-between gap-4 mb-6">
+    <div className="page-bg-dashboard min-h-screen p-4">
+      <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center py-8">
+        <div className="mb-4 flex items-center justify-between">
           <Link to={user.hasAccess ? '/dashboard' : '/pending-activation'} className="font-body text-sm font-700 text-pink-500 hover:text-purple-500">
             {copy.back}
           </Link>
           <ThemeToggle />
         </div>
-        <div className="glass rounded-3xl p-8 shadow-2xl">
-          <h1 className="font-display font-black text-3xl text-purple-700 mb-2">{copy.title}</h1>
-          <p className="font-body text-purple-400 mb-6">{copy.sub}</p>
+
+        <div className="glass rounded-3xl border border-purple-100 p-6 shadow-2xl">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-100 to-purple-100 text-purple-600">
+              <ShieldCheck className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="font-display text-2xl font-black text-purple-700">{copy.title}</h1>
+              <p className="font-body text-sm text-purple-400">{copy.sub}</p>
+            </div>
+          </div>
+
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="font-body font-600 text-purple-600 text-sm mb-2 block">{copy.pass}</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="input-magic" required />
+              <label className="mb-2 block font-body text-sm font-700 text-purple-600">{copy.pass}</label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="input-magic py-3" required />
             </div>
             <div>
-              <label className="font-body font-600 text-purple-600 text-sm mb-2 block">{copy.confirm}</label>
-              <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} className="input-magic" required />
+              <label className="mb-2 block font-body text-sm font-700 text-purple-600">{copy.confirm}</label>
+              <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} className="input-magic py-3" required />
             </div>
-            <AuthAlert type="info">{copy.reauth}</AuthAlert>
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 font-body text-xs font-700 text-blue-500">
+              {copy.reauth}
+            </div>
             {success && <AuthAlert type="success">{success}</AuthAlert>}
             {error && <AuthAlert>{error}</AuthAlert>}
-            <button type="submit" disabled={loading} className="btn-magic w-full py-4 text-white font-display font-bold disabled:opacity-60">
+            <button type="submit" disabled={loading} className="btn-magic w-full py-3.5 text-white font-display font-bold disabled:opacity-60">
               {loading ? '...' : copy.save}
             </button>
           </form>

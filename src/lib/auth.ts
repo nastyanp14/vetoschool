@@ -224,6 +224,29 @@ export async function resendConfirmationEmail(email: string): AuthResult {
   return error ? { success: false, error: friendlyAuthError(error.message) } : { success: true };
 }
 
+export async function confirmEmailCode(email: string, token: string): AuthResult<User> {
+  const normalizedEmail = email.trim().toLowerCase();
+  const cleanToken = token.trim().replace(/\s+/g, '');
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: normalizedEmail,
+    token: cleanToken,
+    type: 'signup',
+  });
+
+  if (error || !data.user) return { success: false, error: friendlyAuthError(error?.message || 'Invalid confirmation code') };
+
+  await initializeProfile(
+    data.user.id,
+    data.user.email || normalizedEmail,
+    (data.user.user_metadata?.name || data.user.user_metadata?.full_name) as string | undefined,
+  );
+
+  const me = await loadCurrentUser(data.user.id);
+  cacheSet(ME_KEY, me);
+  if (me?.role === 'admin') await loadAllUsers();
+  return { success: true, data: me || undefined };
+}
+
 export async function requestPasswordReset(email: string): AuthResult {
   const normalizedEmail = email.trim().toLowerCase();
   const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
