@@ -57,8 +57,8 @@ const seo = {
     noindex: true,
   },
   notFound: {
-    title: 'Page Not Found | Vetoschool',
-    description: 'The requested Vetoschool page could not be found.',
+    title: '404 | Vetoschool',
+    description: 'A friendly Vetoschool not found page with quick links back to home and courses.',
     path: '/',
     noindex: true,
   },
