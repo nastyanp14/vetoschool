@@ -17,8 +17,11 @@ import PendingActivation from './PendingActivation';
 import Dashboard from './Dashboard';
 import Admin from './Admin';
 import Analytics from './Analytics';
+import CookiePolicy from './CookiePolicy';
 import NotFound from './NotFound';
 import { Seo, homeSchoolSchema } from '../components/Seo';
+import CookieConsentBanner from '../components/CookieConsentBanner';
+import CookiePreferencesModal from '../components/CookiePreferencesModal';
 
 const seo = {
   home: {
@@ -56,6 +59,11 @@ const seo = {
     path: '/analytics',
     noindex: true,
   },
+  cookiePolicy: {
+    title: 'Cookie Policy | Vetoschool',
+    description: 'How Vetoschool uses cookies, localStorage, and similar technologies, and how to manage consent.',
+    path: '/cookie-policy',
+  },
   notFound: {
     title: '404 | Vetoschool',
     description: 'A friendly Vetoschool not found page with quick links back to home and login.',
@@ -83,7 +91,7 @@ function ProtectedRoute({
 
 export default function Index() {
   const [lang, setLang] = useState<Lang>(() => {
-    const saved = localStorage.getItem('vetoschool_lang') as Lang | null;
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('vetoschool_lang') as Lang | null : null;
     return saved || 'ru';
   });
   const [, force] = useState(0);
@@ -95,7 +103,9 @@ export default function Index() {
     return () => { unsub(); };
   }, []);
 
-  useEffect(() => { localStorage.setItem('vetoschool_lang', lang); }, [lang]);
+  useEffect(() => {
+    if (typeof window !== 'undefined') localStorage.setItem('vetoschool_lang', lang);
+  }, [lang]);
 
   if (!ready) {
     return (
@@ -106,22 +116,27 @@ export default function Index() {
   }
 
   return (
-    <Routes>
-      <Route path="/" element={<><Seo {...seo.home} schema={homeSchoolSchema} /><Navbar lang={lang} setLang={setLang} /><Home lang={lang} /></>} />
-      <Route path="/login" element={<><Seo {...seo.login} /><Login lang={lang} /></>} />
-      <Route path="/register" element={<><Seo {...seo.register} /><Register lang={lang} /></>} />
-      <Route path="/auth/check-email" element={<><Seo title="Check Email | Vetoschool" description="Confirm your Vetoschool email address." path="/auth/check-email" noindex /><CheckEmail lang={lang} /></>} />
-      <Route path="/auth/callback" element={<><Seo title="Auth Callback | Vetoschool" description="Vetoschool authentication callback." path="/auth/callback" noindex /><AuthCallback lang={lang} /></>} />
-      <Route path="/auth/confirmed" element={<><Seo title="Email Confirmed | Vetoschool" description="Vetoschool email confirmation success." path="/auth/confirmed" noindex /><EmailConfirmed lang={lang} /></>} />
-      <Route path="/auth/link-expired" element={<><Seo title="Auth Link Expired | Vetoschool" description="Vetoschool authentication link expired." path="/auth/link-expired" noindex /><AuthLinkExpired lang={lang} /></>} />
-      <Route path="/forgot-password" element={<><Seo title="Forgot Password | Vetoschool" description="Recover your Vetoschool password." path="/forgot-password" noindex /><ForgotPassword lang={lang} /></>} />
-      <Route path="/reset-password" element={<><Seo title="Reset Password | Vetoschool" description="Reset your Vetoschool password." path="/reset-password" noindex /><ResetPassword lang={lang} /></>} />
-      <Route path="/pending-activation" element={<><Seo title="Pending Activation | Vetoschool" description="Vetoschool paid access pending activation." path="/pending-activation" noindex /><ProtectedRoute><PendingActivation lang={lang} /></ProtectedRoute></>} />
-      <Route path="/account/security" element={<><Seo title="Account Security | Vetoschool" description="Manage Vetoschool account security." path="/account/security" noindex /><ProtectedRoute><AccountSecurity lang={lang} /></ProtectedRoute></>} />
-      <Route path="/dashboard" element={<><Seo {...seo.dashboard} /><ProtectedRoute requirePaidAccess><Dashboard lang={lang} /></ProtectedRoute></>} />
-      <Route path="/admin" element={<><Seo {...seo.admin} /><ProtectedRoute role="admin"><Admin lang={lang} setLang={setLang} /></ProtectedRoute></>} />
-      <Route path="/analytics/:userId" element={<><Seo {...seo.analytics} /><ProtectedRoute role="admin"><Analytics lang={lang} setLang={setLang} /></ProtectedRoute></>} />
-      <Route path="*" element={<><Seo {...seo.notFound} /><NotFound lang={lang} /></>} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/" element={<><Seo {...seo.home} schema={homeSchoolSchema} /><Navbar lang={lang} setLang={setLang} /><Home lang={lang} /></>} />
+        <Route path="/login" element={<><Seo {...seo.login} /><Login lang={lang} /></>} />
+        <Route path="/register" element={<><Seo {...seo.register} /><Register lang={lang} /></>} />
+        <Route path="/auth/check-email" element={<><Seo title="Check Email | Vetoschool" description="Confirm your Vetoschool email address." path="/auth/check-email" noindex /><CheckEmail lang={lang} /></>} />
+        <Route path="/auth/callback" element={<><Seo title="Auth Callback | Vetoschool" description="Vetoschool authentication callback." path="/auth/callback" noindex /><AuthCallback lang={lang} /></>} />
+        <Route path="/auth/confirmed" element={<><Seo title="Email Confirmed | Vetoschool" description="Vetoschool email confirmation success." path="/auth/confirmed" noindex /><EmailConfirmed lang={lang} /></>} />
+        <Route path="/auth/link-expired" element={<><Seo title="Auth Link Expired | Vetoschool" description="Vetoschool authentication link expired." path="/auth/link-expired" noindex /><AuthLinkExpired lang={lang} /></>} />
+        <Route path="/forgot-password" element={<><Seo title="Forgot Password | Vetoschool" description="Recover your Vetoschool password." path="/forgot-password" noindex /><ForgotPassword lang={lang} /></>} />
+        <Route path="/reset-password" element={<><Seo title="Reset Password | Vetoschool" description="Reset your Vetoschool password." path="/reset-password" noindex /><ResetPassword lang={lang} /></>} />
+        <Route path="/pending-activation" element={<><Seo title="Pending Activation | Vetoschool" description="Vetoschool paid access pending activation." path="/pending-activation" noindex /><ProtectedRoute><PendingActivation lang={lang} /></ProtectedRoute></>} />
+        <Route path="/account/security" element={<><Seo title="Account Security | Vetoschool" description="Manage Vetoschool account security." path="/account/security" noindex /><ProtectedRoute><AccountSecurity lang={lang} /></ProtectedRoute></>} />
+        <Route path="/dashboard" element={<><Seo {...seo.dashboard} /><ProtectedRoute requirePaidAccess><Dashboard lang={lang} /></ProtectedRoute></>} />
+        <Route path="/admin" element={<><Seo {...seo.admin} /><ProtectedRoute role="admin"><Admin lang={lang} setLang={setLang} /></ProtectedRoute></>} />
+        <Route path="/analytics/:userId" element={<><Seo {...seo.analytics} /><ProtectedRoute role="admin"><Analytics lang={lang} setLang={setLang} /></ProtectedRoute></>} />
+        <Route path="/cookie-policy" element={<><Seo {...seo.cookiePolicy} /><Navbar lang={lang} setLang={setLang} /><CookiePolicy lang={lang} /></>} />
+        <Route path="*" element={<><Seo {...seo.notFound} /><NotFound lang={lang} /></>} />
+      </Routes>
+      <CookieConsentBanner lang={lang} />
+      <CookiePreferencesModal lang={lang} />
+    </>
   );
 }

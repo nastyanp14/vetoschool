@@ -3,6 +3,7 @@ import { motion, useScroll, useTransform } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import FloatingElements from '../components/FloatingElements';
 import BookHero from '../components/BookHero';
+import Footer from '../components/Footer';
 import { Lang, t } from '../lib/i18n';
 
 function useScrollY() {
@@ -398,39 +399,7 @@ export default function Home({ lang }: HomeProps) {
       </section>
 
       {/* ===== FOOTER ===== */}
-      <footer id="contact" className="bg-purple-900 text-white py-16 px-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-3 gap-8 mb-12">
-            <div className="md:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-3xl">📖</span>
-                <span className="font-display font-black text-2xl bg-gradient-to-r from-pink-300 to-purple-300 bg-clip-text text-transparent">Vetoschool</span>
-              </div>
-              <p className="font-body text-purple-300 leading-relaxed mb-6 max-w-md">{t(lang, 'footer_desc')}</p>
-            </div>
-            <div>
-              <h4 className="font-display font-bold text-lg text-white mb-4">{t(lang, 'footer_contact')}</h4>
-              <ul className="space-y-3">
-                <li className="flex items-center gap-2 font-body text-purple-300 text-sm">
-                  <span>✈️</span>
-                  <a href="https://t.me/vetoschool_bot" target="_blank" rel="noopener noreferrer" className="hover:text-pink-300 transition-colors">@vetoschool_bot</a>
-                </li>
-                <li className="flex items-center gap-2 font-body text-purple-300 text-sm">
-                  <span>📧</span>
-                  <a href="mailto:vetoschool.english@gmail.com" className="hover:text-pink-300 transition-colors">vetoschool.english@gmail.com</a>
-                </li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-purple-700 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="font-body text-purple-400 text-sm">{t(lang, 'footer_copy')}</p>
-            <div className="flex gap-6">
-              <Link to="/login" className="font-body text-purple-400 hover:text-pink-300 text-sm transition-colors">{t(lang, 'footer_signin')}</Link>
-              <Link to="/register" className="font-body text-purple-400 hover:text-pink-300 text-sm transition-colors">{t(lang, 'footer_register')}</Link>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Footer lang={lang} />
     </div>
   );
 }

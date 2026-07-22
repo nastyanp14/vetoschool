@@ -11,12 +11,15 @@ import {
   DEFAULT_ELEVENLABS_MODEL_ID, DEFAULT_ELEVENLABS_VOICE_ID, deleteCardAudio,
   generateCardAudio, signedLessonAudioUrl,
 } from '../lib/cardAudio';
+import { persistFunctionalLocalStorage, readFunctionalLocalStorage } from '../lib/cookieConsent';
 import type { Lang } from '../lib/i18n';
 
 const emojiChoices = ['🌸','🌈','⭐','❤️','🍎','🍓','🍊','🍋','🥕','🐶','🐱','🐰','🦋','🌻','☀️','🌙','☁️','🏠','🚗','✈️','📚','✏️','🎨','🎵','🔢','🔤','😊','😢','😴','🖐️','👀','👂','👄','👩‍🏫','👦','👧'];
 
 const inputClass = 'w-full rounded-2xl border border-pink-100 bg-white px-4 py-3 font-body text-sm font-bold text-purple-700 outline-none transition placeholder:text-purple-200 focus:border-purple-300 focus:ring-4 focus:ring-purple-100/60 dark:border-purple-700 dark:bg-[#241331] dark:text-purple-100';
 const tinyButton = 'inline-flex items-center justify-center rounded-xl border border-purple-100 bg-white p-2 text-purple-400 transition hover:border-pink-200 hover:bg-pink-50 hover:text-pink-500 disabled:opacity-30 dark:border-purple-700 dark:bg-[#241331]';
+const ELEVENLABS_VOICE_STORAGE_KEY = 'vetoschool-elevenlabs-voice-id';
+const ELEVENLABS_MODEL_STORAGE_KEY = 'vetoschool-elevenlabs-model-id';
 
 const theoryCopy = {
   ru: {
@@ -651,8 +654,8 @@ export default function TheoryLessonEditor({ lessonTitle, task, onCreate, onSave
   const copy = tc(lang);
   const [content, setContent] = useState<TheoryContent>(() => ({ ...emptyTheoryContent(lessonTitle), ...(task?.payload_json || {}) }));
   const [saving, setSaving] = useState(false);
-  const [voiceId, setVoiceId] = useState(() => localStorage.getItem('vetoschool-elevenlabs-voice-id') || DEFAULT_ELEVENLABS_VOICE_ID);
-  const [modelId, setModelId] = useState(() => localStorage.getItem('vetoschool-elevenlabs-model-id') || DEFAULT_ELEVENLABS_MODEL_ID);
+  const [voiceId, setVoiceId] = useState(() => readFunctionalLocalStorage(ELEVENLABS_VOICE_STORAGE_KEY, DEFAULT_ELEVENLABS_VOICE_ID));
+  const [modelId, setModelId] = useState(() => readFunctionalLocalStorage(ELEVENLABS_MODEL_STORAGE_KEY, DEFAULT_ELEVENLABS_MODEL_ID));
   useEffect(() => setContent({ ...emptyTheoryContent(lessonTitle), ...(task?.payload_json || {}) }), [task?.id, lessonTitle]);
   const setBlock = (index: number, block: TheoryBlock) => setContent(current => ({ ...current, blocks: current.blocks.map((item, i) => i === index ? block : item) }));
   const moveBlock = (from: number, to: number) => setContent(current => { const blocks = [...current.blocks]; const [item] = blocks.splice(from, 1); blocks.splice(to, 0, item); return { ...current, blocks }; });
@@ -764,7 +767,16 @@ export default function TheoryLessonEditor({ lessonTitle, task, onCreate, onSave
     }));
     toast.success(copy.templateAdded);
   };
-  const save = async () => { setSaving(true); try { task ? await onSave(content) : await onCreate(content); toast.success(copy.theorySaved); } finally { setSaving(false); } };
+  const save = async () => {
+    setSaving(true);
+    try {
+      if (task) await onSave(content);
+      else await onCreate(content);
+      toast.success(copy.theorySaved);
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <section className="space-y-4 rounded-3xl border border-purple-100 bg-white p-4 shadow-sm dark:border-purple-700 dark:bg-[#1f122d]">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -785,8 +797,8 @@ export default function TheoryLessonEditor({ lessonTitle, task, onCreate, onSave
             <details className="mt-2">
               <summary className="w-fit cursor-pointer text-xs font-black text-purple-500 transition hover:text-pink-500">{copy.voiceSettings}</summary>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <label className="space-y-1"><span className="text-xs font-black text-purple-400">Voice ID</span><input className={inputClass} value={voiceId} onChange={e => { setVoiceId(e.target.value); localStorage.setItem('vetoschool-elevenlabs-voice-id', e.target.value); }} placeholder="Voice ID" /></label>
-                <label className="space-y-1"><span className="text-xs font-black text-purple-400">Model ID</span><input className={inputClass} value={modelId} onChange={e => { setModelId(e.target.value); localStorage.setItem('vetoschool-elevenlabs-model-id', e.target.value); }} placeholder="Model ID" /></label>
+                <label className="space-y-1"><span className="text-xs font-black text-purple-400">Voice ID</span><input className={inputClass} value={voiceId} onChange={e => { setVoiceId(e.target.value); persistFunctionalLocalStorage(ELEVENLABS_VOICE_STORAGE_KEY, e.target.value); }} placeholder="Voice ID" /></label>
+                <label className="space-y-1"><span className="text-xs font-black text-purple-400">Model ID</span><input className={inputClass} value={modelId} onChange={e => { setModelId(e.target.value); persistFunctionalLocalStorage(ELEVENLABS_MODEL_STORAGE_KEY, e.target.value); }} placeholder="Model ID" /></label>
               </div>
               <p className="mt-2 text-xs font-bold text-purple-400">{copy.voiceSettingsHint}</p>
             </details>

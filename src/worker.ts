@@ -20,6 +20,7 @@ const VALID_SPA_ROUTES = new Set([
   '/account/security',
   '/dashboard',
   '/admin',
+  '/cookie-policy',
 ]);
 
 function normalizePathname(pathname: string) {
