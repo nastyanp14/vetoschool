@@ -138,9 +138,9 @@ export default function Home({ lang }: HomeProps) {
           >
             <span className="text-2xl">🎁</span>
             <div className="text-left">
-              {lang === 'ru' && <p className="font-body font-700 text-purple-700 text-sm">Запишитесь на <span className="text-pink-500">бесплатный пробный урок</span> через наш Telegram-бот!</p>}
-              {lang === 'en' && <p className="font-body font-700 text-purple-700 text-sm">Sign up for a <span className="text-pink-500">free trial lesson</span> via our Telegram bot!</p>}
-              {lang === 'ua' && <p className="font-body font-700 text-purple-700 text-sm">Запишіться на <span className="text-pink-500">безкоштовний пробний урок</span> через наш Telegram-бот!</p>}
+              {lang === 'ru' && <p className="font-body font-700 text-purple-700 text-sm">Запишитесь на <span className="text-pink-500">бесплатный пробный урок</span> прямо на сайте!</p>}
+              {lang === 'en' && <p className="font-body font-700 text-purple-700 text-sm">Book a <span className="text-pink-500">free trial lesson</span> directly on the website!</p>}
+              {lang === 'ua' && <p className="font-body font-700 text-purple-700 text-sm">Запишіться на <span className="text-pink-500">безкоштовний пробний урок</span> прямо на сайті!</p>}
             </div>
           </motion.div>
 
@@ -151,7 +151,7 @@ export default function Home({ lang }: HomeProps) {
             transition={{ delay: 0.9 }}
             className="flex flex-col sm:flex-row gap-4 justify-center items-center"
           >
-            <Link to="/register">
+            <Link to="/trial-booking">
               <button className="btn-magic px-10 py-4 text-lg text-white font-display font-bold shadow-xl">
                 {t(lang, 'hero_cta')}
               </button>
@@ -282,15 +282,15 @@ export default function Home({ lang }: HomeProps) {
                   {lang === 'ua' && 'Запишіться на безкоштовний пробний урок!'}
                 </h4>
                 <p className="font-body text-sm text-purple-500">
-                  {lang === 'ru' && 'Напишите нам в Telegram-бот — мы подберём удобное время'}
-                  {lang === 'en' && 'Message us on Telegram — we\'ll find a convenient time'}
-                  {lang === 'ua' && 'Напишіть нам у Telegram-бот — ми підберемо зручний час'}
+                  {lang === 'ru' && 'Заполните короткую заявку — мы подберём удобное время и подтвердим детали'}
+                  {lang === 'en' && 'Complete a short request — we will find a convenient time and confirm the details'}
+                  {lang === 'ua' && 'Заповніть коротку заявку — ми підберемо зручний час і підтвердимо деталі'}
                 </p>
               </div>
-              <a href="https://t.me/vetoschool_bot" target="_blank" rel="noopener noreferrer"
+              <Link to="/trial-booking"
                 className="btn-magic px-6 py-3 text-white font-display font-bold text-sm flex-shrink-0">
-                📱 Telegram Bot
-              </a>
+                {lang === 'ru' ? 'Записаться бесплатно' : lang === 'ua' ? 'Записатися безкоштовно' : 'Book for free'}
+              </Link>
             </div>
           </FadeIn>
 
@@ -307,15 +307,14 @@ export default function Home({ lang }: HomeProps) {
                 <h3 className="font-display font-black text-3xl md:text-4xl mb-4">{t(lang, 'courses_cta_title')}</h3>
                 <p className="font-body text-white/90 text-lg mb-8 max-w-md mx-auto">{t(lang, 'courses_cta_desc')}</p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <a href="https://t.me/vetoschool_bot" target="_blank" rel="noopener noreferrer"
+                  <Link to="/trial-booking"
                     className="bg-white text-purple-600 font-display font-bold px-8 py-4 rounded-full hover:scale-105 transition-transform shadow-lg inline-flex items-center gap-2 justify-center">
                     {t(lang, 'courses_telegram')}
-                  </a>
-                  <Link to="/register">
-                    <button className="bg-white/20 border-2 border-white text-white font-display font-bold px-8 py-4 rounded-full hover:bg-white/30 transition-all">
-                      {t(lang, 'courses_signup')}
-                    </button>
                   </Link>
+                  <a href="https://t.me/vetoschool_bot" target="_blank" rel="noopener noreferrer"
+                    className="bg-white/20 border-2 border-white text-white font-display font-bold px-8 py-4 rounded-full hover:bg-white/30 transition-all inline-flex items-center justify-center">
+                    {t(lang, 'hero_contact')}
+                  </a>
                 </div>
               </div>
             </div>
@@ -384,7 +383,7 @@ export default function Home({ lang }: HomeProps) {
             <p className="font-body text-white/90 text-xl mb-2 leading-relaxed">{t(lang, 'cta_desc')}</p>
             <p className="font-body text-white/80 text-lg mb-10">{t(lang, 'cta_desc2')}</p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/register">
+              <Link to="/trial-booking">
                 <button className="bg-white text-purple-600 font-display font-black text-xl px-12 py-5 rounded-full hover:scale-105 transition-transform shadow-2xl">
                   {t(lang, 'cta_free')}
                 </button>

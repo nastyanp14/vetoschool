@@ -113,7 +113,7 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
               <Link to="/login" className="btn-outline px-5 py-2 text-sm">
                 {t(lang, 'nav_signin')}
               </Link>
-              <Link to="/register" className="btn-magic px-5 py-2 text-sm text-white">
+              <Link to="/trial-booking" className="btn-magic px-5 py-2 text-sm text-white">
                 {t(lang, 'nav_join')}
               </Link>
             </>
@@ -194,7 +194,7 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
                     <Link to="/login" className="btn-outline px-5 py-2 text-sm text-center" onClick={() => setMenuOpen(false)}>
                       {t(lang, 'nav_signin')}
                     </Link>
-                    <Link to="/register" className="btn-magic px-5 py-2 text-sm text-white text-center" onClick={() => setMenuOpen(false)}>
+                    <Link to="/trial-booking" className="btn-magic px-5 py-2 text-sm text-white text-center" onClick={() => setMenuOpen(false)}>
                       {t(lang, 'nav_join')}
                     </Link>
                   </>

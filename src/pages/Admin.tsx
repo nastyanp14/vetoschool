@@ -13,6 +13,7 @@ import ThemeToggle from '../components/ThemeToggle';
 import AdminDictionary from '../components/AdminDictionary';
 import WorkbookBuilder from '../components/WorkbookBuilder';
 import LiveLessonMonitor from '../components/LiveLessonMonitor';
+import TrialLessonsAdmin from '../components/TrialLessonsAdmin';
 import { giftStars, loadStarProfile, awardStars, findAvatar } from '../lib/stars';
 
 // Small inline avatar that shows the equipped emoji avatar or the name initial
@@ -29,7 +30,7 @@ function UserAvatar({ user, size = 'md' }: { user: { name: string; avatarId?: st
 
 const DAYS_EN = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
-type Section = 'students' | 'content' | 'schedule' | 'workbooks' | 'live';
+type Section = 'students' | 'content' | 'schedule' | 'trialLessons' | 'workbooks' | 'live';
 
 // ---- Helpers ----
 function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -801,6 +802,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
             { id:'students' as Section, label:t(lang,'admin_students_tab') },
             { id:'content' as Section, label:t(lang,'admin_content_tab') },
             { id:'schedule' as Section, label:t(lang,'admin_schedule_tab') },
+            { id:'trialLessons' as Section, label:lang === 'en' ? 'Trial Lessons' : lang === 'ua' ? 'Пробні уроки' : 'Пробные уроки' },
             { id:'workbooks' as Section, label:t(lang,'admin_workbooks_tab') },
             { id:'live' as Section, label:lang === 'en' ? '📡 Live' : lang === 'ua' ? '📡 Live-уроки' : '📡 Live-уроки' },
           ].map(sec => (
@@ -1461,6 +1463,11 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                 </div>
               )}
             </motion.div>
+          )}
+
+          {/* ===== TRIAL LESSONS ===== */}
+          {activeSection === 'trialLessons' && (
+            <TrialLessonsAdmin lang={lang} />
           )}
 
           {/* ===== WORKBOOKS ===== */}

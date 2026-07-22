@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.telegram-webhook]
 verify_jwt = false
+
+[functions.submit-trial-booking]
+verify_jwt = false

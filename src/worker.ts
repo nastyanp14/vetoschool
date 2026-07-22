@@ -22,6 +22,7 @@ const VALID_SPA_ROUTES = new Set([
   '/admin',
   '/cookie-policy',
   '/privacy-policy',
+  '/trial-booking',
 ]);
 
 function normalizePathname(pathname: string) {
