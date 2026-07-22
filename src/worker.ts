@@ -66,6 +66,10 @@ export default {
     const url = new URL(request.url);
     const pathname = normalizePathname(url.pathname);
 
+    if (looksLikeStaticAsset(pathname)) {
+      return env.ASSETS.fetch(request);
+    }
+
     if (isValidSpaRoute(pathname)) {
       return serveIndex(request, env);
     }
