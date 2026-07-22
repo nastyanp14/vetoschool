@@ -40,6 +40,7 @@ export default function Footer({ lang }: FooterProps) {
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-3">
             <Link to="/login" className="font-body text-sm text-purple-400 transition-colors hover:text-pink-300">{t(lang, 'footer_signin')}</Link>
             <Link to="/register" className="font-body text-sm text-purple-400 transition-colors hover:text-pink-300">{t(lang, 'footer_register')}</Link>
+            <Link to="/privacy-policy" className="font-body text-sm text-purple-400 transition-colors hover:text-pink-300">{t(lang, 'footer_privacy_policy')}</Link>
             <Link to="/cookie-policy" className="font-body text-sm text-purple-400 transition-colors hover:text-pink-300">{t(lang, 'footer_cookie_policy')}</Link>
             <button
               type="button"

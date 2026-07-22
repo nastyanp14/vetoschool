@@ -18,6 +18,7 @@ import Dashboard from './Dashboard';
 import Admin from './Admin';
 import Analytics from './Analytics';
 import CookiePolicy from './CookiePolicy';
+import PrivacyPolicy from './PrivacyPolicy';
 import NotFound from './NotFound';
 import { Seo, homeSchoolSchema } from '../components/Seo';
 import CookieConsentBanner from '../components/CookieConsentBanner';
@@ -63,6 +64,11 @@ const seo = {
     title: 'Cookie Policy | Vetoschool',
     description: 'How Vetoschool uses cookies, localStorage, and similar technologies, and how to manage consent.',
     path: '/cookie-policy',
+  },
+  privacyPolicy: {
+    title: 'Privacy Policy | Vetoschool',
+    description: 'How Vetoschool collects, uses, and protects users’ personal data.',
+    path: '/privacy-policy',
   },
   notFound: {
     title: '404 | Vetoschool',
@@ -133,6 +139,7 @@ export default function Index() {
         <Route path="/admin" element={<><Seo {...seo.admin} /><ProtectedRoute role="admin"><Admin lang={lang} setLang={setLang} /></ProtectedRoute></>} />
         <Route path="/analytics/:userId" element={<><Seo {...seo.analytics} /><ProtectedRoute role="admin"><Analytics lang={lang} setLang={setLang} /></ProtectedRoute></>} />
         <Route path="/cookie-policy" element={<><Seo {...seo.cookiePolicy} /><Navbar lang={lang} setLang={setLang} /><CookiePolicy lang={lang} /></>} />
+        <Route path="/privacy-policy" element={<><Seo {...seo.privacyPolicy} /><Navbar lang={lang} setLang={setLang} /><PrivacyPolicy lang={lang} /></>} />
         <Route path="*" element={<><Seo {...seo.notFound} /><NotFound lang={lang} /></>} />
       </Routes>
       <CookieConsentBanner lang={lang} />

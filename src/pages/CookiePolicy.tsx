@@ -1,4 +1,5 @@
 import { Settings } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import Footer from '../components/Footer';
 import { useCookieConsent } from '../contexts/CookieConsentContext';
 import { Lang, t, TranslationKey } from '../lib/i18n';
@@ -72,6 +73,12 @@ export default function CookiePolicy({ lang }: CookiePolicyProps) {
               <p className="mt-3 font-body text-sm font-semibold leading-relaxed text-purple-500 dark:text-purple-200">
                 {t(lang, 'cookie_policy_privacy_missing')}
               </p>
+              <Link
+                to="/privacy-policy"
+                className="mt-4 inline-flex rounded-2xl border border-blue-200 bg-white px-4 py-2.5 font-body text-sm font-black text-purple-700 transition hover:-translate-y-0.5 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 dark:border-purple-700 dark:bg-[#241331] dark:text-purple-100"
+              >
+                {t(lang, 'cookie_policy_privacy_link')}
+              </Link>
             </article>
           </div>
         </section>
