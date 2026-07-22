@@ -58,7 +58,7 @@ const seo = {
   },
   notFound: {
     title: '404 | Vetoschool',
-    description: 'A friendly Vetoschool not found page with quick links back to home and courses.',
+    description: 'A friendly Vetoschool not found page with quick links back to home and login.',
     path: '/',
     noindex: true,
   },
@@ -121,7 +121,7 @@ export default function Index() {
       <Route path="/dashboard" element={<><Seo {...seo.dashboard} /><ProtectedRoute requirePaidAccess><Dashboard lang={lang} /></ProtectedRoute></>} />
       <Route path="/admin" element={<><Seo {...seo.admin} /><ProtectedRoute role="admin"><Admin lang={lang} setLang={setLang} /></ProtectedRoute></>} />
       <Route path="/analytics/:userId" element={<><Seo {...seo.analytics} /><ProtectedRoute role="admin"><Analytics lang={lang} setLang={setLang} /></ProtectedRoute></>} />
-      <Route path="*" element={<><Seo {...seo.notFound} /><NotFound /></>} />
+      <Route path="*" element={<><Seo {...seo.notFound} /><NotFound lang={lang} /></>} />
     </Routes>
   );
 }
