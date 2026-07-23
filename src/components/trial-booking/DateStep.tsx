@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import type { Locale } from 'date-fns';
+import { enGB, ru as ruLocale, uk as ukLocale } from 'date-fns/locale';
 import { CalendarDays, CheckCircle2 } from 'lucide-react';
 import { t } from '@/lib/i18n';
 import { Calendar } from '@/components/ui/calendar';
@@ -23,6 +25,12 @@ function formatDisplayDate(value: string, lang: Lang) {
   const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
   return date.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
 }
+
+const calendarLocales: Record<Lang, Locale> = {
+  ru: ruLocale,
+  ua: ukLocale,
+  en: enGB,
+};
 
 export default function DateStep({ lang, data, updateData, onNext }: TrialBookingStepProps) {
   const availableDates = useMemo(() => getMockAvailableDates(), []);
@@ -61,6 +69,7 @@ export default function DateStep({ lang, data, updateData, onNext }: TrialBookin
       <div className="grid gap-5 lg:grid-cols-[1fr_0.85fr]">
         <div className="rounded-[2rem] border border-white/80 bg-white/90 p-3 shadow-2xl shadow-purple-100/60 backdrop-blur dark:border-purple-700 dark:bg-[#1b0c2f]/90 dark:shadow-black/30 sm:p-5">
           <Calendar
+            key={lang}
             mode="single"
             selected={selectedDate}
             onSelect={date => {
@@ -70,12 +79,13 @@ export default function DateStep({ lang, data, updateData, onNext }: TrialBookin
             }}
             disabled={date => !availableDates.some(available => sameDate(available, date))}
             defaultMonth={availableDates[0]}
+            locale={calendarLocales[lang]}
             className="mx-auto"
             classNames={{
               months: 'flex justify-center',
               month: 'space-y-5',
               caption_label: 'font-display text-lg font-black text-purple-700 dark:text-purple-100',
-              head_cell: 'w-10 rounded-xl text-xs font-black text-purple-300',
+              head_cell: 'w-10 rounded-xl text-xs font-black text-purple-300 dark:text-purple-200/80',
               cell: 'h-11 w-11 p-0 text-center',
               day: 'h-11 w-11 rounded-2xl p-0 font-body font-black text-purple-600 transition-transform hover:scale-105 hover:bg-pink-50 dark:text-purple-100 dark:hover:bg-white/10',
               day_selected: 'bg-gradient-to-br from-pink-400 to-purple-400 text-white ring-2 ring-pink-200 hover:text-white shadow-lg shadow-purple-200/60',
@@ -118,9 +128,9 @@ export default function DateStep({ lang, data, updateData, onNext }: TrialBookin
         type="button"
         onClick={handleContinue}
         disabled={!selectedKey}
-        className="mt-6 w-full rounded-3xl bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 px-8 py-4 font-display text-base font-black text-white shadow-xl shadow-purple-200/60 transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pink-200 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 dark:shadow-purple-950/50"
+        className="pricing-button pricing-button-soft relative mt-6 inline-flex min-h-14 w-full items-center justify-center overflow-hidden rounded-3xl border border-pink-200/80 px-8 py-4 font-display text-base font-black shadow-xl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
       >
-        {t(lang, 'trial_continue')}
+        <span className="relative z-10">{t(lang, 'trial_continue')}</span>
       </button>
     </div>
   );

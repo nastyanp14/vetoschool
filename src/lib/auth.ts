@@ -41,6 +41,13 @@ function emailConfirmed(authUser: { email_confirmed_at?: string | null; confirme
 function friendlyAuthError(message?: string) {
   const raw = message || 'Authentication failed';
   const lower = raw.toLowerCase();
+  if (
+    lower.includes('unsupported provider') ||
+    lower.includes('missing oauth secret') ||
+    lower.includes('provider is not enabled')
+  ) {
+    return 'Google-вход ещё не настроен. Добавьте Client ID и Client Secret в Supabase → Authentication → Providers → Google.';
+  }
   if (lower.includes('email not confirmed')) return 'Подтвердите email перед входом.';
   if (lower.includes('invalid login credentials')) return 'Неверный email или пароль.';
   if (lower.includes('user already registered')) return 'Аккаунт с этим email уже существует. Войдите или восстановите пароль.';

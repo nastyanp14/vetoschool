@@ -65,9 +65,9 @@ export default function TimeStep({ lang, data, updateData, onNext }: TrialBookin
         type="button"
         onClick={handleContinue}
         disabled={!selectedTime}
-        className="mt-6 w-full rounded-3xl bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 px-8 py-4 font-display text-base font-black text-white shadow-xl shadow-purple-200/60 transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pink-200 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 dark:shadow-purple-950/50"
+        className="pricing-button pricing-button-soft relative mt-6 inline-flex min-h-14 w-full items-center justify-center overflow-hidden rounded-3xl border border-pink-200/80 px-8 py-4 font-display text-base font-black shadow-xl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
       >
-        {t(lang, 'trial_continue')}
+        <span className="relative z-10">{t(lang, 'trial_continue')}</span>
       </button>
     </div>
   );

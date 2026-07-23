@@ -195,10 +195,12 @@ export default function ConfirmationStep({ lang, data, onEditBooking }: Confirma
           type="button"
           onClick={handleConfirm}
           disabled={submitting}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-3xl bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 px-5 py-4 font-display text-sm font-black text-white shadow-xl shadow-purple-200/60 transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pink-200 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 dark:shadow-purple-950/50"
+          className="pricing-button pricing-button-soft relative inline-flex min-h-14 flex-1 items-center justify-center gap-2 overflow-hidden rounded-3xl border border-pink-200/80 px-5 py-4 font-display text-sm font-black shadow-xl disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
         >
-          {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-          {submitting ? t(lang, 'trial_submitting') : t(lang, 'trial_confirm_booking')}
+          <span className="relative z-10 inline-flex items-center gap-2">
+            {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+            {submitting ? t(lang, 'trial_submitting') : t(lang, 'trial_confirm_booking')}
+          </span>
         </button>
       </div>
     </div>

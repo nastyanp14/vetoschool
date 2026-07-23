@@ -37,6 +37,8 @@ const FULL_MECHANICS: MechanicType[] = [
   'cipher_decoder',
   'word_search',
   'speaking_practice',
+  'true_false',
+  'mini_shop',
 ];
 const HIDDEN_MECHANICS: MechanicType[] = ['digital_coloring'];
 const DEFAULT_UNIT_EMOJI = '🏝️';
@@ -63,6 +65,15 @@ const workbookCopy = {
     addCategory: 'добавить категорию',
     cipherHint: 'Слово будет зашифровано числами A1-Z26, ребёнок введёт ответ.',
     wordSearchHint: 'Слова для поиска, каждое с новой строки.',
+    trueFalseHint: 'Добавьте утверждения и отметьте, какие из них верные.',
+    statement: 'Утверждение',
+    isTrue: 'Верно',
+    addStatement: 'добавить утверждение',
+    miniShopHint: 'Создайте витрину и задайте сумму, которую ребёнок должен набрать.',
+    itemName: 'Товар',
+    itemPrice: 'Цена',
+    targetTotal: 'Цель',
+    addItem: 'добавить товар',
     speakingHint: 'Создайте голосовое задание: повтор слова, чтение предложения, ответ на вопрос или свободное описание.',
     speakingMode: 'Тип голосового задания',
     speakingRepeatWord: 'Повторить слово',
@@ -165,6 +176,15 @@ const workbookCopy = {
     addCategory: 'add category',
     cipherHint: 'The word will be encoded as A1-Z26 numbers; the child types the answer.',
     wordSearchHint: 'Words to find, one per line.',
+    trueFalseHint: 'Add statements and mark which ones are true.',
+    statement: 'Statement',
+    isTrue: 'True',
+    addStatement: 'add statement',
+    miniShopHint: 'Create a shop shelf and set the total the child should make.',
+    itemName: 'Item',
+    itemPrice: 'Price',
+    targetTotal: 'Target',
+    addItem: 'add item',
     speakingHint: 'Create a voice task: word repeat, sentence reading, question answer, or free description.',
     speakingMode: 'Voice task type',
     speakingRepeatWord: 'Repeat the word',
@@ -267,6 +287,15 @@ const workbookCopy = {
     addCategory: 'додати категорію',
     cipherHint: 'Слово буде зашифровано числами A1-Z26, дитина введе відповідь.',
     wordSearchHint: 'Слова для пошуку, кожне з нового рядка.',
+    trueFalseHint: 'Додайте твердження та позначте, які з них правильні.',
+    statement: 'Твердження',
+    isTrue: 'Правильно',
+    addStatement: 'додати твердження',
+    miniShopHint: 'Створіть вітрину та задайте суму, яку дитина має набрати.',
+    itemName: 'Товар',
+    itemPrice: 'Ціна',
+    targetTotal: 'Ціль',
+    addItem: 'додати товар',
     speakingHint: 'Створіть голосове завдання: повтор слова, читання речення, відповідь на запитання або вільний опис.',
     speakingMode: 'Тип голосового завдання',
     speakingRepeatWord: 'Повторити слово',
@@ -389,6 +418,8 @@ const mechanicCopy: Record<Lang, Record<MechanicType, { label: string; descripti
     digital_coloring: { label: 'Раскраска по кодам', description: 'Раскрасьте области по цветовым кодам.' },
     cipher_decoder: { label: 'Расшифровка', description: 'Расшифруйте слово с помощью числового ключа.' },
     speaking_practice: { label: 'Голосовая практика', description: 'Ребёнок отвечает голосом, а система мягко подсвечивает сложную часть.' },
+    true_false: { label: 'True / False', description: 'Ребёнок решает, верное утверждение или нет.' },
+    mini_shop: { label: 'Mini-shop', description: 'Ребёнок выбирает товары и набирает нужную сумму.' },
   },
   en: {
     theory_content: { label: 'Theory', description: 'Theory lesson page.' },
@@ -404,6 +435,8 @@ const mechanicCopy: Record<Lang, Record<MechanicType, { label: string; descripti
     digital_coloring: { label: 'Digital Coloring', description: 'Color regions using color codes.' },
     cipher_decoder: { label: 'Cipher Decoder', description: 'Decode a word using a numeric key.' },
     speaking_practice: { label: 'Speaking Practice', description: 'The child answers by voice and gets gentle pronunciation feedback.' },
+    true_false: { label: 'True / False', description: 'The child decides whether each statement is true or false.' },
+    mini_shop: { label: 'Mini-shop', description: 'The child chooses shop items to make the target total.' },
   },
   ua: {
     theory_content: { label: 'Теорія', description: 'Сторінка теоретичного уроку.' },
@@ -419,12 +452,14 @@ const mechanicCopy: Record<Lang, Record<MechanicType, { label: string; descripti
     digital_coloring: { label: 'Розмальовка за кодами', description: 'Розфарбуйте області за кодами кольорів.' },
     cipher_decoder: { label: 'Розшифрування', description: 'Розшифруйте слово за числовим ключем.' },
     speaking_practice: { label: 'Голосова практика', description: 'Дитина відповідає голосом і отримує мʼяку підказку щодо вимови.' },
+    true_false: { label: 'True / False', description: 'Дитина вирішує, чи правильне твердження.' },
+    mini_shop: { label: 'Mini-shop', description: 'Дитина обирає товари й набирає потрібну суму.' },
   },
 };
 
 const c = (lang: Lang) => workbookCopy[lang] || workbookCopy.ru;
 const lessonKindLabel = (lang: Lang, kind: LessonKind) => lessonKindCopy[lang]?.[kind] || lessonKindCopy.ru[kind];
-const mechanicText = (lang: Lang, id: MechanicType) => mechanicCopy[lang]?.[id] || mechanicCopy.ru[id];
+const mechanicText = (lang: Lang, id: MechanicType) => mechanicCopy[lang]?.[id] || mechanicCopy.ru[id] || { label: id, description: '' };
 
 const sortUnits = (items: Unit[]) =>
   [...items].sort((a, b) => (a.unit_number ?? a.order ?? 0) - (b.unit_number ?? b.order ?? 0));
@@ -1097,6 +1132,99 @@ function DigitalColoringEditor({ payload, onChange, lang }: { payload: any; onCh
   );
 }
 
+function TrueFalseEditor({ payload, onChange, lang }: { payload: any; onChange: (p: any) => void; lang: Lang }) {
+  const copy = c(lang);
+  const statements: Array<{ text: string; is_true: boolean }> = payload?.statements || [];
+  const update = (next: typeof statements) => onChange({ ...payload, statements: next });
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-purple-500">{copy.trueFalseHint}</p>
+      {statements.map((statement, i) => (
+        <div key={i} className="grid gap-2 rounded-2xl border border-purple-100 bg-white p-2 sm:grid-cols-[2rem_1fr_auto_2rem] sm:items-center">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-xs font-900 text-emerald-700">#{i + 1}</span>
+          <input
+            value={statement.text || ''}
+            onChange={e => update(statements.map((item, idx) => idx === i ? { ...item, text: e.target.value } : item))}
+            className="input-magic !py-1 !text-sm"
+            placeholder={copy.statement}
+          />
+          <label className="inline-flex items-center gap-2 rounded-xl bg-purple-50 px-3 py-2 text-xs font-800 text-purple-600">
+            <input
+              type="checkbox"
+              checked={!!statement.is_true}
+              onChange={e => update(statements.map((item, idx) => idx === i ? { ...item, is_true: e.target.checked } : item))}
+              className="h-4 w-4 accent-emerald-500"
+            />
+            {copy.isTrue}
+          </label>
+          <button onClick={() => update(statements.filter((_, idx) => idx !== i))} className="rounded-xl p-2 text-red-400 transition hover:bg-red-50">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ))}
+      <button onClick={() => update([...statements, { text: '', is_true: true }])} className="inline-flex items-center gap-1 rounded-xl bg-purple-100 px-3 py-1.5 text-xs font-700 text-purple-700 transition hover:bg-purple-200">
+        <Plus className="h-3 w-3" /> {copy.addStatement}
+      </button>
+    </div>
+  );
+}
+
+function MiniShopEditor({ payload, onChange, lang }: { payload: any; onChange: (p: any) => void; lang: Lang }) {
+  const copy = c(lang);
+  const items: Array<{ name: string; price: number; image?: string }> = payload?.items || [];
+  const updateItems = (next: typeof items) => onChange({ ...payload, items: next });
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-purple-500">{copy.miniShopHint}</p>
+      <div className="max-w-[180px]">
+        <label className="mb-1 block text-xs font-body font-700 text-purple-500">{copy.targetTotal}</label>
+        <input
+          type="number"
+          min={0}
+          value={payload?.target_total ?? 0}
+          onChange={e => onChange({ ...payload, target_total: Math.max(0, Number(e.target.value) || 0) })}
+          className="input-magic !py-1 !text-sm"
+        />
+      </div>
+      {items.map((item, i) => (
+        <div key={i} className="grid gap-2 rounded-2xl border border-purple-100 bg-white p-2 sm:grid-cols-[2rem_1fr_6rem_auto_2rem] sm:items-center">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-pink-100 text-xs font-900 text-pink-600">#{i + 1}</span>
+          <input
+            value={item.name || ''}
+            onChange={e => updateItems(items.map((it, idx) => idx === i ? { ...it, name: e.target.value } : it))}
+            className="input-magic !py-1 !text-sm"
+            placeholder={copy.itemName}
+          />
+          <input
+            type="number"
+            min={0}
+            value={item.price ?? 0}
+            onChange={e => updateItems(items.map((it, idx) => idx === i ? { ...it, price: Math.max(0, Number(e.target.value) || 0) } : it))}
+            className="input-magic !py-1 !text-sm"
+            placeholder={copy.itemPrice}
+          />
+          {item.image ? (
+            <div className="relative w-fit">
+              <AssetImg path={item.image} className="h-10 w-10 rounded-xl object-cover" />
+              <button onClick={() => updateItems(items.map((it, idx) => idx === i ? { ...it, image: undefined } : it))} className="absolute -right-1 -top-1 rounded-full bg-white p-0.5 shadow">
+                <X className="h-3 w-3 text-red-500" />
+              </button>
+            </div>
+          ) : (
+            <UploadButton lang={lang} onUploaded={path => updateItems(items.map((it, idx) => idx === i ? { ...it, image: path } : it))} />
+          )}
+          <button onClick={() => updateItems(items.filter((_, idx) => idx !== i))} className="rounded-xl p-2 text-red-400 transition hover:bg-red-50">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ))}
+      <button onClick={() => updateItems([...items, { name: '', price: 1 }])} className="inline-flex items-center gap-1 rounded-xl bg-purple-100 px-3 py-1.5 text-xs font-700 text-purple-700 transition hover:bg-purple-200">
+        <Plus className="h-3 w-3" /> {copy.addItem}
+      </button>
+    </div>
+  );
+}
+
 // ---------- Task card ----------
 function TaskCard({ task, onDelete, onChange, lang }: { task: InteractiveTask; onDelete: () => void; onChange: (p: any) => Promise<void>; lang: Lang }) {
   const def = MECHANICS.find(m => m.id === task.mechanic_type);
@@ -1143,6 +1271,10 @@ function TaskCard({ task, onDelete, onChange, lang }: { task: InteractiveTask; o
           ? <SpotCountEditor payload={payload} onChange={update} lang={lang} />
         : task.mechanic_type === 'digital_coloring'
           ? <DigitalColoringEditor payload={payload} onChange={update} lang={lang} />
+        : task.mechanic_type === 'true_false'
+          ? <TrueFalseEditor payload={payload} onChange={update} lang={lang} />
+        : task.mechanic_type === 'mini_shop'
+          ? <MiniShopEditor payload={payload} onChange={update} lang={lang} />
         : <div className="text-xs text-purple-400 italic bg-purple-50 rounded-xl p-3 text-center">🚧 {copy.mechanicWip} «{mCopy.label}» {copy.wipSuffix}</div>}
       <ConfirmDelete open={confirmOpen} onOpenChange={setConfirmOpen}
         title={copy.deleteTaskTitle} description={`${copy.deleteTaskDescPrefix} «${mCopy.label}» ${copy.deleteTaskDescSuffix}`}
@@ -1318,9 +1450,11 @@ function LessonEditor({ lesson, onSaved, onDelete, lang }: { lesson: Lesson; onS
     onSaved();
   };
   const pickMechanic = async (m: MechanicType) => {
-    const defaultPayload = m === 'speaking_practice'
-      ? { mode: 'repeat_word', prompt: '', target: '', seconds: 12 }
-      : {};
+    const defaultPayload =
+      m === 'speaking_practice' ? { mode: 'repeat_word', prompt: '', target: '', seconds: 12 } :
+      m === 'true_false' ? { statements: [{ text: '', is_true: true }] } :
+      m === 'mini_shop' ? { target_total: 5, items: [{ name: '', price: 2 }, { name: '', price: 3 }] } :
+      {};
     await createTask(lesson.id, m, defaultPayload);
     toast.success(copy.taskAdded);
     refresh();

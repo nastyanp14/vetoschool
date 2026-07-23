@@ -4,23 +4,27 @@ import { register, signInWithGoogle } from '../lib/auth';
 import { Lang, t } from '../lib/i18n';
 import { validatePasswordPair } from '../lib/password';
 import { AuthAlert, AuthFooterLink, AuthHeader, AuthPageShell, GoogleButton } from '../components/AuthCard';
+import { useToast } from '@/hooks/use-toast';
 
 const text = {
   ru: {
     google: 'Продолжить с Google',
     divider: 'или',
+    googleErrorTitle: 'Google-регистрация не запустилась',
     passPlaceholder: 'Минимум 6 символов',
     hint: '👋 Подтвердите email кодом. Доступ к урокам откроет администратор после оплаты.',
   },
   ua: {
     google: 'Продовжити з Google',
     divider: 'або',
+    googleErrorTitle: 'Google-реєстрація не запустилася',
     passPlaceholder: 'Мінімум 6 символів',
     hint: '👋 Підтвердьте email кодом. Доступ до уроків відкриє адміністратор після оплати.',
   },
   en: {
     google: 'Continue with Google',
     divider: 'or',
+    googleErrorTitle: 'Google registration did not start',
     passPlaceholder: 'Minimum 6 characters',
     hint: '👋 Confirm your email with a code. Lesson access is opened by an administrator after payment.',
   },
@@ -35,6 +39,7 @@ export default function Register({ lang }: { lang: Lang }) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const navigate = useNavigate();
+  const { toast } = useToast();
   const copy = text[lang] || text.ru;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -65,7 +70,11 @@ export default function Register({ lang }: { lang: Lang }) {
     setGoogleLoading(true);
     const result = await signInWithGoogle('/dashboard');
     setGoogleLoading(false);
-    if (!result.success) setError(result.error || 'Google sign-in failed');
+    if (!result.success) {
+      const message = result.error || 'Google sign-in failed';
+      setError(message);
+      toast({ title: copy.googleErrorTitle, description: message, variant: 'destructive' });
+    }
   };
 
   return (

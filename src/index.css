@@ -506,3 +506,309 @@ html { scroll-behavior: smooth; }
 
 .progress-bar { background: linear-gradient(90deg, #FFB3D1, #C8B3FF, #B3D9FF); background-size: 200% 100%;
   animation: gradient-shift 2s ease infinite; border-radius: 50px; height: 8px; }
+
+/* ============== PRICING PAGE ============== */
+@keyframes pricing-gradient-drift {
+  0%, 100% { background-position: 0% 45%; }
+  50% { background-position: 100% 55%; }
+}
+
+@keyframes pricing-page-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.72; }
+  50% { transform: translate3d(-1.5%, 1%, 0) scale(1.025); opacity: 0.86; }
+}
+
+@keyframes pricing-badge-glow {
+  0%, 100% { box-shadow: 0 12px 34px rgba(250, 204, 21, 0.26); }
+  50% { box-shadow: 0 16px 46px rgba(236, 72, 153, 0.22), 0 0 28px rgba(250, 204, 21, 0.28); }
+}
+
+.pricing-hero-gradient {
+  background:
+    radial-gradient(circle at 16% 18%, rgba(255, 179, 209, 0.42), transparent 32%),
+    radial-gradient(circle at 82% 20%, rgba(200, 179, 255, 0.40), transparent 34%),
+    radial-gradient(circle at 50% 88%, rgba(179, 217, 255, 0.38), transparent 36%),
+    linear-gradient(125deg, #fff2f7 0%, #f6f0ff 46%, #f0f8ff 100%);
+  background-size: 155% 155%;
+  animation: pricing-gradient-drift 42s ease-in-out infinite;
+}
+
+html.dark .pricing-hero-gradient {
+  background:
+    radial-gradient(circle at 18% 16%, rgba(236, 72, 153, 0.13), transparent 34%),
+    radial-gradient(circle at 78% 18%, rgba(168, 85, 247, 0.16), transparent 34%),
+    radial-gradient(circle at 48% 86%, rgba(59, 130, 246, 0.13), transparent 38%),
+    linear-gradient(125deg, #12051f 0%, #170729 46%, #091226 100%) !important;
+  background-size: 165% 165%;
+}
+
+.pricing-page {
+  position: relative;
+  isolation: isolate;
+}
+
+.pricing-page::before {
+  content: '';
+  position: fixed;
+  inset: -18%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 12% 16%, rgba(255, 179, 209, 0.26), transparent 34%),
+    radial-gradient(circle at 84% 12%, rgba(200, 179, 255, 0.24), transparent 35%),
+    radial-gradient(circle at 54% 82%, rgba(179, 217, 255, 0.22), transparent 38%),
+    linear-gradient(135deg, rgba(255, 248, 255, 0.92), rgba(245, 240, 255, 0.88), rgba(240, 248, 255, 0.9));
+  animation: pricing-page-drift 56s ease-in-out infinite;
+}
+
+.pricing-page > * {
+  position: relative;
+  z-index: 1;
+}
+
+html.dark .pricing-page::before {
+  background:
+    radial-gradient(circle at 14% 18%, rgba(236, 72, 153, 0.12), transparent 34%),
+    radial-gradient(circle at 84% 16%, rgba(168, 85, 247, 0.15), transparent 36%),
+    radial-gradient(circle at 50% 86%, rgba(96, 165, 250, 0.12), transparent 38%),
+    linear-gradient(135deg, rgba(10, 6, 19, 0.98), rgba(19, 7, 36, 0.96), rgba(7, 14, 32, 0.96));
+}
+
+.pricing-hero-badge {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.54)),
+    linear-gradient(135deg, rgba(255, 207, 228, 0.98), rgba(229, 216, 255, 0.96), rgba(208, 234, 255, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 18px 48px rgba(181, 132, 211, 0.22),
+    0 8px 22px rgba(255, 179, 209, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+html.dark .pricing-hero-badge {
+  background:
+    linear-gradient(135deg, rgba(48, 22, 78, 0.94), rgba(18, 25, 58, 0.90)),
+    linear-gradient(135deg, rgba(236, 72, 153, 0.22), rgba(168, 85, 247, 0.20), rgba(96, 165, 250, 0.18));
+  border-color: rgba(236, 183, 255, 0.32);
+  box-shadow:
+    0 20px 54px rgba(3, 1, 12, 0.42),
+    0 0 30px rgba(168, 85, 247, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.pricing-card,
+.pricing-feature-card {
+  transform-style: preserve-3d;
+}
+
+.pricing-card::before,
+.pricing-feature-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.42), transparent 36%, rgba(255, 255, 255, 0.18));
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+
+.pricing-card:hover::before,
+.pricing-feature-card:hover::before {
+  opacity: 1;
+}
+
+.pricing-card-sheen {
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.48) 42%, transparent 62%);
+  transform: translateX(-62%);
+  transition: transform 0.72s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.45s ease;
+}
+
+.pricing-card:hover .pricing-card-sheen {
+  transform: translateX(62%);
+}
+
+.pricing-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.42) 45%, transparent 62%);
+  transform: translateX(-100%);
+  transition: transform 0.58s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pricing-button > * {
+  position: relative;
+  z-index: 1;
+}
+
+.pricing-button-soft {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transform: translateZ(0);
+  color: #ffffff;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06)),
+    linear-gradient(135deg, #ff86c1 0%, #c5adff 52%, #75c4f7 100%);
+  background-size: 180% 180%;
+  animation: pricing-gradient-drift 14s ease-in-out infinite;
+  box-shadow:
+    0 14px 34px rgba(188, 132, 214, 0.28),
+    0 6px 16px rgba(126, 200, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.46);
+  text-shadow: 0 1px 12px rgba(92, 36, 110, 0.26);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  touch-action: manipulation;
+  transition: transform 0.18s ease, box-shadow 0.22s ease, filter 0.22s ease, background-position 0.32s ease;
+}
+
+.pricing-button-soft:hover {
+  color: #ffffff;
+  transform: translateY(-1px);
+  background-position: 100% 50%;
+  filter: saturate(1.06) brightness(1.02);
+  box-shadow:
+    0 16px 40px rgba(188, 132, 214, 0.34),
+    0 0 22px rgba(255, 179, 209, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.54);
+}
+
+.pricing-button:hover::before {
+  transform: translateX(100%);
+}
+
+.pricing-button:active {
+  transform: translateY(0) scale(0.992);
+  box-shadow: 0 10px 26px rgba(168, 85, 247, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.36);
+}
+
+.pricing-recommendation-badge {
+  color: #78350f !important;
+  background: linear-gradient(135deg, #fff4c2 0%, #ffe7a3 52%, #ffd28a 100%) !important;
+  border-color: rgba(217, 119, 6, 0.42) !important;
+  box-shadow: 0 10px 24px rgba(217, 119, 6, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.48);
+}
+
+.pricing-button:focus-visible,
+.pricing-button-soft:focus-visible,
+.pricing-secondary-button:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.92),
+    0 0 0 6px rgba(216, 180, 254, 0.72),
+    0 16px 42px rgba(188, 132, 214, 0.28);
+}
+
+.pricing-secondary-button {
+  position: relative;
+  isolation: isolate;
+  transform: translateZ(0);
+  color: #8a4aa1;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.42)),
+    linear-gradient(135deg, rgba(255, 226, 239, 0.82), rgba(234, 224, 255, 0.76), rgba(219, 239, 255, 0.72));
+  border: 1px solid rgba(255, 255, 255, 0.84);
+  box-shadow: 0 12px 32px rgba(168, 85, 247, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.64);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  touch-action: manipulation;
+  transition: transform 0.18s ease, box-shadow 0.22s ease, background 0.22s ease;
+}
+
+.pricing-secondary-button:hover {
+  transform: translateY(-1px);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.50)),
+    linear-gradient(135deg, rgba(255, 216, 234, 0.92), rgba(230, 218, 255, 0.84), rgba(211, 235, 255, 0.80));
+  box-shadow: 0 16px 42px rgba(168, 85, 247, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.70);
+}
+
+.pricing-secondary-button:active {
+  transform: translateY(0) scale(0.994);
+  box-shadow: 0 8px 22px rgba(168, 85, 247, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.52);
+}
+
+html.dark .pricing-page footer {
+  box-shadow: 0 -30px 80px rgba(3, 1, 12, 0.26);
+}
+
+html.dark .pricing-card::before,
+html.dark .pricing-feature-card::before {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), transparent 38%, rgba(192, 132, 252, 0.08));
+}
+
+html.dark .pricing-card-sheen,
+html.dark .pricing-button::before {
+  background: linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.18) 45%, transparent 62%);
+}
+
+html.dark .pricing-button-soft {
+  color: #ffffff;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.035)),
+    linear-gradient(135deg, #e95ca4 0%, #a98cff 52%, #5fb7f0 100%);
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 16px 44px rgba(3, 1, 12, 0.38), 0 0 28px rgba(168, 85, 247, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+html.dark .pricing-button-soft:hover {
+  color: #ffffff;
+  box-shadow: 0 18px 50px rgba(3, 1, 12, 0.46), 0 0 32px rgba(236, 72, 153, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+html.dark .pricing-recommendation-badge {
+  color: #1f1300 !important;
+  background: linear-gradient(135deg, #f8c45f 0%, #e7a93b 52%, #d88a25 100%) !important;
+  border-color: rgba(255, 211, 112, 0.68) !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 244, 190, 0.36);
+}
+
+html.dark .pricing-secondary-button {
+  color: #f3e8ff;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.045)),
+    linear-gradient(135deg, rgba(236, 72, 153, 0.12), rgba(168, 85, 247, 0.13), rgba(96, 165, 250, 0.10));
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 14px 38px rgba(3, 1, 12, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+html.dark .pricing-secondary-button:hover {
+  color: #ffffff;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.06)),
+    linear-gradient(135deg, rgba(236, 72, 153, 0.16), rgba(168, 85, 247, 0.17), rgba(96, 165, 250, 0.14));
+  box-shadow: 0 18px 48px rgba(3, 1, 12, 0.38), 0 0 26px rgba(168, 85, 247, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+html.dark .pricing-button:focus-visible,
+html.dark .pricing-button-soft:focus-visible,
+html.dark .pricing-secondary-button:focus-visible {
+  box-shadow:
+    0 0 0 3px rgba(24, 12, 42, 0.98),
+    0 0 0 6px rgba(236, 183, 255, 0.50),
+    0 18px 48px rgba(3, 1, 12, 0.38);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pricing-page::before,
+  .pricing-hero-gradient,
+  .pricing-button-soft {
+    animation: none !important;
+  }
+
+  .pricing-card-sheen,
+  .pricing-button::before {
+    transition: none !important;
+  }
+
+  .pricing-card:hover .pricing-card-sheen,
+  .pricing-button:hover::before {
+    transform: none !important;
+  }
+}

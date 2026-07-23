@@ -42,6 +42,7 @@ export default function Home({ lang }: HomeProps) {
   // Courses: Lessons, Practice, Homework, Listening, Grammar (no Speaking Club)
   const courses = [
     { icon: '📚', titleKey: 'dash_lessons' as const, descKey: 'about_fun_desc' as const, color: 'from-pink-100 to-rose-100', border: 'border-pink-200' },
+    { icon: '🧩', titleKey: 'courses_interactive' as const, descKey: 'courses_interactive_desc' as const, color: 'from-pink-100 via-purple-100 to-blue-100', border: 'border-purple-200' },
     { icon: '🎮', titleKey: 'courses_practice' as const, descKey: 'courses_practice_desc' as const, color: 'from-blue-100 to-cyan-100', border: 'border-blue-200' },
     { icon: '✏️', titleKey: 'courses_homework' as const, descKey: 'courses_homework_desc' as const, color: 'from-purple-100 to-violet-100', border: 'border-purple-200' },
     { icon: '🎧', titleKey: 'courses_listening' as const, descKey: 'courses_listening_desc' as const, color: 'from-green-100 to-teal-100', border: 'border-green-200' },
@@ -250,16 +251,16 @@ export default function Home({ lang }: HomeProps) {
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {courses.map((course, i) => (
-              <FadeIn key={course.titleKey} delay={i * 0.1}>
+              <FadeIn key={course.titleKey} delay={i * 0.1} className="h-full">
                 <motion.div
-                  className={`card-hover bg-gradient-to-br ${course.color} border ${course.border} rounded-3xl p-6 cursor-pointer`}
+                  className={`card-hover flex h-full min-h-[14.5rem] flex-col bg-gradient-to-br ${course.color} border ${course.border} rounded-3xl p-6 cursor-pointer`}
                   whileHover={{ scale: 1.03 }}
                 >
-                  <motion.div className="text-5xl mb-4 inline-block" whileHover={{ rotate: [0, -10, 10, 0], scale: 1.2 }} transition={{ duration: 0.4 }}>
+                  <motion.div className="mb-4 flex h-14 items-center text-5xl leading-none" whileHover={{ rotate: [0, -10, 10, 0], scale: 1.2 }} transition={{ duration: 0.4 }}>
                     {course.icon}
                   </motion.div>
                   <h3 className="font-display font-bold text-xl text-purple-700 mb-2">{t(lang, course.titleKey)}</h3>
-                  <p className="font-body text-purple-500 text-sm leading-relaxed">
+                  <p className="font-body text-purple-500 text-sm leading-relaxed flex-1">
                     {course.titleKey === 'dash_lessons'
                       ? (lang === 'ru' ? 'Яркие уроки, которые детям действительно нравятся' :
                          lang === 'ua' ? 'Яскраві уроки, які дітям дійсно подобаються' :

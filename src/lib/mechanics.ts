@@ -15,7 +15,9 @@ export type MechanicType =
   | 'anagram_unscramble'
   | 'speaking_practice'
   | 'digital_coloring'
-  | 'cipher_decoder';
+  | 'cipher_decoder'
+  | 'true_false'
+  | 'mini_shop';
 
 export interface MechanicDef {
   id: MechanicType;
@@ -98,6 +100,20 @@ export const MECHANICS: MechanicDef[] = [
     label: 'Cipher Decoder',
     description: 'Decode a word/phrase using a numeric or letter key.',
     payloadShape: '{ answer: string, key?: Record<string,string|number> }  // system encodes at render',
+  },
+  {
+    id: 'true_false',
+    emoji: '✅',
+    label: 'True / False',
+    description: 'Decide whether each statement is true or false.',
+    payloadShape: '{ statements: Array<{ text: string, is_true: boolean, explanation?: string }> }',
+  },
+  {
+    id: 'mini_shop',
+    emoji: '🛒',
+    label: 'Mini-shop',
+    description: 'Choose items in a pretend shop and match the target total.',
+    payloadShape: '{ items: Array<{ name: string, price: number, image?: string }>, target_total: number }',
   },
 ];
 

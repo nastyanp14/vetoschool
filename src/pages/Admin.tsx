@@ -31,6 +31,7 @@ function UserAvatar({ user, size = 'md' }: { user: { name: string; avatarId?: st
 const DAYS_EN = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
 type Section = 'students' | 'content' | 'schedule' | 'trialLessons' | 'workbooks' | 'live';
+type ContentTargetMode = 'current' | 'all' | 'selected';
 
 // ---- Helpers ----
 function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -396,6 +397,11 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const [editFileDataUrl, setEditFileDataUrl] = useState('');
   const [editFileName, setEditFileName] = useState('');
   const [editExternalLink, setEditExternalLink] = useState('');
+  const [editTargetMode, setEditTargetMode] = useState<ContentTargetMode>('current');
+  const [editSelectedIds, setEditSelectedIds] = useState<string[]>([]);
+  const [contentTargetMode, setContentTargetMode] = useState<ContentTargetMode>('current');
+  const [contentSelectedIds, setContentSelectedIds] = useState<string[]>([]);
+  const [contentSaving, setContentSaving] = useState(false);
   const [confirmDeleteItem, setConfirmDeleteItem] = useState<string | null>(null);
   const [confirmDeleteModule, setConfirmDeleteModule] = useState<string | null>(null);
 
@@ -533,68 +539,240 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
     setEditDueDate(item.dueDate||''); setEditSchedDate(item.scheduledDate||''); setEditSchedTime(item.scheduledTime||'');
     setEditStars(item.starRating||0); setEditFileDataUrl(item.fileDataUrl||''); setEditFileName(item.fileName||'');
     setEditExternalLink(item.externalLink||'');
+    setEditTargetMode('current'); setEditSelectedIds([]);
   };
-  const saveEdit = async (itemId: string, type: ContentType) => {
-    const prev = contentItems.find(i => i.id === itemId);
-    const isGradedType = isGradedContentType(type);
-    const wasGraded = !!(prev?.starRating && prev.starRating > 0);
-    const willBeGraded = isGradedType && editStars > 0;
-    const updated = contentItems.map(i => i.id === itemId ? {
-      ...i, title:editTitle, emoji:editEmoji,
-      dueDate: editDueDate || null,
-      scheduledDate: editSchedDate || null,
-      scheduledTime: editSchedTime || null,
-      fileDataUrl: editFileDataUrl || null, fileName: editFileName || null,
-      fileUrl: editFileDataUrl || null, externalLink: editExternalLink || null,
-      starRating: isGradedType ? editStars : i.starRating,
-    } : i);
-    await saveStudentContent(contentUserId, updated);
-    // Award the same number of stars as the first manual grade.
-    if (isGradedType && willBeGraded && !wasGraded && contentUserId) {
-      const awardedStars = Math.max(1, Math.min(5, editStars));
-      try { await awardStars(contentUserId, awardedStars); showToast(`⭐ +${awardedStars} ${t(lang, 'shop_stars')}`); }
-      catch (e) { console.error('awardStars failed', e); }
+
+  const contentTargetText = {
+    ru: {
+      title: 'Кому выставить',
+      editTitle: 'Применить изменения',
+      current: 'Текущему ученику',
+      all: 'Всем ученикам',
+      selected: 'Выбранным',
+      selectedHint: 'Выберите учеников',
+      empty: 'Выберите хотя бы одного ученика',
+      savedFor: 'Сохранено для учеников',
+    },
+    en: {
+      title: 'Assign to',
+      editTitle: 'Apply changes',
+      current: 'Current student',
+      all: 'All students',
+      selected: 'Selected',
+      selectedHint: 'Choose students',
+      empty: 'Choose at least one student',
+      savedFor: 'Saved for students',
+    },
+    ua: {
+      title: 'Кому виставити',
+      editTitle: 'Застосувати зміни',
+      current: 'Поточному учню',
+      all: 'Усім учням',
+      selected: 'Обраним',
+      selectedHint: 'Оберіть учнів',
+      empty: 'Оберіть хоча б одного учня',
+      savedFor: 'Збережено для учнів',
+    },
+  }[lang];
+
+  const targetIdsFor = (mode: ContentTargetMode, selectedIds: string[]) => {
+    const allowed = new Set(users.map(u => u.id));
+    if (mode === 'all') return users.map(u => u.id);
+    if (mode === 'selected') return Array.from(new Set(selectedIds.filter(id => allowed.has(id))));
+    return contentUserId ? [contentUserId] : [];
+  };
+
+  const refreshCurrentContent = async () => {
+    if (!contentUserId) {
+      setContentItems([]);
+      return;
     }
     const fresh = await loadStudentContent(contentUserId);
     setContentItems(fresh);
-    setEditingId(null);
-    showToast(t(lang,'admin_content_saved'));
   };
 
-  const getNextModuleId = () => {
-    const nums = contentItems.map(i => parseInt(i.moduleId.replace('module-',''))||0);
+  const renderContentTargetPicker = (
+    title: string,
+    mode: ContentTargetMode,
+    setMode: (mode: ContentTargetMode) => void,
+    selectedIds: string[],
+    setSelectedIds: (ids: string[]) => void,
+  ) => {
+    const toggle = (id: string) => {
+      setSelectedIds(selectedIds.includes(id)
+        ? selectedIds.filter(selectedId => selectedId !== id)
+        : [...selectedIds, id]);
+    };
+
+    return (
+      <div className="rounded-2xl border border-purple-100 bg-white/80 p-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+          <div className="font-body text-xs font-800 uppercase tracking-wider text-purple-500">{title}</div>
+          <div className="flex flex-wrap gap-1 rounded-2xl bg-purple-50 p-1">
+            {(['current', 'all', 'selected'] as ContentTargetMode[]).map(targetMode => (
+              <button
+                key={targetMode}
+                type="button"
+                onClick={() => setMode(targetMode)}
+                className={`rounded-xl px-3 py-1.5 text-xs font-body font-800 transition ${mode === targetMode ? 'bg-gradient-to-r from-pink-400 to-purple-400 text-white shadow-sm' : 'text-purple-500 hover:bg-white'}`}
+              >
+                {contentTargetText[targetMode]}
+              </button>
+            ))}
+          </div>
+        </div>
+        {mode === 'selected' && (
+          <div className="space-y-2">
+            <div className="font-body text-xs font-600 text-purple-400">{contentTargetText.selectedHint}</div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {users.map(user => {
+                const checked = selectedIds.includes(user.id);
+                return (
+                  <label
+                    key={user.id}
+                    className={`flex cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2 transition ${checked ? 'border-green-200 bg-green-50 text-green-700' : 'border-purple-100 bg-white text-purple-500 hover:border-pink-200 hover:bg-pink-50'}`}
+                  >
+                    <input type="checkbox" checked={checked} onChange={() => toggle(user.id)} className="h-4 w-4 accent-pink-400" />
+                    <span className="min-w-0">
+                      <span className="block truncate font-body text-sm font-700">{user.name}</span>
+                      <span className="block truncate font-body text-xs text-purple-300">{user.email}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const saveEdit = async (itemId: string, type: ContentType) => {
+    const prev = contentItems.find(i => i.id === itemId);
+    if (!prev) return;
+    const targetIds = targetIdsFor(editTargetMode, editSelectedIds);
+    if (targetIds.length === 0) {
+      showToast(contentTargetText.empty, 'error');
+      return;
+    }
+
+    const isGradedType = isGradedContentType(type);
+    const willBeGraded = isGradedType && editStars > 0;
+
+    setContentSaving(true);
+    try {
+      for (const targetId of targetIds) {
+        const targetContent = targetId === contentUserId ? contentItems : await loadStudentContent(targetId);
+        const targetPrev = targetId === contentUserId
+          ? targetContent.find(i => i.id === itemId)
+          : targetContent.find(i => i.moduleId === prev.moduleId && i.type === prev.type)
+            || targetContent.find(i => i.type === prev.type && i.title === prev.title);
+        const wasGraded = !!(targetPrev?.starRating && targetPrev.starRating > 0);
+        const nextItem: ContentItem = {
+          ...(targetPrev || prev),
+          id: targetPrev?.id || crypto.randomUUID(),
+          userId: targetId,
+          moduleId: targetPrev?.moduleId || prev.moduleId,
+          title: editTitle,
+          emoji: editEmoji,
+          dueDate: editDueDate || null,
+          scheduledDate: editSchedDate || null,
+          scheduledTime: editSchedTime || null,
+          fileDataUrl: editFileDataUrl || null,
+          fileName: editFileName || null,
+          fileUrl: editFileDataUrl || null,
+          externalLink: editExternalLink || null,
+          starRating: isGradedType ? editStars : targetPrev?.starRating,
+        };
+        const updated = targetPrev
+          ? targetContent.map(i => i.id === targetPrev.id ? nextItem : i)
+          : [...targetContent, nextItem];
+        await saveStudentContent(targetId, updated);
+        if (isGradedType && willBeGraded && !wasGraded) {
+          const awardedStars = Math.max(1, Math.min(5, editStars));
+          try { await awardStars(targetId, awardedStars); }
+          catch (e) { console.error('awardStars failed', e); }
+        }
+      }
+
+      await refreshCurrentContent();
+      setEditingId(null);
+      showToast(`${t(lang,'admin_content_saved')} · ${contentTargetText.savedFor}: ${targetIds.length}`);
+    } catch (error) {
+      console.error(error);
+      showToast(friendlyActionError(error), 'error');
+    } finally {
+      setContentSaving(false);
+    }
+  };
+
+  const getNextModuleIdFor = (items: ContentItem[]) => {
+    const nums = items.map(i => parseInt(i.moduleId.replace('module-',''))||0);
     return `module-${(nums.length ? Math.max(...nums) : 0) + 1}`;
   };
   const addModule = async () => {
-    const moduleId = getNextModuleId(); const num = moduleId.replace('module-','');
-    const newItems: ContentItem[] = [
-      { id: crypto.randomUUID(), userId: contentUserId, moduleId, type:'lesson',   title:newModTitle.lesson   ||`Lesson ${num}`,    emoji:newModEmoji.lesson,   fileUrl:newModFile.lesson   || null, fileDataUrl:newModFile.lesson   || null, fileName:newModFileName.lesson   || null, externalLink:newModLink.lesson   ||null, scheduledDate:newModSchedLesson.date   || null, scheduledTime:newModSchedLesson.time   || null, unlocked:false },
-      { id: crypto.randomUUID(), userId: contentUserId, moduleId, type:'homework', title:newModTitle.homework ||`Home Task ${num}`, emoji:newModEmoji.homework, fileUrl:newModFile.homework || null, fileDataUrl:newModFile.homework || null, fileName:newModFileName.homework || null, externalLink:newModLink.homework ||null, dueDate:newModDue || null, scheduledDate:newModSchedHW.date || null, scheduledTime:newModSchedHW.time || null, unlocked:false },
-      { id: crypto.randomUUID(), userId: contentUserId, moduleId, type:'practice', title:newModTitle.practice ||`Practice ${num}`,  emoji:newModEmoji.practice, fileUrl:newModFile.practice || null, fileDataUrl:newModFile.practice || null, fileName:newModFileName.practice || null, externalLink:newModLink.practice ||null, scheduledDate:newModSchedPractice.date || null, scheduledTime:newModSchedPractice.time || null, unlocked:false },
-    ];
-    const updated = [...contentItems, ...newItems];
-    await saveStudentContent(contentUserId, updated);
-    const fresh = await loadStudentContent(contentUserId);
-    setContentItems(fresh);
-    setShowNewModule(false); setNewModTitle({lesson:'',homework:'',practice:''}); setNewModEmoji({lesson:'📚',homework:'✏️',practice:'🎮'});
-    setNewModFile({lesson:'',homework:'',practice:''}); setNewModFileName({lesson:'',homework:'',practice:''}); setNewModLink({lesson:'',homework:'',practice:''}); setNewModDue('');
-    setNewModSchedLesson({date:'',time:''}); setNewModSchedPractice({date:'',time:''}); setNewModSchedHW({date:'',time:''});
-    showToast(`✅ ${t(lang,'admin_module')} ${num}!`);
+    const targetIds = targetIdsFor(contentTargetMode, contentSelectedIds);
+    if (targetIds.length === 0) {
+      showToast(contentTargetText.empty, 'error');
+      return;
+    }
+
+    setContentSaving(true);
+    try {
+      for (const targetId of targetIds) {
+        const baseItems = targetId === contentUserId ? contentItems : await loadStudentContent(targetId);
+        const moduleId = getNextModuleIdFor(baseItems);
+        const num = moduleId.replace('module-','');
+        const newItems: ContentItem[] = [
+          { id: crypto.randomUUID(), userId: targetId, moduleId, type:'lesson',   title:newModTitle.lesson   ||`Lesson ${num}`,    emoji:newModEmoji.lesson,   fileUrl:newModFile.lesson   || null, fileDataUrl:newModFile.lesson   || null, fileName:newModFileName.lesson   || null, externalLink:newModLink.lesson   ||null, scheduledDate:newModSchedLesson.date   || null, scheduledTime:newModSchedLesson.time   || null, unlocked:false },
+          { id: crypto.randomUUID(), userId: targetId, moduleId, type:'homework', title:newModTitle.homework ||`Home Task ${num}`, emoji:newModEmoji.homework, fileUrl:newModFile.homework || null, fileDataUrl:newModFile.homework || null, fileName:newModFileName.homework || null, externalLink:newModLink.homework ||null, dueDate:newModDue || null, scheduledDate:newModSchedHW.date || null, scheduledTime:newModSchedHW.time || null, unlocked:false },
+          { id: crypto.randomUUID(), userId: targetId, moduleId, type:'practice', title:newModTitle.practice ||`Practice ${num}`,  emoji:newModEmoji.practice, fileUrl:newModFile.practice || null, fileDataUrl:newModFile.practice || null, fileName:newModFileName.practice || null, externalLink:newModLink.practice ||null, scheduledDate:newModSchedPractice.date || null, scheduledTime:newModSchedPractice.time || null, unlocked:false },
+        ];
+        await saveStudentContent(targetId, [...baseItems, ...newItems]);
+      }
+
+      await refreshCurrentContent();
+      setShowNewModule(false); setNewModTitle({lesson:'',homework:'',practice:''}); setNewModEmoji({lesson:'📚',homework:'✏️',practice:'🎮'});
+      setNewModFile({lesson:'',homework:'',practice:''}); setNewModFileName({lesson:'',homework:'',practice:''}); setNewModLink({lesson:'',homework:'',practice:''}); setNewModDue('');
+      setNewModSchedLesson({date:'',time:''}); setNewModSchedPractice({date:'',time:''}); setNewModSchedHW({date:'',time:''});
+      showToast(`✅ ${t(lang,'admin_module')} · ${contentTargetText.savedFor}: ${targetIds.length}`);
+    } catch (error) {
+      console.error(error);
+      showToast(friendlyActionError(error), 'error');
+    } finally {
+      setContentSaving(false);
+    }
   };
   const addExtra = async () => {
-    const existingCount = contentItems.filter(i => i.type === newExtraType).length + 1;
-    const extraModuleId = `${newExtraType}-${Date.now()}`;
-    const defaultTitle = newExtraType === 'grammar' ? `Grammar ${existingCount}`
-      : newExtraType === 'listening' ? `Listening ${existingCount}`
-      : `Unit Checkpoint ${existingCount}`;
-    const newItem: ContentItem = { id: crypto.randomUUID(), userId: contentUserId, moduleId:extraModuleId, type:newExtraType, title:newExtraTitle||defaultTitle, emoji:newExtraEmoji, fileUrl:newExtraFile || null, fileDataUrl:newExtraFile || null, fileName:newExtraFileName || null, externalLink:newExtraLink||null, scheduledDate:newExtraSchedDate || null, scheduledTime:newExtraSchedTime || null, unlocked:false };
-    const updated = [...contentItems, newItem];
-    await saveStudentContent(contentUserId, updated);
-    const fresh = await loadStudentContent(contentUserId);
-    setContentItems(fresh);
-    setShowNewExtra(false); setNewExtraTitle(''); setNewExtraFile(''); setNewExtraFileName(''); setNewExtraLink(''); setNewExtraSchedDate(''); setNewExtraSchedTime('');
-    const toastKey = newExtraType === 'grammar' ? 'dash_grammar' : newExtraType === 'listening' ? 'dash_listening' : 'dash_checkpoint';
-    showToast(`✅ ${t(lang, toastKey)}!`);
+    const targetIds = targetIdsFor(contentTargetMode, contentSelectedIds);
+    if (targetIds.length === 0) {
+      showToast(contentTargetText.empty, 'error');
+      return;
+    }
+
+    setContentSaving(true);
+    try {
+      for (const targetId of targetIds) {
+        const baseItems = targetId === contentUserId ? contentItems : await loadStudentContent(targetId);
+        const existingCount = baseItems.filter(i => i.type === newExtraType).length + 1;
+        const extraModuleId = `${newExtraType}-${Date.now()}-${targetId.slice(0, 8)}`;
+        const defaultTitle = newExtraType === 'grammar' ? `Grammar ${existingCount}`
+          : newExtraType === 'listening' ? `Listening ${existingCount}`
+          : `Unit Checkpoint ${existingCount}`;
+        const newItem: ContentItem = { id: crypto.randomUUID(), userId: targetId, moduleId:extraModuleId, type:newExtraType, title:newExtraTitle||defaultTitle, emoji:newExtraEmoji, fileUrl:newExtraFile || null, fileDataUrl:newExtraFile || null, fileName:newExtraFileName || null, externalLink:newExtraLink||null, scheduledDate:newExtraSchedDate || null, scheduledTime:newExtraSchedTime || null, unlocked:false };
+        await saveStudentContent(targetId, [...baseItems, newItem]);
+      }
+
+      await refreshCurrentContent();
+      setShowNewExtra(false); setNewExtraTitle(''); setNewExtraFile(''); setNewExtraFileName(''); setNewExtraLink(''); setNewExtraSchedDate(''); setNewExtraSchedTime('');
+      const toastKey = newExtraType === 'grammar' ? 'dash_grammar' : newExtraType === 'listening' ? 'dash_listening' : 'dash_checkpoint';
+      showToast(`✅ ${t(lang, toastKey)} · ${contentTargetText.savedFor}: ${targetIds.length}`);
+    } catch (error) {
+      console.error(error);
+      showToast(friendlyActionError(error), 'error');
+    } finally {
+      setContentSaving(false);
+    }
   };
 
   const filtered = users.filter(u => {
@@ -1082,6 +1260,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                       {editingId === item.id && (
                                         <motion.div initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}
                                           className="border-t border-purple-100 pt-4 space-y-3">
+                                          {renderContentTargetPicker(contentTargetText.editTitle, editTargetMode, setEditTargetMode, editSelectedIds, setEditSelectedIds)}
                                           <div className="grid grid-cols-2 gap-3">
                                             <div>
                                               <label className="font-body text-xs text-purple-500 font-600 mb-1 block">{t(lang,'admin_title_label')}</label>
@@ -1135,8 +1314,8 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                             </div>
                                           )}
                                           <div className="flex gap-2">
-                                            <button onClick={() => saveEdit(item.id, item.type)} className="btn-magic px-5 py-2 text-white text-sm font-display font-bold">{t(lang,'admin_save_changes')}</button>
-                                            <button onClick={() => setEditingId(null)} className="btn-outline px-5 py-2 text-sm font-display font-bold">{t(lang,'admin_cancel_btn')}</button>
+                                            <button onClick={() => saveEdit(item.id, item.type)} disabled={contentSaving} className="btn-magic px-5 py-2 text-white text-sm font-display font-bold disabled:opacity-60">{contentSaving ? '...' : t(lang,'admin_save_changes')}</button>
+                                            <button onClick={() => setEditingId(null)} disabled={contentSaving} className="btn-outline px-5 py-2 text-sm font-display font-bold disabled:opacity-60">{t(lang,'admin_cancel_btn')}</button>
                                           </div>
                                         </motion.div>
                                       )}
@@ -1185,6 +1364,9 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                 : newExtraType==='listening' ? t(lang,'admin_new_listening_title')
                                 : t(lang,'admin_new_checkpoint_title')}
                             </h4>
+                            <div className="mb-4">
+                              {renderContentTargetPicker(contentTargetText.title, contentTargetMode, setContentTargetMode, contentSelectedIds, setContentSelectedIds)}
+                            </div>
                             <div className="bg-white rounded-2xl p-4 border border-purple-100 space-y-3">
                               <div className="grid grid-cols-2 gap-3">
                                 <div>
@@ -1228,8 +1410,8 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                               </div>
                             </div>
                             <div className="flex gap-3 mt-4">
-                              <button onClick={addExtra} className="btn-magic px-6 py-3 text-white font-display font-bold">{t(lang,'admin_add_btn')}</button>
-                              <button onClick={() => setShowNewExtra(false)} className="btn-outline px-6 py-3 font-display font-bold">{t(lang,'admin_cancel_btn')}</button>
+                              <button onClick={addExtra} disabled={contentSaving} className="btn-magic px-6 py-3 text-white font-display font-bold disabled:opacity-60">{contentSaving ? '...' : t(lang,'admin_add_btn')}</button>
+                              <button onClick={() => setShowNewExtra(false)} disabled={contentSaving} className="btn-outline px-6 py-3 font-display font-bold disabled:opacity-60">{t(lang,'admin_cancel_btn')}</button>
                             </div>
                           </motion.div>
                         )}
@@ -1241,6 +1423,9 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                           <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-20 }}
                             className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-3xl p-6 border border-pink-200 mt-4">
                             <h4 className="font-display font-bold text-xl text-purple-700 mb-5">{t(lang,'admin_new_module_title')}</h4>
+                            <div className="mb-4">
+                              {renderContentTargetPicker(contentTargetText.title, contentTargetMode, setContentTargetMode, contentSelectedIds, setContentSelectedIds)}
+                            </div>
                             {(['lesson','homework','practice'] as const).map(type => {
                               const icons = { lesson:'📚', homework:'✏️', practice:'🎮' };
                               const labelKey = { lesson:'admin_lesson' as const, homework:'admin_homework' as const, practice:'admin_practice' as const };
@@ -1300,8 +1485,8 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                               );
                             })}
                             <div className="flex gap-3 mt-4">
-                              <button onClick={addModule} className="btn-magic px-6 py-3 text-white font-display font-bold">{t(lang,'admin_create_module')}</button>
-                              <button onClick={() => setShowNewModule(false)} className="btn-outline px-6 py-3 font-display font-bold">{t(lang,'admin_cancel_btn')}</button>
+                              <button onClick={addModule} disabled={contentSaving} className="btn-magic px-6 py-3 text-white font-display font-bold disabled:opacity-60">{contentSaving ? '...' : t(lang,'admin_create_module')}</button>
+                              <button onClick={() => setShowNewModule(false)} disabled={contentSaving} className="btn-outline px-6 py-3 font-display font-bold disabled:opacity-60">{t(lang,'admin_cancel_btn')}</button>
                             </div>
                           </motion.div>
                         )}

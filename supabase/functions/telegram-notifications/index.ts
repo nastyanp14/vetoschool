@@ -216,8 +216,9 @@ async function currentUser(req: Request, anonKey: string) {
   if (!authHeader?.startsWith('Bearer ')) return null;
   const client = createClient(Deno.env.get('SUPABASE_URL')!, anonKey, { global: { headers: { Authorization: authHeader } } });
   const token = authHeader.replace('Bearer ', '');
-  const { data } = await client.auth.getClaims(token);
-  return data?.claims?.sub as string | undefined || null;
+  const { data, error } = await client.auth.getUser(token);
+  if (error) return null;
+  return data.user?.id || null;
 }
 
 async function isAdmin(admin: any, userId: string | null) {

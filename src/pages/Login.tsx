@@ -3,11 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { login, signInWithGoogle } from '../lib/auth';
 import { Lang, t } from '../lib/i18n';
 import { AuthAlert, AuthFooterLink, AuthHeader, AuthPageShell, GoogleButton } from '../components/AuthCard';
+import { useToast } from '@/hooks/use-toast';
 
 const text = {
-  ru: { google: 'Продолжить с Google', divider: 'или', forgot: 'Забыли пароль?' },
-  ua: { google: 'Продовжити з Google', divider: 'або', forgot: 'Забули пароль?' },
-  en: { google: 'Continue with Google', divider: 'or', forgot: 'Forgot password?' },
+  ru: { google: 'Продолжить с Google', divider: 'или', forgot: 'Забыли пароль?', googleErrorTitle: 'Google-вход не запустился' },
+  ua: { google: 'Продовжити з Google', divider: 'або', forgot: 'Забули пароль?', googleErrorTitle: 'Google-вхід не запустився' },
+  en: { google: 'Continue with Google', divider: 'or', forgot: 'Forgot password?', googleErrorTitle: 'Google sign-in did not start' },
 };
 
 export default function Login({ lang }: { lang: Lang }) {
@@ -17,6 +18,7 @@ export default function Login({ lang }: { lang: Lang }) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const navigate = useNavigate();
+  const { toast } = useToast();
   const copy = text[lang] || text.ru;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,7 +41,11 @@ export default function Login({ lang }: { lang: Lang }) {
     setGoogleLoading(true);
     const result = await signInWithGoogle('/dashboard');
     setGoogleLoading(false);
-    if (!result.success) setError(result.error || 'Google sign-in failed');
+    if (!result.success) {
+      const message = result.error || 'Google sign-in failed';
+      setError(message);
+      toast({ title: copy.googleErrorTitle, description: message, variant: 'destructive' });
+    }
   };
 
   return (

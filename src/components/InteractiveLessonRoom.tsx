@@ -71,6 +71,8 @@ const mechanicCopy: Record<Lang, Partial<Record<MechanicType, { title: string; i
     word_search: { title: 'Найди слова', instruction: 'Нажми на первую и последнюю букву слова. Слова могут идти по горизонтали, вертикали и диагонали.' },
     speaking_practice: { title: 'Говорим вслух', instruction: 'Нажми на микрофон, скажи фразу и получи мягкую подсказку по произношению.' },
     digital_coloring: { title: 'Раскрась рисунок', instruction: 'Выбери цвет и закрась области с таким же кодом.' },
+    true_false: { title: 'True / False', instruction: 'Прочитай утверждение и выбери, правда это или нет.' },
+    mini_shop: { title: 'Mini-shop', instruction: 'Выбери товары так, чтобы сумма совпала с заданием.' },
   },
   en: {
     matching: { title: 'Match the pairs', instruction: 'Choose a card on the left, then connect it to the matching card on the right.' },
@@ -83,6 +85,8 @@ const mechanicCopy: Record<Lang, Partial<Record<MechanicType, { title: string; i
     word_search: { title: 'Find the words', instruction: 'Tap the first and last letters. Words can run horizontally, vertically, or diagonally.' },
     speaking_practice: { title: 'Speak out loud', instruction: 'Tap the microphone, say the phrase, and get a gentle pronunciation hint.' },
     digital_coloring: { title: 'Color the picture', instruction: 'Choose a color and fill the regions with the matching code.' },
+    true_false: { title: 'True / False', instruction: 'Read the statement and choose whether it is true or false.' },
+    mini_shop: { title: 'Mini-shop', instruction: 'Choose items so the total matches the target.' },
   },
   ua: {
     matching: { title: 'Знайди пари', instruction: 'Обери картку ліворуч, потім з’єднай її з правильною карткою праворуч.' },
@@ -95,6 +99,8 @@ const mechanicCopy: Record<Lang, Partial<Record<MechanicType, { title: string; i
     word_search: { title: 'Знайди слова', instruction: 'Натисни першу та останню літери. Слова можуть бути по горизонталі, вертикалі чи діагоналі.' },
     speaking_practice: { title: 'Говоримо вголос', instruction: 'Натисни на мікрофон, скажи фразу й отримай мʼяку підказку щодо вимови.' },
     digital_coloring: { title: 'Розфарбуй малюнок', instruction: 'Обери колір і зафарбуй області з таким самим кодом.' },
+    true_false: { title: 'True / False', instruction: 'Прочитай твердження та обери, правда це чи ні.' },
+    mini_shop: { title: 'Mini-shop', instruction: 'Обери товари так, щоб сума збіглася із завданням.' },
   },
 };
 
@@ -168,6 +174,13 @@ const taskCopy = {
     nextPoint: 'Следующая точка',
     addObjects: 'Добавьте объекты для поиска в конструкторе.',
     addPalette: 'Добавьте палитру и области в конструкторе.',
+    addStatements: 'Добавьте утверждения в конструкторе.',
+    trueAnswer: 'Правда',
+    falseAnswer: 'Неправда',
+    addShopItems: 'Добавьте товары и цель в конструкторе.',
+    shopTarget: 'Нужно набрать',
+    shopTotal: 'В корзине',
+    shopOver: 'Слишком много',
     colored: 'Закрашено',
     choosePencil: 'Выбери карандаш',
     coloringTodo: 'Что раскрасить',
@@ -216,6 +229,13 @@ const taskCopy = {
     nextPoint: 'Next point',
     addObjects: 'Add objects to find in the builder.',
     addPalette: 'Add a palette and regions in the builder.',
+    addStatements: 'Add statements in the builder.',
+    trueAnswer: 'True',
+    falseAnswer: 'False',
+    addShopItems: 'Add shop items and a target in the builder.',
+    shopTarget: 'Target total',
+    shopTotal: 'Cart total',
+    shopOver: 'Too much',
     colored: 'Colored',
     choosePencil: 'Choose a pencil',
     coloringTodo: 'What to color',
@@ -264,6 +284,13 @@ const taskCopy = {
     nextPoint: 'Наступна точка',
     addObjects: 'Додайте обʼєкти для пошуку в конструкторі.',
     addPalette: 'Додайте палітру та області в конструкторі.',
+    addStatements: 'Додайте твердження в конструкторі.',
+    trueAnswer: 'Правда',
+    falseAnswer: 'Неправда',
+    addShopItems: 'Додайте товари та ціль у конструкторі.',
+    shopTarget: 'Потрібно набрати',
+    shopTotal: 'У кошику',
+    shopOver: 'Забагато',
     colored: 'Зафарбовано',
     choosePencil: 'Обери олівець',
     coloringTodo: 'Що розфарбувати',
@@ -1824,6 +1851,136 @@ function DigitalColoringTask({ payload, onDone, onEvent, lang }: { payload: any;
   );
 }
 
+// ==================== TRUE / FALSE ====================
+function TrueFalseTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
+  const copy = taskCopy[lang] || taskCopy.ru;
+  const statements: Array<{ text: string; is_true: boolean }> = (payload?.statements || []).filter((item: any) => String(item?.text || '').trim());
+  const [index, setIndex] = useState(0);
+  const [wrong, setWrong] = useState(false);
+  const [correct, setCorrect] = useState(false);
+  const current = statements[index];
+
+  const answer = (value: boolean) => {
+    if (!current) return;
+    onEvent('choice_selected', { mechanic: 'true_false', index, answer: value });
+    if (Boolean(current.is_true) !== value) {
+      setWrong(true);
+      onEvent('answer_wrong', { mechanic: 'true_false', index, answer: value, expected: Boolean(current.is_true) });
+      setTimeout(() => setWrong(false), 520);
+      return;
+    }
+    setCorrect(true);
+    onEvent('answer_correct', { mechanic: 'true_false', index, answer: value });
+    window.setTimeout(() => {
+      setCorrect(false);
+      if (index + 1 >= statements.length) onDone();
+      else setIndex(value => value + 1);
+    }, 650);
+  };
+
+  if (statements.length === 0) {
+    return <p className="text-center text-purple-500 dark:text-purple-200">{copy.addStatements}</p>;
+  }
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-5 text-center">
+      <div className="flex justify-center gap-2">
+        {statements.map((_, i) => (
+          <span key={i} className={`h-2 rounded-full transition-all ${i <= index ? 'w-8 bg-gradient-to-r from-pink-400 to-purple-400' : 'w-2 bg-purple-100 dark:bg-purple-800'}`} />
+        ))}
+      </div>
+      <motion.div
+        key={index}
+        animate={wrong ? { x: [0, -8, 8, -5, 5, 0] } : correct ? { scale: [1, 1.03, 1] } : { x: 0, scale: 1 }}
+        className={`rounded-[2rem] border-2 p-6 shadow-xl sm:p-8 ${
+          correct ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100' :
+          wrong ? 'border-rose-300 bg-rose-50 text-rose-600 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100' :
+          'border-purple-100 bg-white text-purple-800 dark:border-purple-700 dark:bg-[#241632] dark:text-purple-100'
+        }`}
+      >
+        <div className="mb-3 font-body text-xs font-black uppercase tracking-wider opacity-60">#{index + 1} / {statements.length}</div>
+        <div className="font-display text-2xl font-black leading-tight sm:text-3xl">{current.text}</div>
+      </motion.div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button onClick={() => answer(true)} className="rounded-3xl border-2 border-emerald-100 bg-emerald-50 px-6 py-5 font-display text-xl font-black text-emerald-700 shadow-sm transition hover:-translate-y-1 hover:shadow-xl dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-100">
+          <CheckCircle2 className="mx-auto mb-2 h-7 w-7" /> {copy.trueAnswer}
+        </button>
+        <button onClick={() => answer(false)} className="rounded-3xl border-2 border-rose-100 bg-rose-50 px-6 py-5 font-display text-xl font-black text-rose-600 shadow-sm transition hover:-translate-y-1 hover:shadow-xl dark:border-rose-500/25 dark:bg-rose-500/10 dark:text-rose-100">
+          <XCircle className="mx-auto mb-2 h-7 w-7" /> {copy.falseAnswer}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ==================== MINI-SHOP ====================
+function MiniShopTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
+  const copy = taskCopy[lang] || taskCopy.ru;
+  const items: Array<{ name: string; price: number; image?: string }> = (payload?.items || []).filter((item: any) => String(item?.name || '').trim());
+  const target = Math.max(0, Number(payload?.target_total) || 0);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [completed, setCompleted] = useState(false);
+  const total = items.reduce((sum, item, index) => selected.has(index) ? sum + (Number(item.price) || 0) : sum, 0);
+  const over = target > 0 && total > target;
+
+  useEffect(() => {
+    if (!completed && target > 0 && total === target) {
+      setCompleted(true);
+      onEvent('answer_correct', { mechanic: 'mini_shop', total, target, items: Array.from(selected) });
+      setTimeout(onDone, 850);
+    }
+  }, [completed, target, total, selected]);
+
+  const toggle = (index: number) => {
+    setSelected(previous => {
+      const next = new Set(previous);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      const nextTotal = items.reduce((sum, item, itemIndex) => next.has(itemIndex) ? sum + (Number(item.price) || 0) : sum, 0);
+      onEvent('choice_selected', { mechanic: 'mini_shop', index, total: nextTotal, target });
+      if (target > 0 && nextTotal > target) onEvent('answer_wrong', { mechanic: 'mini_shop', total: nextTotal, target });
+      return next;
+    });
+  };
+
+  if (items.length === 0 || target <= 0) {
+    return <p className="text-center text-purple-500 dark:text-purple-200">{copy.addShopItems}</p>;
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="mx-auto grid max-w-xl grid-cols-2 gap-3">
+        <div className="rounded-3xl border border-pink-100 bg-pink-50 p-4 text-center shadow-sm dark:border-pink-500/20 dark:bg-pink-500/10">
+          <div className="font-body text-xs font-black uppercase tracking-wider text-pink-400">{copy.shopTarget}</div>
+          <div className="font-display text-3xl font-black text-pink-600 dark:text-pink-100">{target}</div>
+        </div>
+        <div className={`rounded-3xl border p-4 text-center shadow-sm ${completed ? 'border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-100' : over ? 'border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-500/25 dark:bg-rose-500/10 dark:text-rose-100' : 'border-purple-100 bg-white text-purple-700 dark:border-purple-700 dark:bg-[#241632] dark:text-purple-100'}`}>
+          <div className="font-body text-xs font-black uppercase tracking-wider opacity-65">{over ? copy.shopOver : copy.shopTotal}</div>
+          <div className="font-display text-3xl font-black">{total}</div>
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((item, index) => {
+          const active = selected.has(index);
+          return (
+            <button
+              key={index}
+              onClick={() => toggle(index)}
+              className={`min-h-36 rounded-[2rem] border-2 p-4 text-center shadow-sm transition hover:-translate-y-1 hover:shadow-xl ${
+                active ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100' : liveTile
+              }`}
+            >
+              {item.image ? <SignedImg path={item.image} className="mx-auto mb-3 h-20 w-24 rounded-2xl object-cover" /> : <div className="mx-auto mb-3 flex h-20 w-24 items-center justify-center rounded-2xl bg-gradient-to-br from-yellow-100 via-pink-100 to-purple-100 text-3xl">🛍️</div>}
+              <div className="font-display text-lg font-black">{item.name}</div>
+              <div className="mt-1 font-body text-sm font-black opacity-70">{Number(item.price) || 0}</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ==================== ROOM ====================
 export default function InteractiveLessonRoom({
   lesson, userId, onExit, onCompleted, lang = 'ru',
@@ -2059,7 +2216,9 @@ export default function InteractiveLessonRoom({
                 {cur.mechanic_type === 'word_search' && <WordSearchTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} lang={lang} />}
                 {cur.mechanic_type === 'speaking_practice' && <SpeakingPracticeTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} lang={lang} />}
                 {cur.mechanic_type === 'digital_coloring' && <DigitalColoringTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} lang={lang} />}
-                {!['matching','word_lego','fill_letters','anagram_unscramble','odd_one_out','category_sorting','cipher_decoder','word_search','speaking_practice','digital_coloring'].includes(cur.mechanic_type) && (
+                {cur.mechanic_type === 'true_false' && <TrueFalseTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} lang={lang} />}
+                {cur.mechanic_type === 'mini_shop' && <MiniShopTask payload={cur.payload_json} onDone={nextTask} onEvent={emitTaskEvent} lang={lang} />}
+                {!['matching','word_lego','fill_letters','anagram_unscramble','odd_one_out','category_sorting','cipher_decoder','word_search','speaking_practice','digital_coloring','true_false','mini_shop'].includes(cur.mechanic_type) && (
                   <div className="text-center py-8">
                     <div className="text-4xl mb-2">🚧</div>
                     <p className="text-purple-500 dark:text-purple-200">{copy.mechanicWip(cur.mechanic_type)}</p>

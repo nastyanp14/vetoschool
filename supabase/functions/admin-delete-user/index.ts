@@ -50,15 +50,33 @@ Deno.serve(async (req) => {
       return json({ error: 'Invalid userId' }, 400);
     }
 
+    const cleanupTables = [
+      ['telegram_notifications', 'student_id'],
+      ['telegram_link_tokens', 'student_id'],
+      ['student_parent_links', 'student_id'],
+      ['lesson_live_events', 'student_id'],
+      ['lesson_live_sessions', 'student_id'],
+      ['lesson_progress', 'user_id'],
+      ['workbook_assignments', 'user_id'],
+      ['student_group_members', 'user_id'],
+      ['grades', 'user_id'],
+      ['schedules', 'user_id'],
+      ['content_items', 'user_id'],
+    ] as const;
+
+    for (const [table, column] of cleanupTables) {
+      const { error: cleanupError } = await admin.from(table).delete().eq(column, userId);
+      if (cleanupError && cleanupError.code !== '42P01' && cleanupError.code !== '42703') {
+        return json({ error: `Unable to clean ${table}: ${cleanupError.message}` }, 500);
+      }
+    }
+
     const { error: delErr } = await admin.auth.admin.deleteUser(userId);
     if (delErr) {
       return json({ error: delErr.message }, 500);
     }
 
-    // Best-effort cleanup for older tables that may not cascade from auth.users.
-    await admin.from('content_items').delete().eq('user_id', userId);
-    await admin.from('schedules').delete().eq('user_id', userId);
-    await admin.from('grades').delete().eq('user_id', userId);
+    // Best-effort cleanup for profile/role rows in projects without full cascades.
     await admin.from('user_roles').delete().eq('user_id', userId);
     await admin.from('profiles').delete().eq('id', userId);
 

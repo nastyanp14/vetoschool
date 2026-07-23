@@ -4,6 +4,8 @@ import { Lang } from '../lib/i18n';
 import { bootstrapAuth, getCurrentUser, subscribeAuth } from '../lib/auth';
 import Navbar from '../components/Navbar';
 import Home from './Home';
+import Pricing from './Pricing';
+import CheckoutPlaceholder from './CheckoutPlaceholder';
 import Login from './Login';
 import Register from './Register';
 import CheckEmail from './CheckEmail';
@@ -76,6 +78,17 @@ const seo = {
     description: 'Book a free Vetoschool trial lesson and prepare a friendly preliminary English level recommendation for your child.',
     path: '/trial-booking',
   },
+  pricing: {
+    title: 'Pricing | Vetoschool',
+    description: 'Choose a Vetoschool group or individual English learning plan with full access to the learning platform.',
+    path: '/pricing',
+  },
+  checkout: {
+    title: 'Checkout | Vetoschool',
+    description: 'Future secure Vetoschool online payment page.',
+    path: '/checkout',
+    noindex: true,
+  },
   notFound: {
     title: '404 | Vetoschool',
     description: 'A friendly Vetoschool not found page with quick links back to home and login.',
@@ -147,6 +160,8 @@ export default function Index() {
         <Route path="/cookie-policy" element={<><Seo {...seo.cookiePolicy} /><Navbar lang={lang} setLang={setLang} /><CookiePolicy lang={lang} /></>} />
         <Route path="/privacy-policy" element={<><Seo {...seo.privacyPolicy} /><Navbar lang={lang} setLang={setLang} /><PrivacyPolicy lang={lang} /></>} />
         <Route path="/trial-booking" element={<><Seo {...seo.trialBooking} /><Navbar lang={lang} setLang={setLang} /><TrialBooking lang={lang} /></>} />
+        <Route path="/pricing" element={<><Seo {...seo.pricing} /><Navbar lang={lang} setLang={setLang} /><Pricing lang={lang} /></>} />
+        <Route path="/checkout/:planId" element={<><Seo {...seo.checkout} /><Navbar lang={lang} setLang={setLang} /><CheckoutPlaceholder lang={lang} /></>} />
         <Route path="*" element={<><Seo {...seo.notFound} /><NotFound lang={lang} /></>} />
       </Routes>
       <CookieConsentBanner lang={lang} />

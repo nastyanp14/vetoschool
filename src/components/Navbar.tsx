@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getCurrentUser, logout } from '../lib/auth';
-import { useNavigate, Link } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { Lang, t } from '../lib/i18n';
 import ThemeToggle from './ThemeToggle';
 
@@ -15,6 +15,7 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const user = getCurrentUser();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -22,16 +23,40 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const scrollToSection = useCallback((id: string) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
+  }, []);
+
+  useEffect(() => {
+    const state = location.state as { scrollTo?: string } | null;
+    if (location.pathname !== '/' || !state?.scrollTo) return;
+
+    const timer = window.setTimeout(() => {
+      scrollToSection(state.scrollTo as string);
+      navigate('/', { replace: true, state: {} });
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [location.pathname, location.state, navigate, scrollToSection]);
+
   const handleLogout = async () => {
     await logout();
     navigate('/');
     window.location.reload();
   };
 
-  const scrollTo = (id: string) => {
+  const navigateToSection = (id: string) => {
     setMenuOpen(false);
-    const el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: 'smooth' });
+    if (location.pathname === '/') {
+      scrollToSection(id);
+      return;
+    }
+
+    navigate('/', { state: { scrollTo: id } });
   };
 
   const langs: Lang[] = ['ru', 'en', 'ua'];
@@ -69,12 +94,18 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
           ].map(([label, id]) => (
             <button
               key={id}
-              onClick={() => scrollTo(id)}
+              onClick={() => navigateToSection(id)}
               className="font-body font-600 text-purple-600 hover:text-pink-500 transition-colors duration-200 text-sm"
             >
               {label}
             </button>
           ))}
+          <Link
+            to="/pricing"
+            className="font-body font-600 text-purple-600 hover:text-pink-500 transition-colors duration-200 text-sm"
+          >
+            {t(lang, 'nav_pricing')}
+          </Link>
         </div>
 
         {/* Right side */}
@@ -151,12 +182,19 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
               ].map(([label, id]) => (
                 <button
                   key={id}
-                  onClick={() => scrollTo(id)}
+                  onClick={() => navigateToSection(id)}
                   className="text-left font-body font-600 text-purple-600 py-2"
                 >
                   {label}
                 </button>
               ))}
+              <Link
+                to="/pricing"
+                onClick={() => setMenuOpen(false)}
+                className="text-left font-body font-600 text-purple-600 py-2"
+              >
+                {t(lang, 'nav_pricing')}
+              </Link>
 
               {/* Lang switcher mobile */}
               <div className="flex gap-2">
