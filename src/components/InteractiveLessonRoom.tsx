@@ -587,7 +587,7 @@ function speakingModeLabel(copy: typeof taskCopy.ru, mode: SpeakingMode) {
   }[mode];
 }
 
-function defaultSpeakingPrompt(copy: typeof taskCopy.ru, mode: SpeakingMode) {
+function defaultSpeakingPrompt(copy: typeof taskCopy[Lang], mode: SpeakingMode) {
   return {
     repeat_word: copy.repeatWord,
     read_sentence: copy.readSentence,
@@ -1480,7 +1480,7 @@ function cellsOnLine(start: SearchCell, end: SearchCell, grid: string[][]): Sear
 
 function WordSearchTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
   const copy = taskCopy[lang] || taskCopy.ru;
-  const words = Array.from(new Set((payload?.words || []).map(normalizeSearchWord).filter(Boolean)));
+  const words = Array.from(new Set<string>((payload?.words || []).map(normalizeSearchWord).filter(Boolean) as string[]));
   const longestWord = words.reduce((max, word) => Math.max(max, word.length), 0);
   const requestedSize = Math.max(6, Math.min(18, Math.max(Number(payload?.size) || 10, longestWord)));
   const generated = useMemo(() => makeWordSearchGrid(words, requestedSize), [words.join('|'), requestedSize]);
