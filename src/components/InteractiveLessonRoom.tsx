@@ -576,7 +576,7 @@ function speakText(text: string, lang: Lang) {
   window.speechSynthesis.speak(utterance);
 }
 
-function speakingModeLabel(copy: typeof taskCopy.ru, mode: SpeakingMode) {
+function speakingModeLabel(copy: typeof taskCopy[Lang], mode: SpeakingMode) {
   return {
     repeat_word: copy.repeatWord,
     read_sentence: copy.readSentence,
