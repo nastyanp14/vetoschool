@@ -53,31 +53,18 @@ export function convertPrice(czkAmount: number, currency: DisplayCurrency) {
   return czkAmount * exchangeRates[currency];
 }
 
-function localeForLang(lang: Lang) {
-  if (lang === 'ua') return 'uk-UA';
-  if (lang === 'en') return 'en-GB';
-  return 'ru-RU';
-}
-
 export function formatCurrencyAmount(czkAmount: number, currency: DisplayCurrency, lang: Lang) {
   const value = convertPrice(czkAmount, currency);
-  const locale = localeForLang(lang);
 
   if (currency === 'CZK') {
-    const formatter = new Intl.NumberFormat(locale, {
-      maximumFractionDigits: 0,
-      minimumFractionDigits: 0,
-    });
-
-    return `${formatter.format(value)} Kč`;
+    return `${Math.round(value).toLocaleString('ru-RU').replace(/\u00a0|\u202f/g, ' ')} Kč`;
   }
 
-  const formatter = new Intl.NumberFormat(localeForLang(lang), {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 0,
-  });
+  const rounded = Math.round((value + Number.EPSILON) * 100) / 100;
+  const isWhole = Number.isInteger(rounded);
+  const amount = isWhole
+    ? String(rounded)
+    : rounded.toFixed(2).replace('.', lang === 'en' ? '.' : ',');
 
-  return formatter.format(value);
+  return `${amount} €`;
 }

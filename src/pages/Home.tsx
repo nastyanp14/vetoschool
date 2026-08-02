@@ -62,7 +62,7 @@ export default function Home({ lang }: HomeProps) {
       {/* ===== HERO ===== */}
       <section
         id="hero"
-        className="page-bg-home relative min-h-screen flex flex-col items-center justify-center overflow-hidden"
+        className="page-bg-home relative min-h-screen flex flex-col items-center justify-center overflow-hidden px-0 pb-10 pt-20 sm:pt-24 md:pt-28"
         style={{
           background: `linear-gradient(135deg,
             hsl(${340 + scrollY * 0.02}deg, 100%, 93%) 0%,
@@ -87,7 +87,7 @@ export default function Home({ lang }: HomeProps) {
 
         <FloatingElements scrollY={scrollY} />
 
-        <div className="relative z-10 text-center px-4 max-w-5xl mx-auto">
+        <div className="relative z-10 mx-auto max-w-5xl -translate-y-6 px-4 text-center sm:-translate-y-8">
           {/* Badge — only age, no "Online school" text */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}

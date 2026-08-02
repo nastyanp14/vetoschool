@@ -139,6 +139,10 @@ const mapCopy = {
 };
 
 type Copy = typeof mapCopy.ru;
+type AssignedInteractiveContent = {
+  id: string;
+  interactiveLessonId?: string | null;
+};
 
 function percent(done: number, total: number) {
   if (total === 0) return 0;
@@ -334,14 +338,14 @@ function LessonCard({
   );
 }
 
-export default function InteractiveLessonMap({ userId, hasAccess, lang = 'ru', onStarsChanged }: {
-  userId: string; hasAccess: boolean; lang?: Lang; onStarsChanged?: () => void;
+export default function InteractiveLessonMap({ userId, hasAccess, lang = 'ru', assignedContent = [], onStarsChanged, onContentChanged }: {
+  userId: string; hasAccess: boolean; lang?: Lang; assignedContent?: AssignedInteractiveContent[]; onStarsChanged?: () => void; onContentChanged?: () => void;
 }) {
   const [workbooks, setWorkbooks] = useState<Workbook[]>([]);
   const [units, setUnits] = useState<Record<string, Unit[]>>({});
   const [lessons, setLessons] = useState<Record<string, Lesson[]>>({});
   const [progress, setProgress] = useState<Record<string, { completed_at: string; stars_awarded: number }>>({});
-  const [active, setActive] = useState<Lesson | null>(null);
+  const [active, setActive] = useState<{ lesson: Lesson; contentItem: AssignedInteractiveContent | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [openUnits, setOpenUnits] = useState<Record<string, boolean>>({});
 
@@ -371,6 +375,12 @@ export default function InteractiveLessonMap({ userId, hasAccess, lang = 'ru', o
   useEffect(() => { refresh(); }, [userId]);
 
   const copy = mapCopy[lang] || mapCopy.ru;
+  const contentByLessonId = new Map(assignedContent
+    .filter(item => item.interactiveLessonId)
+    .map(item => [item.interactiveLessonId as string, item]));
+  const openLesson = (lesson: Lesson) => {
+    setActive({ lesson, contentItem: contentByLessonId.get(lesson.id) || null });
+  };
 
   if (loading) return (
     <div className="flex justify-center py-16">
@@ -428,7 +438,7 @@ export default function InteractiveLessonMap({ userId, hasAccess, lang = 'ru', o
                   <button
                     type="button"
                     disabled={!firstPlayable}
-                    onClick={() => firstPlayable && setActive(firstPlayable)}
+                    onClick={() => firstPlayable && openLesson(firstPlayable)}
                     className="mt-6 inline-flex items-center gap-3 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-500 px-5 py-3 font-display text-sm font-black text-white shadow-xl shadow-pink-200/60 transition duration-300 hover:-translate-y-0.5 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <PlayCircle className="h-5 w-5" />
@@ -564,7 +574,7 @@ export default function InteractiveLessonMap({ userId, hasAccess, lang = 'ru', o
                                         done={done}
                                         unlocked={!!unlocked}
                                         progressValue={progressValue}
-                                        onOpen={() => setActive(lesson)}
+                                        onOpen={() => openLesson(lesson)}
                                       />
                                     );
                                   })}
@@ -592,9 +602,12 @@ export default function InteractiveLessonMap({ userId, hasAccess, lang = 'ru', o
       })}
       {active && (
         <InteractiveLessonRoom
-          lesson={active} userId={userId} lang={lang}
-          onExit={() => { setActive(null); refresh(); onStarsChanged?.(); }}
-          onCompleted={() => { onStarsChanged?.(); }}
+          lesson={active.lesson}
+          userId={userId}
+          contentItemId={active.contentItem?.id || null}
+          lang={lang}
+          onExit={() => { setActive(null); refresh(); onStarsChanged?.(); onContentChanged?.(); }}
+          onCompleted={() => { onStarsChanged?.(); onContentChanged?.(); }}
         />
       )}
     </div>

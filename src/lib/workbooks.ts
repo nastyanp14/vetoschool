@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { WORKBOOK_ASSETS_BUCKET, MechanicType, LessonKind, canReward } from './mechanics';
+import { WORKBOOK_ASSETS_BUCKET, MechanicType, LessonKind, canReward, calculateInteractiveScore } from './mechanics';
 import { awardStars } from './stars';
 
 export interface Workbook { id: string; title: string; description: string | null; order?: number; is_published: boolean; is_global?: boolean; }
@@ -196,6 +196,12 @@ export async function listLessons(unitId: string): Promise<Lesson[]> {
   const { data } = await supabase.from('lessons').select('*').eq('unit_id', unitId).order('order');
   return (data as any) || [];
 }
+export async function getLessonById(lessonId: string): Promise<Lesson | null> {
+  if (!lessonId) return null;
+  const { data, error } = await supabase.from('lessons').select('*').eq('id', lessonId).maybeSingle();
+  if (error) throw error;
+  return (data as any) || null;
+}
 export async function createLesson(unitId: string, title: string, type: LessonKind = 'practice'): Promise<Lesson | null> {
   const { data: existing } = await supabase.from('lessons').select('order,lesson_number').eq('unit_id', unitId).order('order', { ascending: false }).limit(1);
   const nextOrder = ((existing?.[0] as any)?.order ?? -1) + 1;
@@ -218,8 +224,18 @@ export async function deleteLesson(id: string) {
 
 // ==================== TASKS ====================
 export async function listTasks(lessonId: string): Promise<InteractiveTask[]> {
-  const { data } = await supabase.from('interactive_tasks').select('*').eq('lesson_id', lessonId).order('order');
-  return (data as any) || [];
+  const { data, error } = await supabase.from('interactive_tasks').select('*').eq('lesson_id', lessonId).order('order');
+  if (!error) return (data as any) || [];
+
+  console.warn('interactive_tasks select failed, trying RPC fallback', error.message);
+  const fallback = await (supabase as any).rpc('get_interactive_tasks_for_lesson', {
+    _lesson_id: lessonId,
+  });
+  if (fallback.error) {
+    console.warn('get_interactive_tasks_for_lesson RPC failed', fallback.error.message);
+    return [];
+  }
+  return (fallback.data as any) || [];
 }
 export async function createTask(lessonId: string, mechanic: MechanicType, payload: any = {}): Promise<InteractiveTask | null> {
   const { data: existing } = await supabase.from('interactive_tasks').select('order').eq('lesson_id', lessonId).order('order', { ascending: false }).limit(1);
@@ -258,18 +274,158 @@ export async function getLessonProgress(userId: string): Promise<Record<string, 
   (data || []).forEach((r: any) => { map[r.lesson_id] = { completed_at: r.completed_at, stars_awarded: r.stars_awarded }; });
   return map;
 }
-export async function markLessonComplete(userId: string, lesson: Lesson): Promise<number> {
+
+async function markMatchingAssignedInteractiveContentComplete(
+  userId: string,
+  lesson: Lesson,
+  scorePercent = 100,
+  rewardedStars = 0,
+  errorsCount = 0,
+) {
+  const boundedScore = Math.max(0, Math.min(100, Math.round(scorePercent)));
+  const rating = calculateInteractiveScore(100, 100 - boundedScore).starRating;
+  const completedAt = new Date().toISOString();
+  const trackedReward = canReward(lesson.type) ? Math.max(rating, Number(rewardedStars || 0)) : 0;
+  const { error } = await (supabase as any)
+    .from('content_items')
+    .update({
+      material_mode: 'interactive',
+      submitted_at: completedAt,
+      checked_at: completedAt,
+      homework_status: 'reviewed',
+      result_percent: boundedScore,
+      errors_count: errorsCount,
+      star_rating: rating,
+      student_result: 'Interactive completed',
+      review_comment: 'Интерактивное задание выполнено автоматически.',
+      interactive_completed_at: completedAt,
+      interactive_score_percent: boundedScore,
+      rewarded_stars: trackedReward,
+      updated_at: completedAt,
+    })
+    .eq('user_id', userId)
+    .eq('interactive_lesson_id', lesson.id)
+    .is('interactive_completed_at', null);
+  if (error) console.warn('Could not sync matching assigned interactive content', error.message);
+}
+
+export async function markLessonComplete(userId: string, lesson: Lesson, scorePercent = 100, errorsCount = 0, starRating?: number): Promise<number> {
   // Returns stars awarded (0 if already completed).
   const existing = await (supabase as any).from('lesson_progress').select('id, stars_awarded').eq('user_id', userId).eq('lesson_id', lesson.id).maybeSingle();
-  if (existing.data) return 0;
-  const stars = canReward(lesson.type) ? (lesson.stars_reward || 0) : 0;
+  if (existing.data) {
+    await markMatchingAssignedInteractiveContentComplete(userId, lesson, scorePercent, Number(existing.data.stars_awarded || 0), errorsCount);
+    return 0;
+  }
+  const stars = canReward(lesson.type) ? (starRating || calculateInteractiveScore(100, 100 - scorePercent).starRating) : 0;
   const { error } = await (supabase as any).from('lesson_progress').insert({ user_id: userId, lesson_id: lesson.id, stars_awarded: stars });
   if (error) {
-    if ((error as any).code === '23505') return 0;
+    if ((error as any).code === '23505') {
+      await markMatchingAssignedInteractiveContentComplete(userId, lesson, scorePercent, stars, errorsCount);
+      return 0;
+    }
     throw error;
   }
   if (stars > 0) {
     await awardStars(userId, stars);
   }
+  await markMatchingAssignedInteractiveContentComplete(userId, lesson, scorePercent, stars, errorsCount);
+  return stars;
+}
+
+export async function completeAssignedInteractiveContent(
+  userId: string,
+  contentItemId: string,
+  lesson: Lesson,
+  scorePercent = 100,
+  errorsCount = 0,
+  starRating?: number,
+): Promise<number> {
+  const boundedScore = Math.max(0, Math.min(100, Math.round(scorePercent)));
+  const rating = starRating || calculateInteractiveScore(100, 100 - boundedScore).starRating;
+  const { data, error } = await (supabase as any).rpc('complete_assigned_interactive_content', {
+    _content_item_id: contentItemId,
+    _lesson_id: lesson.id,
+    _score_percent: boundedScore,
+    _errors_count: errorsCount,
+    _star_rating: rating,
+  });
+  if (!error) {
+    const row = Array.isArray(data) ? data[0] : data;
+    return Number(row?.stars_awarded || 0);
+  }
+
+  console.warn('complete_assigned_interactive_content RPC failed, using client fallback', error);
+  const { data: existingContent, error: readError } = await (supabase as any)
+    .from('content_items')
+    .select('id,user_id,rewarded_stars,interactive_completed_at,star_rating')
+    .eq('id', contentItemId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (readError) throw readError;
+  if (!existingContent) throw error;
+
+  const alreadyRewarded = Number(existingContent.rewarded_stars || 0) > 0 || !!existingContent.interactive_completed_at;
+  let stars = 0;
+  let progressStars = 0;
+  const existingProgress = await (supabase as any)
+    .from('lesson_progress')
+    .select('id,stars_awarded')
+    .eq('user_id', userId)
+    .eq('lesson_id', lesson.id)
+    .maybeSingle();
+  if (existingProgress.error) throw existingProgress.error;
+  if (existingProgress.data) {
+    progressStars = Number(existingProgress.data.stars_awarded || 0);
+  } else {
+    const progressAward = alreadyRewarded
+      ? Math.max(0, Number(existingContent.rewarded_stars || 0))
+      : canReward(lesson.type)
+        ? Math.max(0, rating)
+        : 0;
+    stars = alreadyRewarded ? 0 : progressAward;
+    const { error: progressError } = await (supabase as any)
+      .from('lesson_progress')
+      .insert({ user_id: userId, lesson_id: lesson.id, stars_awarded: progressAward });
+    if (progressError) {
+      if ((progressError as any).code === '23505') {
+        stars = 0;
+      } else {
+        throw progressError;
+      }
+    } else {
+      progressStars = progressAward;
+    }
+  }
+  const shouldPersistPrimaryResult = !alreadyRewarded && !existingProgress.data;
+  const completedAt = new Date().toISOString();
+  const trackedReward = stars > 0
+    ? Number(existingContent.rewarded_stars || 0) + stars
+    : Number(existingContent.rewarded_stars || 0) || Math.max(rating, progressStars);
+  const shouldWriteScore = shouldPersistPrimaryResult || !existingContent.interactive_completed_at;
+  if (shouldWriteScore) {
+    const { error: updateError } = await (supabase as any)
+      .from('content_items')
+      .update({
+        material_mode: 'interactive',
+        submitted_at: completedAt,
+        checked_at: completedAt,
+        homework_status: 'reviewed',
+        result_percent: boundedScore,
+        errors_count: errorsCount,
+        star_rating: rating,
+        student_result: 'Interactive completed',
+        review_comment: 'Интерактивное задание выполнено автоматически.',
+        interactive_completed_at: completedAt,
+        interactive_score_percent: boundedScore,
+        rewarded_stars: trackedReward,
+      })
+      .eq('id', contentItemId)
+      .eq('user_id', userId);
+    if (updateError) throw updateError;
+  }
+  if (stars > 0) {
+    await awardStars(userId, stars);
+  }
+  await markMatchingAssignedInteractiveContentComplete(userId, lesson, boundedScore, trackedReward, errorsCount);
   return stars;
 }

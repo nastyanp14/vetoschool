@@ -417,6 +417,26 @@ html { scroll-behavior: smooth; }
 @keyframes shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
 @keyframes twinkle { 0%,100%{opacity:1; transform:scale(1)} 50%{opacity:0.3; transform:scale(0.7)} }
 @keyframes bounce-soft { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+@keyframes progress-star-pulse {
+  0%,100% {
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 0 5px rgba(250,204,21,0.28)) drop-shadow(0 0 10px rgba(251,191,36,0.18));
+  }
+  50% {
+    transform: translateY(-3px) scale(1.05);
+    filter: drop-shadow(0 0 8px rgba(250,204,21,0.42)) drop-shadow(0 0 14px rgba(251,191,36,0.26));
+  }
+}
+@keyframes progress-star-sparkle {
+  0%,100% { opacity: 0; transform: scale(0.58); }
+  18% { opacity: 0.72; transform: scale(1); }
+  38% { opacity: 0; transform: scale(0.68); }
+}
+@keyframes progress-star-shimmer {
+  0%,44% { opacity: 0; transform: translateX(-78%) skewX(-14deg); }
+  56% { opacity: 0.42; }
+  72%,100% { opacity: 0; transform: translateX(82%) skewX(-14deg); }
+}
 
 .animate-float { animation: float 4s ease-in-out infinite; }
 .animate-float2 { animation: float2 5s ease-in-out infinite; }
@@ -426,6 +446,66 @@ html { scroll-behavior: smooth; }
 .animate-gradient { background-size: 300% 300%; animation: gradient-shift 6s ease infinite; }
 .animate-twinkle { animation: twinkle 2s ease-in-out infinite; }
 .animate-bounce-soft { animation: bounce-soft 2s ease-in-out infinite; }
+
+.progress-star-glow {
+  animation: progress-star-pulse 2.5s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.progress-star-sparkle {
+  position: absolute;
+  z-index: 20;
+  width: 0.18rem;
+  height: 0.18rem;
+  border-radius: 9999px;
+  background: #fff9ca;
+  box-shadow: 0 0 5px rgba(250, 204, 21, 0.58);
+  pointer-events: none;
+  animation: progress-star-sparkle 2.5s ease-in-out infinite;
+}
+
+.progress-star-sparkle-a {
+  left: 31%;
+  top: 33%;
+}
+
+.progress-star-sparkle-b {
+  right: 31%;
+  top: 36%;
+  animation-delay: 0.45s;
+}
+
+.progress-star-sparkle-c {
+  left: 39%;
+  bottom: 30%;
+  animation-delay: 0.9s;
+}
+
+.progress-star-sparkle-d {
+  right: 38%;
+  bottom: 33%;
+  animation-delay: 1.35s;
+}
+
+.progress-star-shimmer {
+  position: absolute;
+  inset: 19% 26%;
+  z-index: 30;
+  border-radius: 9999px;
+  background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,0.58) 48%, rgba(255,255,255,0.18) 54%, transparent 78%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+  animation: progress-star-shimmer 2.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-star-glow,
+  .progress-star-sparkle,
+  .progress-star-shimmer {
+    animation: none !important;
+  }
+}
 
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: #FFF0F6; }

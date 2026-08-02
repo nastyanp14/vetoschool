@@ -1,19 +1,24 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, BookOpen, CheckCircle2, Headphones, Mic, RotateCcw, Sparkles, Square, Trophy, Volume2, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BarChart3, BookOpen, CheckCircle2, Headphones, ImageIcon, Mic, RotateCcw, Sparkles, Square, Volume2, X, XCircle } from 'lucide-react';
 import {
-  Lesson, InteractiveTask, listTasks, markLessonComplete, signedUrlFor,
+  Lesson, InteractiveTask, completeAssignedInteractiveContent, listTasks, markLessonComplete, signedUrlFor,
 } from '../lib/workbooks';
-import { MechanicType } from '../lib/mechanics';
+import { MechanicType, InteractiveScoreSummary, calculateInteractiveScore } from '../lib/mechanics';
 import {
   LiveSession, abandonLiveSession, completeLiveSession, recordLiveEvent, startLiveSession,
   listLiveEvents, subscribeLiveSessionEvents, updateLiveSession,
 } from '../lib/live';
 import TheoryLessonView from './TheoryLessonView';
 import type { Lang } from '../lib/i18n';
+import { supabase } from '@/integrations/supabase/client';
+import { findAvatar } from '../lib/stars';
+import OwlPlayer, { type OwlPlayerState } from './OwlPlayer';
 
-type TaskTelemetry = (eventType: string, payload?: unknown) => void;
+type TaskTelemetryPayload = Record<string, unknown>;
+type TaskTelemetry = (eventType: string, payload?: TaskTelemetryPayload) => void;
+const THINKING_OWL_DELAY_MS = 14000;
 type SpeakingMode = 'repeat_word' | 'read_sentence' | 'name_picture' | 'answer_question' | 'describe_animal' | 'speak_20_seconds';
 type SpeechRecognitionResult = 'great' | 'almost' | 'retry' | 'sound';
 type SpeakingPayload = Partial<{ mode: SpeakingMode; target: string; prompt: string; seconds: number; image: string; audio: string }>;
@@ -29,6 +34,12 @@ type SpeechRecognitionLike = {
   stop: () => void;
 };
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+type RoomStudentProfile = {
+  name: string;
+  email: string;
+  starBalance: number;
+  avatarId: string | null;
+};
 
 function getSpeechRecognitionConstructor() {
   return ((window as Window & {
@@ -59,10 +70,58 @@ function LessonProgress({ current, total }: { current: number; total: number }) 
   );
 }
 
+function StarRatingDisplay({ value, total = 5 }: { value: number; total?: number }) {
+  return (
+    <div className="flex items-center gap-[clamp(0.12rem,0.28vw,0.24rem)] rounded-full border border-purple-100 bg-white px-[clamp(0.7rem,1.05vw,0.9rem)] py-[clamp(0.28rem,0.58vh,0.44rem)] shadow-[0_8px_22px_rgba(168,85,247,0.10)]">
+      {Array.from({ length: total }).map((_, index) => (
+        <img
+          key={index}
+          src="/ui/reward-star.png"
+          alt=""
+          draggable={false}
+          className={`h-[clamp(2.05rem,2.75vw,2.5rem)] w-[clamp(2.05rem,2.75vw,2.5rem)] select-none object-contain transition duration-300 ${index < value ? 'opacity-100' : 'opacity-25 grayscale'}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function CircularRatingDisplay({ value, total = 5 }: { value: number; total?: number }) {
+  const safeTotal = Math.max(1, total);
+  const safeValue = Math.min(safeTotal, Math.max(0, Math.round(value)));
+  const circumference = 2 * Math.PI * 22;
+  const progress = (safeValue / safeTotal) * circumference;
+
+  return (
+    <div className="relative flex h-[clamp(2.85rem,4.3vw,3.55rem)] w-[clamp(2.85rem,4.3vw,3.55rem)] shrink-0 items-center justify-center rounded-full bg-white shadow-[0_8px_22px_rgba(168,85,247,0.12)]">
+      <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 52 52" aria-hidden="true">
+        <circle cx="26" cy="26" r="22" fill="none" stroke="rgba(221, 214, 254, 0.72)" strokeWidth="3.5" />
+        <circle
+          cx="26"
+          cy="26"
+          r="22"
+          fill="none"
+          stroke="url(#master-rating-progress)"
+          strokeLinecap="round"
+          strokeWidth="3.5"
+          strokeDasharray={`${progress} ${circumference}`}
+        />
+        <defs>
+          <linearGradient id="master-rating-progress" x1="0" x2="52" y1="0" y2="52">
+            <stop stopColor="#a855f7" />
+            <stop offset="1" stopColor="#ec4899" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <span className="relative font-display text-[clamp(0.72rem,1.15vw,0.92rem)] font-bold text-purple-700">{safeValue}/{safeTotal}</span>
+    </div>
+  );
+}
+
 const mechanicCopy: Record<Lang, Partial<Record<MechanicType, { title: string; instruction: string }>>> = {
   ru: {
     matching: { title: 'Найди пары', instruction: 'Выбери карточку слева, затем соедини её с правильной карточкой справа.' },
-    word_lego: { title: 'Собери слова', instruction: 'Соедини две части, чтобы получилось правильное слово или фраза.' },
+    word_lego: { title: 'Собери слова', instruction: 'Соедини части, чтобы получилось правильное слово или фраза.' },
     fill_letters: { title: 'Заполни пропуски', instruction: 'Впиши недостающие буквы или слова.' },
     anagram_unscramble: { title: 'Собери анаграмму', instruction: 'Расставь перемешанные буквы в правильном порядке.' },
     odd_one_out: { title: 'Найди лишнее', instruction: 'Выбери карточку, которая не подходит к остальным.' },
@@ -120,6 +179,18 @@ const roomCopy = {
     complete: 'Урок пройден!',
     great: 'Отличная работа!',
     toMap: 'На карту',
+    completionResult: 'Итог',
+    completionErrors: 'Ошибки',
+    completionFirstTry: 'С первого раза',
+    completionRetry: 'Повторные попытки',
+    completionAward: 'Звёзды начислены',
+    completionPractice: 'Тренировка сохранена: основная оценка уже была зачтена раньше.',
+    completionSaved: 'Результат сохранён и отправлен учителю.',
+    next: 'Далее',
+    unit: 'Юнит',
+    topic: 'Тема',
+    keepGoing: 'Отлично! Можно идти дальше.',
+    progressHint: 'Отлично! Продолжай!',
   },
   en: {
     exit: 'Exit',
@@ -136,6 +207,18 @@ const roomCopy = {
     complete: 'Lesson complete!',
     great: 'Great job!',
     toMap: 'To map',
+    completionResult: 'Result',
+    completionErrors: 'Mistakes',
+    completionFirstTry: 'First try',
+    completionRetry: 'Retry attempts',
+    completionAward: 'Stars awarded',
+    completionPractice: 'Practice saved: the main grade was already counted earlier.',
+    completionSaved: 'Result saved and sent to the teacher.',
+    next: 'Next',
+    unit: 'Unit',
+    topic: 'Topic',
+    keepGoing: 'Great job! You can move on.',
+    progressHint: 'Great job! Keep going!',
   },
   ua: {
     exit: 'Вийти',
@@ -152,8 +235,33 @@ const roomCopy = {
     complete: 'Урок пройдено!',
     great: 'Чудова робота!',
     toMap: 'До карти',
+    completionResult: 'Підсумок',
+    completionErrors: 'Помилки',
+    completionFirstTry: 'З першого разу',
+    completionRetry: 'Повторні спроби',
+    completionAward: 'Зірки нараховано',
+    completionPractice: 'Тренування збережено: основну оцінку вже було зараховано раніше.',
+    completionSaved: 'Результат збережено й надіслано вчителю.',
+    next: 'Далі',
+    unit: 'Юніт',
+    topic: 'Тема',
+    keepGoing: 'Чудово! Можна рухатися далі.',
+    progressHint: 'Чудово! Продовжуй!',
   },
 } as const;
+
+type CompletionCopy = {
+  complete: string;
+  great: string;
+  toMap: string;
+  completionResult: string;
+  completionErrors: string;
+  completionFirstTry: string;
+  completionRetry: string;
+  completionAward: string;
+  completionPractice: string;
+  completionSaved: string;
+};
 
 const taskCopy = {
   ru: {
@@ -207,7 +315,7 @@ const taskCopy = {
     speakTwentySeconds: 'Говори 20 секунд',
     defaultPrompt: 'Скажи ответ вслух',
     picturePrompt: 'Посмотри на картинку и скажи, что это.',
-    answerHidden: 'Ответ появится после попытки.',
+    answerHidden: 'Ответ скрыт. Попробуй ещё раз.',
     hintAnswer: 'Подсказка',
     missingExpected: 'Правильный ответ не добавлен в задании.',
   },
@@ -262,7 +370,7 @@ const taskCopy = {
     speakTwentySeconds: 'Speak for 20 seconds',
     defaultPrompt: 'Say the answer out loud',
     picturePrompt: 'Look at the picture and say what it is.',
-    answerHidden: 'The answer appears after you try.',
+    answerHidden: 'The answer stays hidden. Try again.',
     hintAnswer: 'Hint',
     missingExpected: 'The correct answer has not been added to this task.',
   },
@@ -317,11 +425,12 @@ const taskCopy = {
     speakTwentySeconds: 'Говори 20 секунд',
     defaultPrompt: 'Скажи відповідь уголос',
     picturePrompt: 'Подивись на картинку і скажи, що це.',
-    answerHidden: 'Відповідь зʼявиться після спроби.',
+    answerHidden: 'Відповідь прихована. Спробуй ще раз.',
     hintAnswer: 'Підказка',
     missingExpected: 'Правильну відповідь не додано до завдання.',
   },
 } as const;
+type TaskCopy = Record<keyof typeof taskCopy.ru, string>;
 
 function playFeedbackSound(kind: 'correct' | 'wrong') {
   try {
@@ -432,40 +541,157 @@ function playCompletionSound() {
   }
 }
 
-function CompletionCelebration({ stars, copy, onExit }: { stars: number; copy: { complete: string; great: string; toMap: string }; onExit: () => void }) {
-  const confetti = [
-    ['⭐', -132, -120, 0.02], ['✦', -94, -164, 0.08], ['●', -42, -138, 0.14], ['✧', 36, -158, 0.04],
-    ['★', 86, -124, 0.12], ['●', 132, -92, 0.18], ['✦', -116, 42, 0.2], ['⭐', 116, 34, 0.1],
+function CompletionCelebration({ stars, summary, showScore, copy, onExit }: { stars: number; summary: InteractiveScoreSummary | null; showScore: boolean; copy: CompletionCopy; onExit: () => void }) {
+  const rating = Math.min(5, Math.max(0, Math.round(showScore ? summary?.starRating ?? 0 : stars)));
+  const trophyStars = [
+    ['-43%', '19%', 'h-8 w-8', '-12deg', 0.08],
+    ['-26%', '66%', 'h-6 w-6', '10deg', 0.28],
+    ['88%', '18%', 'h-7 w-7', '14deg', 0.16],
+    ['107%', '60%', 'h-8 w-8', '-8deg', 0.34],
+    ['33%', '-22%', 'h-5 w-5', '8deg', 0.22],
   ] as const;
+  const confetti = [
+    ['30%', '18%', 'h-3 w-3 rounded-full bg-pink-300', 0.06],
+    ['69%', '18%', 'h-2.5 w-6 rounded-full bg-violet-300', 0.16],
+    ['24%', '44%', 'h-2.5 w-2.5 rounded-sm border border-pink-300', 0.22],
+    ['76%', '43%', 'h-2.5 w-2.5 rounded-sm bg-yellow-300', 0.32],
+    ['16%', '32%', 'h-2 w-5 rounded-full bg-purple-300', 0.26],
+    ['86%', '33%', 'h-2 w-5 rounded-full bg-pink-300', 0.12],
+    ['39%', '66%', 'h-2.5 w-2.5 rounded-full bg-yellow-300', 0.38],
+    ['61%', '64%', 'h-2.5 w-2.5 rounded-full bg-purple-300', 0.44],
+  ] as const;
+  const summaryCards = showScore && summary
+    ? [
+      {
+        label: copy.completionResult,
+        value: `${summary.scorePercent}%`,
+        icon: <BarChart3 className="h-5 w-5" />,
+        iconClass: 'bg-purple-100 text-violet-500',
+      },
+      {
+        label: copy.completionErrors,
+        value: summary.errorsCount,
+        icon: <XCircle className="h-5 w-5" />,
+        iconClass: 'bg-pink-100 text-pink-500',
+      },
+      {
+        label: copy.completionFirstTry,
+        value: `${summary.firstTryCorrect}/${summary.totalQuestions}`,
+        icon: <CheckCircle2 className="h-5 w-5" />,
+        iconClass: 'bg-emerald-100 text-emerald-500',
+      },
+      {
+        label: copy.completionRetry,
+        value: summary.retryAttempts,
+        icon: <RotateCcw className="h-5 w-5" />,
+        iconClass: 'bg-sky-100 text-sky-500',
+      },
+    ]
+    : [];
+
   return (
-    <motion.div initial={{ scale: 0.92, opacity: 0, y: 18 }} animate={{ scale: 1, opacity: 1, y: 0 }} className="relative overflow-hidden rounded-[2rem] border border-pink-100 bg-gradient-to-br from-white via-pink-50 to-violet-50 px-5 py-8 text-center shadow-2xl shadow-purple-100/60 dark:border-purple-500/30 dark:from-[#241331] dark:via-[#1b1028] dark:to-[#261437] dark:shadow-none sm:px-10 sm:py-12">
-      <div className="pointer-events-none absolute inset-0">
-        {confetti.map(([symbol, x, y, delay], index) => (
+    <motion.div
+      initial={{ scale: 0.96, opacity: 0, y: 16 }}
+      animate={{ scale: 1, opacity: 1, y: 0 }}
+      className="relative flex h-full min-h-[clamp(21rem,48vh,33rem)] items-center justify-center overflow-hidden rounded-[1.55rem] bg-gradient-to-br from-white via-pink-50/75 to-violet-50 px-[clamp(1rem,2.4vw,2.3rem)] py-[clamp(1.05rem,2.8vh,2.2rem)] text-center shadow-[0_20px_42px_rgba(168,85,247,0.12)] dark:from-[#241331] dark:via-[#1b1028] dark:to-[#261437] dark:shadow-none"
+    >
+      <div className="pointer-events-none absolute inset-0 z-0">
+        {confetti.map(([left, top, className, delay], index) => (
           <motion.span
-            key={`${symbol}-${index}`}
-            initial={{ opacity: 0, x: 0, y: 0, scale: 0.3, rotate: 0 }}
-            animate={{ opacity: [0, 1, 1, 0], x, y, scale: [0.3, 1.25, 1], rotate: index % 2 ? 26 : -22 }}
-            transition={{ duration: 1.45, delay, ease: 'easeOut', repeat: Infinity, repeatDelay: 1.7 }}
-            className={`absolute left-1/2 top-[42%] text-xl ${symbol === '●' ? 'text-pink-400 dark:text-fuchsia-300' : 'text-yellow-400 dark:text-yellow-300'}`}
-          >
-            {symbol}
-          </motion.span>
+            key={`${left}-${top}-${index}`}
+            initial={{ opacity: 0, scale: 0.5, y: 8 }}
+            animate={{
+              opacity: [0, 0.95, 0.85, 0],
+              scale: [0.5, 1, 0.86],
+              y: [8, -5, -10],
+              rotate: index % 2 ? [12, -10, 16] : [-14, 12, -10],
+            }}
+            transition={{ duration: 1.8, delay, ease: 'easeOut', repeat: Infinity, repeatDelay: 2.35 }}
+            className={`absolute ${className}`}
+            style={{ left, top }}
+          />
         ))}
       </div>
-      <motion.div
-        animate={{ scale: [1, 1.05, 1], rotate: [0, -2, 2, 0] }}
-        transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-        className="relative mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-[2rem] bg-gradient-to-br from-yellow-100 via-pink-100 to-purple-100 text-yellow-500 shadow-2xl shadow-pink-200/70 dark:from-yellow-300/20 dark:via-pink-400/20 dark:to-purple-500/25 dark:text-yellow-300 dark:shadow-purple-950/50"
-      >
-        <motion.span className="absolute inset-[-18px] rounded-[2.4rem] border border-yellow-200/70 dark:border-yellow-300/25" animate={{ scale: [0.9, 1.18, 0.9], opacity: [0.2, 0.7, 0.2] }} transition={{ duration: 1.7, repeat: Infinity }} />
-        <Trophy className="relative h-12 w-12" />
-      </motion.div>
-      <div className="relative">
-        <h3 className="mb-2 font-display text-3xl font-black text-purple-800 dark:text-purple-100 sm:text-4xl">{copy.complete}</h3>
-        {stars > 0
-          ? <p className="font-body text-xl font-black text-yellow-600 dark:text-yellow-300">+{stars} ⭐</p>
-          : <p className="font-body text-lg font-bold text-purple-500 dark:text-purple-200">{copy.great}</p>}
-        <button onClick={onExit} className="mt-6 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-400 px-7 py-3 font-body font-900 text-white shadow-xl shadow-pink-200/60 transition hover:-translate-y-0.5 hover:shadow-2xl dark:shadow-none">{copy.toMap}</button>
+
+      <div className="relative z-10 flex w-full max-w-[58rem] flex-col items-center">
+        <motion.div
+          animate={{ scale: [1, 1.035, 1] }}
+          transition={{ duration: 2.1, repeat: Infinity, ease: 'easeInOut' }}
+          className="relative mb-[clamp(0.35rem,0.9vh,0.65rem)] flex h-[clamp(5.25rem,9.2vw,7.1rem)] w-[clamp(5.25rem,9.2vw,7.1rem)] items-center justify-center rounded-[1.35rem] border border-purple-100 bg-gradient-to-br from-violet-100 via-purple-50 to-pink-100 shadow-[0_16px_36px_rgba(168,85,247,0.18)]"
+        >
+          <motion.span
+            className="absolute inset-[-0.65rem] rounded-[1.75rem] border border-yellow-200/50"
+            animate={{ scale: [0.96, 1.09, 0.96], opacity: [0.24, 0.58, 0.24] }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          {trophyStars.map(([left, top, sizeClass, rotate, delay], index) => (
+            <motion.img
+              key={`${left}-${top}-${index}`}
+              src="/ui/reward-star.png"
+              alt=""
+              draggable={false}
+              initial={{ opacity: 0, scale: 0.55, y: 8 }}
+              animate={{ opacity: [0, 1, 0.95, 0], scale: [0.55, 1.08, 0.92], y: [8, -4, -9] }}
+              transition={{ duration: 1.9, delay, ease: 'easeOut', repeat: Infinity, repeatDelay: 2.2 }}
+              className={`pointer-events-none absolute select-none object-contain ${sizeClass}`}
+              style={{ left, top, rotate }}
+            />
+          ))}
+          <span className="pointer-events-none absolute -right-9 top-8 h-2 w-8 rounded-full bg-violet-300/80 rotate-[-18deg]" />
+          <span className="pointer-events-none absolute -left-9 bottom-9 h-2 w-6 rounded-full bg-pink-300/80 rotate-[28deg]" />
+          <img
+            src="/ui/completion-trophy.png"
+            alt=""
+            draggable={false}
+            className="relative h-[112%] w-[112%] max-w-[112%] select-none object-contain"
+          />
+        </motion.div>
+
+        <h3 className="font-display text-[clamp(2rem,4.1vw,3.55rem)] font-bold leading-tight text-purple-800 dark:text-purple-100">{copy.complete}</h3>
+        {showScore && (
+          <div className="mt-[clamp(0.45rem,1.1vh,0.8rem)] flex justify-center gap-[clamp(0.16rem,0.45vw,0.34rem)]">
+            {[1, 2, 3, 4, 5].map(value => (
+              <img
+                key={value}
+                src="/ui/reward-star.png"
+                alt=""
+                draggable={false}
+                className={`h-[clamp(1.55rem,3.15vw,2.5rem)] w-[clamp(1.55rem,3.15vw,2.5rem)] select-none object-contain transition ${value <= rating ? 'opacity-100' : 'opacity-25 grayscale'}`}
+              />
+            ))}
+          </div>
+        )}
+
+        {summaryCards.length > 0 && (
+          <div className="mt-[clamp(1rem,2.6vh,1.7rem)] grid w-full gap-[clamp(0.55rem,1vw,0.85rem)] sm:grid-cols-4">
+            {summaryCards.map(item => (
+              <div key={item.label} className="flex min-h-[clamp(4.6rem,8.8vh,6.1rem)] items-center gap-[clamp(0.55rem,0.9vw,0.78rem)] rounded-[1rem] border border-purple-100 bg-white px-[clamp(0.72rem,1.18vw,1rem)] py-[clamp(0.58rem,1.2vh,0.86rem)] text-left shadow-[0_9px_20px_rgba(168,85,247,0.09)]">
+                <div className={`flex h-[clamp(2.15rem,3.8vw,2.75rem)] w-[clamp(2.15rem,3.8vw,2.75rem)] shrink-0 items-center justify-center rounded-full ${item.iconClass}`}>
+                  {item.icon}
+                </div>
+                <div className="min-w-0">
+                  <div className="font-body text-[clamp(0.56rem,0.8vw,0.68rem)] font-bold uppercase leading-tight text-purple-300">{item.label}</div>
+                  <div className="font-display text-[clamp(1.35rem,2.45vw,2.1rem)] font-bold leading-tight text-purple-800">{item.value}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p className="mt-[clamp(0.85rem,2.1vh,1.35rem)] max-w-[52rem] font-display text-[clamp(0.9rem,1.35vw,1.12rem)] font-semibold leading-snug text-purple-500">
+          {showScore && stars > 0 ? `${copy.completionAward}: +${stars}` : showScore && summary ? copy.completionPractice : copy.great}
+        </p>
+        {showScore && stars > 0 && (
+          <p className="mt-1 font-body text-[clamp(0.74rem,1vw,0.86rem)] font-semibold text-emerald-600">{copy.completionSaved}</p>
+        )}
+
+        <button
+          onClick={onExit}
+          className="mt-[clamp(1rem,2.4vh,1.65rem)] inline-flex min-h-[clamp(3.05rem,5.6vh,4rem)] items-center justify-center gap-4 rounded-[1.25rem] bg-gradient-to-r from-violet-400 via-purple-400 to-indigo-400 px-[clamp(2.25rem,4.8vw,4.1rem)] font-display text-[clamp(1.02rem,1.5vw,1.32rem)] font-semibold text-white shadow-[0_14px_28px_rgba(139,92,246,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(139,92,246,0.3)]"
+        >
+          {copy.toMap}
+          <ArrowRight className="h-6 w-6" />
+        </button>
       </div>
     </motion.div>
   );
@@ -576,7 +802,7 @@ function speakText(text: string, lang: Lang) {
   window.speechSynthesis.speak(utterance);
 }
 
-function speakingModeLabel(copy: typeof taskCopy[Lang], mode: SpeakingMode) {
+function speakingModeLabel(copy: TaskCopy, mode: SpeakingMode) {
   return {
     repeat_word: copy.repeatWord,
     read_sentence: copy.readSentence,
@@ -587,7 +813,7 @@ function speakingModeLabel(copy: typeof taskCopy[Lang], mode: SpeakingMode) {
   }[mode];
 }
 
-function defaultSpeakingPrompt(copy: typeof taskCopy[Lang], mode: SpeakingMode) {
+function defaultSpeakingPrompt(copy: TaskCopy, mode: SpeakingMode) {
   return {
     repeat_word: copy.repeatWord,
     read_sentence: copy.readSentence,
@@ -636,7 +862,7 @@ function SpeakingPracticeTask({ payload, onDone, onEvent, lang }: { payload: Spe
       : score?.result === 'sound'
         ? copy.soundPronunciation
         : copy.retryPronunciation;
-  const showAnswer = Boolean(expectedText) && (!hidesAnswerInitially || attempted || score?.result === 'great');
+  const showAnswer = Boolean(expectedText) && (!hidesAnswerInitially || score?.result === 'great');
 
   useEffect(() => () => {
     recognitionRef.current?.stop?.();
@@ -1045,69 +1271,103 @@ function WordLegoTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
   const asText = (s: any) => s?.text || '';
 
   return (
-    <div className="space-y-4">
-      {built.length > 0 && (
-        <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-4 shadow-sm dark:border-emerald-800 dark:bg-emerald-950">
-          <div className="mb-2 flex items-center gap-2 text-xs font-body font-800 uppercase tracking-wider text-emerald-600">
-            <CheckCircle2 className="h-4 w-4" /> {copy.built}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {built.map((b, i) => (
-              <span key={i} className="rounded-2xl border border-emerald-100 bg-white px-4 py-2 font-body font-800 text-emerald-700 shadow-sm dark:border-emerald-800 dark:bg-[#1d2b2d] dark:text-emerald-200">
-                {asText(pairs[b.left]?.left)} + {asText(pairs[b.right]?.right)}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-      <div ref={boardRef} className="relative grid sm:grid-cols-2 gap-3">
+    <div className="flex h-full min-h-[clamp(15rem,34vh,23rem)] flex-col justify-between">
+      <div ref={boardRef} className="relative grid flex-1 items-start gap-[clamp(2.2rem,12vw,9rem)] px-[clamp(0.25rem,1.4vw,1.6rem)] pt-[clamp(0.15rem,1vh,0.7rem)] sm:grid-cols-2">
         <svg className="pointer-events-none absolute inset-0 z-0 h-full w-full overflow-visible" aria-hidden="true">
           <defs>
             <linearGradient id="word-lego-line" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#34d399" />
-              <stop offset="55%" stopColor="#f472b6" />
-              <stop offset="100%" stopColor="#a855f7" />
+              <stop offset="0%" stopColor="#8b5cf6" />
+              <stop offset="55%" stopColor="#d946ef" />
+              <stop offset="100%" stopColor="#f472b6" />
             </linearGradient>
+            <filter id="word-lego-line-shadow" x="-20%" y="-80%" width="140%" height="260%">
+              <feDropShadow dx="0" dy="6" stdDeviation="7" floodColor="#c084fc" floodOpacity="0.28" />
+            </filter>
           </defs>
           {lines.map(line => {
             const mid = Math.max(32, Math.abs(line.x2 - line.x1) / 2);
             return (
-              <motion.path
-                key={`${line.left}-${line.right}`}
-                initial={{ pathLength: 0, opacity: 0 }}
-                animate={{ pathLength: 1, opacity: 1 }}
-                transition={{ duration: 0.35, ease: 'easeOut' }}
-                d={`M ${line.x1} ${line.y1} C ${line.x1 + mid} ${line.y1}, ${line.x2 - mid} ${line.y2}, ${line.x2} ${line.y2}`}
-                fill="none"
-                stroke="url(#word-lego-line)"
-                strokeLinecap="round"
-                strokeWidth="5"
-              />
+              <g key={`${line.left}-${line.right}`}>
+                <motion.path
+                  initial={{ pathLength: 0, opacity: 0 }}
+                  animate={{ pathLength: 1, opacity: 1 }}
+                  transition={{ duration: 0.35, ease: 'easeOut' }}
+                  d={`M ${line.x1} ${line.y1} C ${line.x1 + mid} ${line.y1}, ${line.x2 - mid} ${line.y2}, ${line.x2} ${line.y2}`}
+                  fill="none"
+                  filter="url(#word-lego-line-shadow)"
+                  stroke="url(#word-lego-line)"
+                  strokeLinecap="round"
+                  strokeWidth="5"
+                />
+                <motion.circle initial={{ scale: 0 }} animate={{ scale: 1 }} cx={line.x1} cy={line.y1} r="7" fill="#8b5cf6" />
+                <motion.circle initial={{ scale: 0 }} animate={{ scale: 1 }} cx={line.x2} cy={line.y2} r="7" fill="#f472b6" />
+              </g>
             );
           })}
         </svg>
-        <div className="relative z-10">
-          <div className="mb-2 text-xs font-body font-800 uppercase tracking-wider text-purple-400">{copy.partOne}</div>
-          <div className="flex flex-wrap gap-2">
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="mb-[clamp(0.55rem,1.2vh,0.75rem)] rounded-full bg-gradient-to-r from-purple-400 to-violet-500 px-[clamp(1.15rem,2.8vw,2.1rem)] py-[clamp(0.28rem,0.7vh,0.46rem)] font-body text-[clamp(0.66rem,0.95vw,0.82rem)] font-bold uppercase tracking-[0.08em] text-white shadow-[0_8px_18px_rgba(139,92,246,0.22)]">
+            {copy.partOne}
+          </div>
+          <div className="flex w-full max-w-[13rem] flex-col gap-[clamp(0.42rem,1.05vh,0.72rem)]">
             {pairs.map((p: any, i: number) => (
               <button key={i} disabled={usedLefts.has(i)} ref={el => { leftRefs.current[i] = el; }} onClick={() => { setSelectedLeft(i); onEvent('choice_selected', { mechanic: 'word_lego', side: 'left', index: i }); }}
-                className={`${tileBase} ${usedLefts.has(i) ? doneTile : selectedLeft === i ? selectedTile : liveTile}`}>
-                {asText(p.left)}
+                className={`relative flex min-h-[clamp(3rem,6.4vh,4.15rem)] w-full items-center justify-center rounded-[1rem] border bg-white/95 px-5 font-display text-[clamp(1.24rem,2.35vw,2rem)] font-bold text-indigo-800 shadow-[0_8px_20px_rgba(139,92,246,0.10)] transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-purple-100 ${
+                  usedLefts.has(i)
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 opacity-80'
+                    : selectedLeft === i
+                      ? 'border-violet-400 bg-violet-50 shadow-[0_10px_22px_rgba(139,92,246,0.18)] ring-4 ring-purple-100'
+                      : 'border-purple-100 hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-[0_12px_24px_rgba(139,92,246,0.16)]'
+                }`}
+              >
+                <span>{asText(p.left)}</span>
+                <span className="absolute right-3 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-[0_3px_8px_rgba(139,92,246,0.22)] ring-2 ring-purple-100">
+                  <span className={`h-2.5 w-2.5 rounded-full ${usedLefts.has(i) ? 'bg-emerald-400' : selectedLeft === i ? 'bg-violet-500' : 'bg-violet-400'}`} />
+                </span>
               </button>
             ))}
           </div>
         </div>
-        <div className="relative z-10">
-          <div className="mb-2 text-xs font-body font-800 uppercase tracking-wider text-pink-400">{copy.partTwo}</div>
-          <div className="flex flex-wrap gap-2">
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="mb-[clamp(0.55rem,1.2vh,0.75rem)] rounded-full bg-gradient-to-r from-pink-400 to-pink-500 px-[clamp(1.15rem,2.8vw,2.1rem)] py-[clamp(0.28rem,0.7vh,0.46rem)] font-body text-[clamp(0.66rem,0.95vw,0.82rem)] font-bold uppercase tracking-[0.08em] text-white shadow-[0_8px_18px_rgba(244,114,182,0.22)]">
+            {copy.partTwo}
+          </div>
+          <div className="flex w-full max-w-[13rem] flex-col gap-[clamp(0.42rem,1.05vh,0.72rem)]">
             {rights.map((idx: number) => (
               <button key={idx} ref={el => { rightRefs.current[idx] = el; }} disabled={selectedLeft === null || usedRights.has(idx)} onClick={() => clickRight(idx)}
-                className={`${tileBase} ${usedRights.has(idx) ? doneTile : wrong === idx ? wrongTile : liveTile} disabled:hover:translate-y-0 disabled:hover:shadow-sm`}>
-                {asText(pairs[idx]?.right)}
+                className={`relative flex min-h-[clamp(3rem,6.4vh,4.15rem)] w-full items-center justify-center rounded-[1rem] border bg-pink-50/55 px-5 font-display text-[clamp(1.24rem,2.35vw,2rem)] font-bold text-indigo-800 shadow-[0_8px_20px_rgba(244,114,182,0.10)] transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-pink-100 disabled:hover:translate-y-0 ${
+                  usedRights.has(idx)
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 opacity-80'
+                    : wrong === idx
+                      ? 'animate-pulse border-rose-300 bg-rose-50 text-rose-600'
+                      : selectedLeft === null
+                        ? 'border-pink-100 opacity-70'
+                        : 'border-pink-100 hover:-translate-y-0.5 hover:border-pink-300 hover:shadow-[0_12px_24px_rgba(244,114,182,0.16)]'
+                }`}
+              >
+                <span className="absolute left-3 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-[0_3px_8px_rgba(244,114,182,0.22)] ring-2 ring-pink-100">
+                  <span className={`h-2.5 w-2.5 rounded-full ${usedRights.has(idx) ? 'bg-emerald-400' : wrong === idx ? 'bg-rose-400' : 'bg-pink-400'}`} />
+                </span>
+                <span>{asText(pairs[idx]?.right)}</span>
               </button>
             ))}
           </div>
         </div>
+      </div>
+      <div className="mt-[clamp(0.75rem,1.6vh,1.2rem)] flex items-center justify-between gap-3 px-[clamp(0.2rem,1.2vw,1.45rem)]">
+        <button type="button" className="inline-flex min-h-[2.35rem] items-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:border-yellow-200">
+          <span className="text-lg leading-none">💡</span> {copy.hintAnswer}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedLeft(null);
+            setWrong(null);
+          }}
+          className="inline-flex min-h-[2.35rem] items-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:border-violet-200"
+        >
+          <RotateCcw className="h-4 w-4 text-violet-500" /> {lang === 'ru' ? 'Сбросить' : copy.clear}
+        </button>
       </div>
     </div>
   );
@@ -1480,7 +1740,8 @@ function cellsOnLine(start: SearchCell, end: SearchCell, grid: string[][]): Sear
 
 function WordSearchTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
   const copy = taskCopy[lang] || taskCopy.ru;
-  const words = Array.from(new Set<string>((payload?.words || []).map(normalizeSearchWord).filter(Boolean) as string[]));
+  const wordSource = Array.isArray(payload?.words) ? payload.words : String(payload?.words || '').split('\n');
+  const words = Array.from(new Set<string>(wordSource.map((word: unknown) => normalizeSearchWord(String(word))).filter(Boolean)));
   const longestWord = words.reduce((max, word) => Math.max(max, word.length), 0);
   const requestedSize = Math.max(6, Math.min(18, Math.max(Number(payload?.size) || 10, longestWord)));
   const generated = useMemo(() => makeWordSearchGrid(words, requestedSize), [words.join('|'), requestedSize]);
@@ -1852,27 +2113,40 @@ function DigitalColoringTask({ payload, onDone, onEvent, lang }: { payload: any;
 }
 
 // ==================== TRUE / FALSE ====================
-function TrueFalseTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
+function TrueFalseTask({ payload, onDone, onEvent, lang, variant = 'default' }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang; variant?: 'default' | 'master' }) {
   const copy = taskCopy[lang] || taskCopy.ru;
-  const statements: Array<{ text: string; is_true: boolean }> = (payload?.statements || []).filter((item: any) => String(item?.text || '').trim());
+  const statements: Array<{ text: string; is_true: boolean; image?: string; photo?: string; image_url?: string; photo_url?: string }> = (payload?.statements || []).filter((item: any) => String(item?.text || '').trim());
   const [index, setIndex] = useState(0);
   const [wrong, setWrong] = useState(false);
   const [correct, setCorrect] = useState(false);
+  const [selected, setSelected] = useState<boolean | null>(null);
   const current = statements[index];
+  const currentImage = [
+    current?.image,
+    current?.photo,
+    current?.image_url,
+    current?.photo_url,
+    payload?.image,
+    payload?.photo,
+    payload?.image_url,
+    payload?.photo_url,
+  ].find((value): value is string => typeof value === 'string' && value.trim().length > 0);
 
   const answer = (value: boolean) => {
     if (!current) return;
+    setSelected(value);
     onEvent('choice_selected', { mechanic: 'true_false', index, answer: value });
     if (Boolean(current.is_true) !== value) {
       setWrong(true);
       onEvent('answer_wrong', { mechanic: 'true_false', index, answer: value, expected: Boolean(current.is_true) });
-      setTimeout(() => setWrong(false), 520);
+      setTimeout(() => { setWrong(false); setSelected(null); }, 520);
       return;
     }
     setCorrect(true);
     onEvent('answer_correct', { mechanic: 'true_false', index, answer: value });
     window.setTimeout(() => {
       setCorrect(false);
+      setSelected(null);
       if (index + 1 >= statements.length) onDone();
       else setIndex(value => value + 1);
     }, 650);
@@ -1883,30 +2157,85 @@ function TrueFalseTask({ payload, onDone, onEvent, lang }: { payload: any; onDon
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5 text-center">
-      <div className="flex justify-center gap-2">
-        {statements.map((_, i) => (
-          <span key={i} className={`h-2 rounded-full transition-all ${i <= index ? 'w-8 bg-gradient-to-r from-pink-400 to-purple-400' : 'w-2 bg-purple-100 dark:bg-purple-800'}`} />
-        ))}
-      </div>
+    <div className={`${variant === 'master' ? 'mx-auto flex h-full w-full max-w-[min(58rem,100%)] flex-col justify-start gap-[clamp(0.28rem,0.58vh,0.46rem)] text-center' : 'mx-auto flex max-w-5xl flex-col gap-4 text-center'}`}>
+      {variant !== 'master' && (
+        <div className="flex shrink-0 items-center justify-center gap-2 py-[clamp(0.02rem,0.18vh,0.12rem)]">
+          {statements.map((_, i) => (
+            <span key={i} className={`h-1.5 rounded-full transition-all ${i <= index ? 'w-7 bg-gradient-to-r from-pink-400 to-purple-400' : 'w-1.5 bg-purple-100 dark:bg-purple-800'}`} />
+          ))}
+        </div>
+      )}
       <motion.div
         key={index}
-        animate={wrong ? { x: [0, -8, 8, -5, 5, 0] } : correct ? { scale: [1, 1.03, 1] } : { x: 0, scale: 1 }}
-        className={`rounded-[2rem] border-2 p-6 shadow-xl sm:p-8 ${
-          correct ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100' :
-          wrong ? 'border-rose-300 bg-rose-50 text-rose-600 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100' :
-          'border-purple-100 bg-white text-purple-800 dark:border-purple-700 dark:bg-[#241632] dark:text-purple-100'
-        }`}
+        animate={wrong ? { x: [0, -8, 8, -5, 5, 0] } : correct ? { scale: [1, 1.015, 1] } : { x: 0, scale: 1 }}
+        className={`${variant === 'master' ? 'max-w-[min(43rem,88%)]' : 'max-w-[min(50rem,100%)]'} relative mx-auto aspect-[1296/792] w-full shrink-0`}
       >
-        <div className="mb-3 font-body text-xs font-black uppercase tracking-wider opacity-60">#{index + 1} / {statements.length}</div>
-        <div className="font-display text-2xl font-black leading-tight sm:text-3xl">{current.text}</div>
+        <img src="/ui/true-false-notebook.png" alt="" className="absolute inset-0 h-full w-full select-none object-contain" draggable={false} />
+        <div className="absolute left-[50%] top-[13.2%] z-10 aspect-[4/3] w-[25.8%] -translate-x-1/2 rounded-[0.78rem] border-[3px] border-white bg-white p-[0.3rem] shadow-[0_8px_18px_rgba(124,58,237,0.14)]">
+          <span className="absolute -left-[7%] -top-[8%] z-20 h-[22%] w-[28%] rotate-[-34deg] rounded-[0.25rem] bg-rose-200/85 shadow-sm" />
+          {currentImage ? (
+            <SignedImg path={currentImage} className="h-full w-full rounded-[0.56rem] object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center rounded-[0.56rem] bg-gradient-to-br from-purple-100 via-pink-50 to-sky-100 text-purple-300">
+              <ImageIcon className="h-8 w-8" />
+            </div>
+          )}
+        </div>
+        <img src="/ui/true-false-doodle-heart.png" alt="" className="absolute left-[28.6%] top-[30.7%] z-10 aspect-square w-[7.1%] select-none object-contain opacity-90" draggable={false} />
+        <img src="/ui/true-false-doodle-star.png" alt="" className="absolute right-[25.7%] top-[30.4%] z-10 aspect-square w-[6.4%] select-none object-contain opacity-95" draggable={false} />
+        <div className="absolute left-1/2 top-[50.2%] z-20 flex w-[58%] -translate-x-1/2 justify-center">
+          <div className={`${variant === 'master' ? 'text-[clamp(1.34rem,2.15vw,1.94rem)]' : 'text-[clamp(1.45rem,3vw,2.35rem)]'} max-w-[78%] font-display font-semibold leading-[1.12] text-[#4130a3] drop-shadow-[0_2px_0_rgba(255,255,255,0.85)]`}>
+            {current.text}
+          </div>
+        </div>
+        <div className="absolute bottom-[7.6%] left-1/2 z-30 grid w-[62%] -translate-x-1/2 grid-cols-2 gap-[4%]">
+          <button
+            type="button"
+            onClick={() => answer(true)}
+            aria-label={copy.trueAnswer}
+            className={`relative h-[clamp(4.3rem,6.7vw,5.75rem)] rounded-[1.25rem] transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 ${
+              selected === true && correct ? 'scale-[1.025] drop-shadow-[0_0_18px_rgba(34,197,94,0.34)]' :
+              selected === true && wrong ? 'drop-shadow-[0_0_18px_rgba(244,63,94,0.32)]' :
+              selected === true ? 'drop-shadow-[0_0_16px_rgba(168,85,247,0.25)]' :
+              'drop-shadow-[0_10px_16px_rgba(34,197,94,0.10)]'
+            }`}
+          >
+            <img src="/ui/true-button.png" alt="" className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain" draggable={false} />
+          </button>
+          <button
+            type="button"
+            onClick={() => answer(false)}
+            aria-label={copy.falseAnswer}
+            className={`relative h-[clamp(4.3rem,6.7vw,5.75rem)] rounded-[1.25rem] transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 focus-visible:ring-rose-200 ${
+              selected === false && correct ? 'scale-[1.025] drop-shadow-[0_0_18px_rgba(34,197,94,0.34)]' :
+              selected === false && wrong ? 'drop-shadow-[0_0_18px_rgba(244,63,94,0.32)]' :
+              selected === false ? 'drop-shadow-[0_0_16px_rgba(168,85,247,0.25)]' :
+              'drop-shadow-[0_10px_16px_rgba(244,63,94,0.10)]'
+            }`}
+          >
+            <img src="/ui/false-button.png" alt="" className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain" draggable={false} />
+          </button>
+        </div>
       </motion.div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <button onClick={() => answer(true)} className="rounded-3xl border-2 border-emerald-100 bg-emerald-50 px-6 py-5 font-display text-xl font-black text-emerald-700 shadow-sm transition hover:-translate-y-1 hover:shadow-xl dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-100">
-          <CheckCircle2 className="mx-auto mb-2 h-7 w-7" /> {copy.trueAnswer}
+      <div className={`${variant === 'master' ? 'mx-auto mt-[clamp(0.1rem,0.36vh,0.3rem)] w-full max-w-[min(43rem,88%)] px-[clamp(0.18rem,0.6vw,0.45rem)]' : 'mx-auto w-full max-w-[min(50rem,100%)] px-[clamp(0.42rem,0.9vw,0.78rem)]'} flex shrink-0 items-center justify-between gap-3`}>
+        <button
+          type="button"
+          onClick={() => onEvent('hint_requested', { mechanic: 'true_false', index })}
+          className="inline-flex min-h-[2.35rem] items-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:border-yellow-200"
+        >
+          <span className="text-lg leading-none">💡</span> {copy.hintAnswer}
         </button>
-        <button onClick={() => answer(false)} className="rounded-3xl border-2 border-rose-100 bg-rose-50 px-6 py-5 font-display text-xl font-black text-rose-600 shadow-sm transition hover:-translate-y-1 hover:shadow-xl dark:border-rose-500/25 dark:bg-rose-500/10 dark:text-rose-100">
-          <XCircle className="mx-auto mb-2 h-7 w-7" /> {copy.falseAnswer}
+        <button
+          type="button"
+          onClick={() => {
+            setSelected(null);
+            setWrong(false);
+            setCorrect(false);
+            onEvent('reset_requested', { mechanic: 'true_false', index });
+          }}
+          className="inline-flex min-h-[2.35rem] items-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:border-violet-200"
+        >
+          <RotateCcw className="h-4 w-4 text-violet-500" /> {lang === 'ru' ? 'Сбросить' : copy.clear}
         </button>
       </div>
     </div>
@@ -1923,11 +2252,16 @@ function MiniShopTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
   const total = items.reduce((sum, item, index) => selected.has(index) ? sum + (Number(item.price) || 0) : sum, 0);
   const over = target > 0 && total > target;
 
+  const completeTask = (nextTotal: number, nextSelected: Set<number>) => {
+    if (completed || target <= 0 || nextTotal !== target) return;
+    setCompleted(true);
+    onEvent('answer_correct', { mechanic: 'mini_shop', total: nextTotal, target, items: Array.from(nextSelected) });
+    window.setTimeout(() => onDone(), 650);
+  };
+
   useEffect(() => {
     if (!completed && target > 0 && total === target) {
-      setCompleted(true);
-      onEvent('answer_correct', { mechanic: 'mini_shop', total, target, items: Array.from(selected) });
-      setTimeout(onDone, 850);
+      completeTask(total, selected);
     }
   }, [completed, target, total, selected]);
 
@@ -1939,6 +2273,7 @@ function MiniShopTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
       const nextTotal = items.reduce((sum, item, itemIndex) => next.has(itemIndex) ? sum + (Number(item.price) || 0) : sum, 0);
       onEvent('choice_selected', { mechanic: 'mini_shop', index, total: nextTotal, target });
       if (target > 0 && nextTotal > target) onEvent('answer_wrong', { mechanic: 'mini_shop', total: nextTotal, target });
+      completeTask(nextTotal, next);
       return next;
     });
   };
@@ -1959,6 +2294,11 @@ function MiniShopTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
           <div className="font-display text-3xl font-black">{total}</div>
         </div>
       </div>
+      {completed && (
+        <div className="mx-auto max-w-xl rounded-3xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-center font-display text-lg font-black text-emerald-700 shadow-sm dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-100">
+          {lang === 'en' ? 'Great, saved!' : lang === 'ua' ? 'Супер, збережено!' : 'Супер, сохраняем результат!'}
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((item, index) => {
           const active = selected.has(index);
@@ -1981,12 +2321,63 @@ function MiniShopTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
   );
 }
 
+interface InteractiveAnswerStats {
+  totalQuestions: number;
+  errorsCount: number;
+  firstTryCorrect: number;
+  retryAttempts: number;
+  erroredQuestions: Set<string>;
+  completedQuestions: Set<string>;
+}
+
+function createAnswerStats(): InteractiveAnswerStats {
+  return {
+    totalQuestions: 0,
+    errorsCount: 0,
+    firstTryCorrect: 0,
+    retryAttempts: 0,
+    erroredQuestions: new Set(),
+    completedQuestions: new Set(),
+  };
+}
+
+function telemetryQuestionKey(task: InteractiveTask | undefined, payload: TaskTelemetryPayload = {}) {
+  const taskId = task?.id || String(payload.mechanic || 'task');
+  const mechanic = String(payload.mechanic || task?.mechanic_type || 'task');
+  const candidate = payload.questionId
+    ?? payload.question_id
+    ?? payload.index
+    ?? payload.left
+    ?? payload.item
+    ?? payload.region
+    ?? payload.order
+    ?? payload.word
+    ?? payload.mode;
+  if (candidate !== undefined && candidate !== null) return `${taskId}:${mechanic}:${String(candidate)}`;
+  return `${taskId}:${mechanic}`;
+}
+
+function summarizeAnswerStats(stats: InteractiveAnswerStats, fallbackQuestions: number): InteractiveScoreSummary {
+  const totalQuestions = Math.max(1, stats.totalQuestions || fallbackQuestions || 1);
+  const errorsCount = Math.max(0, stats.errorsCount);
+  const score = calculateInteractiveScore(totalQuestions, errorsCount);
+  return {
+    totalQuestions,
+    errorsCount,
+    firstTryCorrect: Math.min(totalQuestions, stats.firstTryCorrect),
+    retryAttempts: Math.max(0, stats.retryAttempts),
+    scorePercent: score.scorePercent,
+    starRating: score.starRating,
+  };
+}
+
 // ==================== ROOM ====================
 export default function InteractiveLessonRoom({
-  lesson, userId, onExit, onCompleted, lang = 'ru',
+  lesson, userId, contentItemId, onExit, onCompleted, lang = 'ru',
 }: {
   lesson: Lesson;
   userId: string;
+  contentItemId?: string | null;
   lang?: Lang;
   onExit: () => void;
   onCompleted: (starsAwarded: number) => void;
@@ -1996,12 +2387,22 @@ export default function InteractiveLessonRoom({
   const [idx, setIdx] = useState(0);
   const [loading, setLoading] = useState(true);
   const [finished, setFinished] = useState<null | number>(null); // stars awarded
+  const [finishSummary, setFinishSummary] = useState<InteractiveScoreSummary | null>(null);
+  const [finishError, setFinishError] = useState('');
   const [liveSession, setLiveSession] = useState<LiveSession | null>(null);
   const [teacherHint, setTeacherHint] = useState<string | null>(null);
+  const [studentProfile, setStudentProfile] = useState<RoomStudentProfile | null>(null);
+  const [unitTitle, setUnitTitle] = useState('');
+  const [owlState, setOwlState] = useState<OwlPlayerState>('intro');
+  const [masterTaskReady, setMasterTaskReady] = useState(false);
+  const [scoreVersion, setScoreVersion] = useState(0);
+  const [activityVersion, setActivityVersion] = useState(0);
   const lastTeacherHintId = useRef<string | null>(null);
+  const introOwlPlayedRef = useRef(false);
   const finishedRef = useRef<null | number>(null);
+  const answerStatsRef = useRef<InteractiveAnswerStats>(createAnswerStats());
   const theoryTask = useMemo(() => tasks.find(task => task.mechanic_type === 'theory_content'), [tasks]);
-  const playableTasks = useMemo(() => tasks.filter(task => !['theory_content', 'connect_dots', 'spot_and_count'].includes(task.mechanic_type)), [tasks]);
+  const playableTasks = useMemo(() => tasks.filter(task => task.mechanic_type !== 'theory_content'), [tasks]);
   const displayedTasks = useMemo(
     () => lesson.type === 'theory' ? (theoryTask ? [theoryTask] : []) : playableTasks,
     [lesson.type, playableTasks, theoryTask],
@@ -2015,12 +2416,44 @@ export default function InteractiveLessonRoom({
     if (lastTeacherHintId.current === id) return;
     lastTeacherHintId.current = id;
     setTeacherHint(message);
+    setOwlState('hint');
     window.setTimeout(() => setTeacherHint(current => current === message ? null : current), 9000);
   };
 
   useEffect(() => {
+    answerStatsRef.current = createAnswerStats();
+    introOwlPlayedRef.current = false;
+    setScoreVersion(0);
     listTasks(lesson.id).then(t => { setTasks(t); setLoading(false); });
   }, [lesson.id, userId]);
+
+  useEffect(() => {
+    let alive = true;
+    const loadMasterData = async () => {
+      const [{ data: profile }, { data: unit }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('name,email,star_balance,avatar_id')
+          .eq('id', userId)
+          .maybeSingle(),
+        supabase
+          .from('units')
+          .select('title')
+          .eq('id', lesson.unit_id)
+          .maybeSingle(),
+      ]);
+      if (!alive) return;
+      setStudentProfile({
+        name: profile?.name || profile?.email?.split('@')[0] || 'Vetoschool',
+        email: profile?.email || '',
+        starBalance: profile?.star_balance ?? 0,
+        avatarId: profile?.avatar_id ?? null,
+      });
+      setUnitTitle(unit?.title || `${copy.unit} ${lesson.lesson_number || 1}`);
+    };
+    void loadMasterData();
+    return () => { alive = false; };
+  }, [copy.unit, lesson.lesson_number, lesson.unit_id, userId]);
 
   useEffect(() => {
     let alive = true;
@@ -2094,39 +2527,96 @@ export default function InteractiveLessonRoom({
     });
   }, [liveSession?.id, displayedTasks, idx, lesson.id, userId]);
 
+  useEffect(() => {
+    if (finishedRef.current !== null) return;
+    setMasterTaskReady(false);
+    if (lesson.type !== 'theory' && displayedTasks[idx]?.id && !introOwlPlayedRef.current) {
+      introOwlPlayedRef.current = true;
+      setOwlState('intro');
+    } else {
+      setOwlState('wave');
+    }
+    setActivityVersion(version => version + 1);
+  }, [idx, displayedTasks[idx]?.id, lesson.type]);
+
+  useEffect(() => {
+    if (finished === null) return;
+    const finalRating = finishSummary?.starRating ?? 0;
+    setOwlState(lesson.type !== 'theory' && finalRating >= 5 ? 'finishPerfect' : 'finishIdle');
+  }, [finishSummary?.starRating, finished, lesson.type]);
+
   const emitTaskEvent: TaskTelemetry = (eventType, payload = {}) => {
+    setActivityVersion(version => version + 1);
     if (eventType === 'answer_correct') playFeedbackSound('correct');
     if (eventType === 'answer_wrong') playFeedbackSound('wrong');
+    if (eventType === 'answer_correct') setOwlState('correct');
+    if (eventType === 'answer_wrong') setOwlState('wrong');
     const curTask = displayedTasks[idx];
+    const questionKey = telemetryQuestionKey(curTask, payload);
+    let scoreChanged = false;
+    if (eventType === 'answer_wrong') {
+      answerStatsRef.current.errorsCount += 1;
+      answerStatsRef.current.retryAttempts += 1;
+      answerStatsRef.current.erroredQuestions.add(questionKey);
+      scoreChanged = true;
+    }
+    if (eventType === 'answer_correct' && !answerStatsRef.current.completedQuestions.has(questionKey)) {
+      answerStatsRef.current.totalQuestions += 1;
+      if (!answerStatsRef.current.erroredQuestions.has(questionKey)) {
+        answerStatsRef.current.firstTryCorrect += 1;
+      }
+      answerStatsRef.current.completedQuestions.add(questionKey);
+      scoreChanged = true;
+    }
+    if (scoreChanged) setScoreVersion(version => version + 1);
     recordLiveEvent({
       sessionId: liveSession?.id ?? null,
       lessonId: lesson.id,
       studentId: userId,
       eventType,
       taskId: curTask?.id ?? null,
-      payload,
+      payload: { ...payload, questionKey },
     });
   };
 
   const finish = async () => {
-    playCompletionSound();
-    const stars = await markLessonComplete(userId, lesson);
-    finishedRef.current = stars;
-    if (liveSession) {
-      await recordLiveEvent({
-        sessionId: liveSession.id,
-        lessonId: lesson.id,
-        studentId: userId,
-        eventType: 'lesson_completed',
-        payload: { stars },
-      });
-      await completeLiveSession(liveSession.id);
+    if (finishedRef.current !== null) return;
+    setFinishError('');
+    try {
+      playCompletionSound();
+      const showScore = lesson.type !== 'theory';
+      const summary = showScore ? summarizeAnswerStats(answerStatsRef.current, displayedTasks.length) : null;
+      const stars = contentItemId
+        ? await completeAssignedInteractiveContent(userId, contentItemId, lesson, summary?.scorePercent ?? 100, summary?.errorsCount ?? 0, summary?.starRating ?? 0)
+        : await markLessonComplete(userId, lesson, summary?.scorePercent ?? 100, summary?.errorsCount ?? 0, summary?.starRating ?? 0);
+      finishedRef.current = stars;
+      if (liveSession) {
+        await recordLiveEvent({
+          sessionId: liveSession.id,
+          lessonId: lesson.id,
+          studentId: userId,
+          eventType: 'lesson_completed',
+          payload: { stars, contentItemId: contentItemId || null, ...(summary || {}) },
+        });
+        await completeLiveSession(liveSession.id);
+      }
+      setFinishSummary(summary);
+      setFinished(stars);
+      setOwlState(showScore && summary?.starRating === 5 ? 'finishPerfect' : 'finishIdle');
+      onCompleted(stars);
+    } catch (error) {
+      console.error('Failed to complete interactive lesson', error);
+      setFinishError(
+        lang === 'en'
+          ? 'The lesson is complete, but the result was not saved. Please try again.'
+          : lang === 'ua'
+            ? 'Урок пройдено, але результат не зберігся. Спробуйте ще раз.'
+            : 'Урок пройден, но результат не сохранился. Попробуйте ещё раз.',
+      );
     }
-    setFinished(stars);
-    onCompleted(stars);
   };
   const nextTask = () => {
-    if (idx + 1 >= displayedTasks.length) finish();
+    if (idx + 1 >= displayedTasks.length) void finish();
     else {
       playButtonSound('task');
       setIdx(i => i + 1);
@@ -2139,6 +2629,266 @@ export default function InteractiveLessonRoom({
   };
 
   const cur = displayedTasks[idx];
+  const useMasterGameLayout = !loading && lesson.type !== 'theory' && Boolean(cur);
+  useEffect(() => {
+    if (!useMasterGameLayout || typeof document === 'undefined') return undefined;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverscroll = document.documentElement.style.overscrollBehavior;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overscrollBehavior = 'none';
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overscrollBehavior = previousHtmlOverscroll;
+    };
+  }, [useMasterGameLayout]);
+
+  useEffect(() => {
+    if (!useMasterGameLayout || finished !== null || masterTaskReady || !cur) return undefined;
+    if (owlState !== 'idle' && owlState !== 'wave') return undefined;
+
+    const timeout = window.setTimeout(() => {
+      setOwlState(current => {
+        if (current !== 'idle' && current !== 'wave') return current;
+        return 'thinking';
+      });
+    }, THINKING_OWL_DELAY_MS);
+
+    return () => window.clearTimeout(timeout);
+  }, [activityVersion, cur, finished, masterTaskReady, owlState, useMasterGameLayout]);
+
+  const equippedAvatar = findAvatar(studentProfile?.avatarId);
+  const taskMeta = cur ? mechanicCopy[lang][cur.mechanic_type] : null;
+  const completedForProgress = finished !== null ? displayedTasks.length : idx + (masterTaskReady ? 1 : 0);
+  const lessonProgressPercent = displayedTasks.length > 0
+    ? Math.round((completedForProgress / displayedTasks.length) * 100)
+    : 0;
+  const liveDisplayRating = useMemo(
+    () => Math.min(5, Math.max(0, 5 - answerStatsRef.current.errorsCount)),
+    [scoreVersion],
+  );
+  const displayRating = Math.min(5, Math.max(0, finishSummary?.starRating ?? liveDisplayRating));
+  const owlSpeech = teacherHint
+    || (finished !== null ? `${copy.great} ${copy.complete} 💜` : masterTaskReady ? copy.keepGoing : taskMeta?.instruction)
+    || copy.loading;
+  const hideOwlSpeechBubble = owlState === 'thinking' || owlState === 'finishPerfect';
+  const renderMasterTaskContent = (task: InteractiveTask, onDone: () => void) => {
+    switch (task.mechanic_type) {
+      case 'matching':
+        return <MatchingTask payload={task.payload_json} onDone={onDone} onEvent={emitTaskEvent} lang={lang} />;
+      case 'word_lego':
+        return <WordLegoTask payload={task.payload_json} onDone={onDone} onEvent={emitTaskEvent} lang={lang} />;
+      case 'fill_letters':
+        return <FillLettersTask payload={task.payload_json} onDone={onDone} onEvent={emitTaskEvent} lang={lang} />;
+      case 'anagram_unscramble':
+        return <AnagramTask payload={task.payload_json} onDone={onDone} onEvent={emitTaskEvent} lang={lang} />;
+      case 'odd_one_out':
+        return <OddOneOutTask payload={task.payload_json} onDone={onDone} onEvent={emitTaskEvent} lang={lang} />;
+      case 'category_sorting':
+        return <CategorySortingTask payload={task.payload_json} onDone={onDone} onEvent={emitTaskEvent} lang={lang} />;
+      case 'cipher_decoder':
+        return <CipherDecoderTask payload={task.payload_json} onDone={onDone} onEvent={emitTaskEvent} lang={lang} />;
+      case 'word_search':
+        return <WordSearchTask payload={task.payload_json} onDone={onDone} onEvent={emitTaskEvent} lang={lang} />;
+      case 'connect_dots':
+        return <ConnectDotsTask payload={task.payload_json} onDone={onDone} onEvent={emitTaskEvent} lang={lang} />;
+      case 'spot_and_count':
+        return <SpotAndCountTask payload={task.payload_json} onDone={onDone} onEvent={emitTaskEvent} lang={lang} />;
+      case 'speaking_practice':
+        return <SpeakingPracticeTask payload={task.payload_json} onDone={onDone} onEvent={emitTaskEvent} lang={lang} />;
+      case 'digital_coloring':
+        return <DigitalColoringTask payload={task.payload_json} onDone={onDone} onEvent={emitTaskEvent} lang={lang} />;
+      case 'true_false':
+        return <TrueFalseTask payload={task.payload_json} onDone={onDone} onEvent={emitTaskEvent} lang={lang} variant="master" />;
+      case 'mini_shop':
+        return <MiniShopTask payload={task.payload_json} onDone={onDone} onEvent={emitTaskEvent} lang={lang} />;
+      default:
+        return (
+          <div className="py-8 text-center">
+            <div className="mb-2 text-4xl">🚧</div>
+            <p className="text-purple-500">{copy.mechanicWip(task.mechanic_type)}</p>
+            <button onClick={onDone} className="mt-4 rounded-2xl bg-purple-500 px-5 py-2 text-white shadow-lg">{copy.skip}</button>
+          </div>
+        );
+    }
+  };
+
+  if (useMasterGameLayout) {
+    const masterRoom = (
+      <div
+        className="fixed inset-0 z-50 overflow-y-auto bg-[#f8efff] bg-cover bg-center bg-no-repeat text-purple-950 md:h-[100dvh] md:overflow-hidden"
+        style={{ backgroundImage: "url('/backgrounds/vetoschool-interactive-room-bg.png')", backgroundPosition: 'center bottom' }}
+      >
+
+        <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-[1600px] flex-col px-[clamp(0.65rem,1.45vw,1.45rem)] py-[clamp(0.45rem,1vh,0.9rem)] md:h-[100dvh] md:min-h-0">
+          <header className="flex shrink-0 items-center justify-end gap-[clamp(0.45rem,1vw,0.85rem)] pb-[clamp(0.35rem,1vh,0.75rem)]">
+            <div className="flex items-center gap-[clamp(0.26rem,0.55vw,0.44rem)] rounded-full border border-purple-100 bg-white px-[clamp(0.82rem,1.28vw,1.04rem)] py-[clamp(0.4rem,0.75vh,0.58rem)] shadow-[0_10px_24px_rgba(168,85,247,0.14)]">
+              <img
+                src="/ui/reward-star.png"
+                alt=""
+                draggable={false}
+                className="h-[clamp(2.05rem,2.75vw,2.45rem)] w-[clamp(2.05rem,2.75vw,2.45rem)] select-none object-contain"
+              />
+              <span className="font-display text-[clamp(1rem,1.55vw,1.25rem)] font-black text-purple-700">{studentProfile?.starBalance ?? 0}</span>
+            </div>
+            <div className="flex items-center gap-[clamp(0.45rem,0.9vw,0.75rem)] rounded-full border border-purple-100 bg-white py-[clamp(0.25rem,0.65vh,0.45rem)] pl-[clamp(0.35rem,0.7vw,0.5rem)] pr-[clamp(0.75rem,1.3vw,1rem)] shadow-[0_10px_24px_rgba(168,85,247,0.14)]">
+              <div className="flex h-[clamp(2.35rem,4.8vw,3rem)] w-[clamp(2.35rem,4.8vw,3rem)] items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-sky-100 to-pink-100 text-[clamp(1.35rem,2.5vw,1.8rem)] ring-[clamp(0.18rem,0.45vw,0.3rem)] ring-white">
+                {equippedAvatar ? equippedAvatar.emoji : (studentProfile?.name?.[0] || 'V').toUpperCase()}
+              </div>
+              <span className="max-w-[10rem] truncate font-display text-sm font-black text-purple-700 sm:max-w-[14rem]">{studentProfile?.name || 'Vetoschool'}</span>
+            </div>
+            <button
+              onClick={exitLesson}
+              aria-label={copy.exit}
+              className="flex h-[clamp(2.35rem,4.5vw,2.85rem)] w-[clamp(2.35rem,4.5vw,2.85rem)] items-center justify-center rounded-full border border-white/80 bg-white/85 text-purple-500 shadow-lg shadow-purple-200/30 transition hover:-translate-y-0.5 hover:text-pink-500"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </header>
+
+          <main className="grid min-h-0 flex-1 gap-[clamp(0.15rem,0.45vw,0.55rem)] md:grid-cols-[minmax(255px,0.30fr)_minmax(0,0.70fr)] lg:grid-cols-[minmax(330px,0.31fr)_minmax(0,0.69fr)]">
+            <aside className="pointer-events-none relative z-30 flex min-h-[420px] min-w-0 flex-col justify-end gap-[clamp(0.28rem,0.65vh,0.48rem)] overflow-visible md:min-h-0">
+              <div
+                aria-hidden={hideOwlSpeechBubble}
+                className={`relative z-10 mx-auto mb-[clamp(1.35rem,3.2vh,2.5rem)] aspect-[1055/570] w-[min(100%,20.5rem)] -translate-x-[clamp(0.45rem,1.4vw,1.15rem)] translate-y-[clamp(1.7rem,4.2vh,3.1rem)] transition-opacity duration-200 ease-in-out md:w-[min(100%,19.5rem)] md:-translate-x-[clamp(0.75rem,1.9vw,1.65rem)] md:translate-y-[clamp(2.2rem,5.2dvh,4rem)] lg:w-[min(100%,21.25rem)] ${hideOwlSpeechBubble ? 'opacity-0' : 'opacity-100'}`}
+              >
+                <img
+                  src="/ui/dialog-window.png"
+                  alt=""
+                  aria-hidden="true"
+                  draggable={false}
+                  className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain"
+                />
+                <p className="absolute left-[11%] right-[19%] top-[17%] flex h-[54%] items-center justify-center text-center font-display text-[clamp(1.02rem,1.36vw,1.32rem)] font-bold leading-[1.15] text-purple-800">
+                  {owlSpeech}
+                </p>
+              </div>
+              <div className="relative z-20 flex min-h-0 flex-1 items-end justify-center overflow-visible">
+                <OwlPlayer
+                  state={owlState}
+                  onStateComplete={state => {
+                    if (state === 'finishPerfect') {
+                      setOwlState('finishIdle');
+                      return;
+                    }
+                    if (state !== 'finish' && state !== 'finishIdle') {
+                      setOwlState('idle');
+                      if (state === 'thinking') setActivityVersion(version => version + 1);
+                    }
+                  }}
+                  className="h-[clamp(365px,57dvh,620px)] max-w-[min(118vw,670px)] -translate-x-[clamp(0.85rem,4vw,2rem)] translate-y-[clamp(4.5rem,10vh,7rem)] md:h-[clamp(425px,70dvh,740px)] md:max-w-[min(49vw,760px)] md:-translate-x-[clamp(1.75rem,4.4vw,4.5rem)] md:translate-y-[clamp(6rem,12.5dvh,9rem)]"
+                />
+              </div>
+            </aside>
+
+            <section className="relative z-20 flex min-h-0 flex-col rounded-[2rem] bg-white p-[clamp(0.78rem,1.35vw,1.14rem)] shadow-[0_18px_42px_rgba(168,85,247,0.16)] md:-ml-[clamp(0.05rem,0.25vw,0.25rem)]">
+              <div className="mb-[clamp(0.48rem,1vh,0.76rem)] flex shrink-0 flex-col gap-[clamp(0.45rem,0.82vh,0.66rem)] xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex min-w-0 items-center gap-[clamp(0.46rem,0.9vw,0.72rem)]">
+                  <div className="flex h-[clamp(2.28rem,3.55vw,2.9rem)] w-[clamp(2.28rem,3.55vw,2.9rem)] shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-100 via-purple-100 to-sky-100 text-[clamp(1.05rem,1.75vw,1.38rem)] shadow-inner">
+                    ✨
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-body text-[clamp(0.62rem,0.9vw,0.7rem)] font-medium uppercase tracking-[0.2em] text-purple-400">{copy.unit}</div>
+                    <h2 className="truncate font-display text-[clamp(1.18rem,2.1vw,1.66rem)] font-bold leading-tight text-purple-800">{unitTitle || copy.unit}</h2>
+                    <p className="mt-0.5 truncate font-body text-[clamp(0.72rem,1vw,0.84rem)] font-medium text-purple-500">{copy.topic}: {lesson.title}</p>
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center justify-center gap-[clamp(0.42rem,0.78vw,0.62rem)]">
+                  <StarRatingDisplay value={displayRating} />
+                  <CircularRatingDisplay value={displayRating} />
+                </div>
+              </div>
+
+              <div className="flex min-h-0 flex-1 flex-col rounded-[1.7rem] bg-white p-[clamp(0.65rem,1.16vw,0.98rem)]">
+                <AnimatePresence>
+                  {teacherHint && finished === null && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      className="mb-5 rounded-3xl border border-yellow-200 bg-yellow-50 px-5 py-4 text-center font-body text-base font-black text-purple-800"
+                    >
+                      {teacherHint}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                {finishError && finished === null && (
+                  <div className="mb-5 rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-center font-body text-sm font-black text-rose-600">
+                    {finishError}
+                  </div>
+                )}
+                {finished !== null ? (
+                  <CompletionCelebration stars={finished} summary={finishSummary} showScore={lesson.type !== 'theory'} copy={copy} onExit={exitLesson} />
+                ) : (
+                  <AnimatePresence mode="wait">
+                    <motion.div key={cur.id} className="flex min-h-0 flex-1 flex-col" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}>
+                      <div className="mx-auto mb-[clamp(0.46rem,1.08vh,0.72rem)] w-full max-w-4xl rounded-[1.45rem] bg-white px-[clamp(0.9rem,1.7vw,1.48rem)] py-[clamp(0.44rem,1vh,0.74rem)] text-center shadow-[0_8px_22px_rgba(168,85,247,0.06)]">
+                        <h3 className="font-display text-[clamp(1.38rem,2.55vw,2.38rem)] font-bold leading-tight text-purple-800">{taskMeta?.title || lesson.title}</h3>
+                        <p className="mt-0.5 font-body text-[clamp(0.72rem,1.14vw,0.88rem)] font-medium text-purple-500">{taskMeta?.instruction}</p>
+                      </div>
+                      <div className="min-h-0 flex-1">
+                        {renderMasterTaskContent(cur, () => setMasterTaskReady(true))}
+                      </div>
+                    </motion.div>
+                  </AnimatePresence>
+                )}
+              </div>
+            </section>
+          </main>
+
+          <footer className="grid shrink-0 gap-[clamp(0.55rem,1vw,0.9rem)] pt-[clamp(0.45rem,1vh,0.75rem)] sm:grid-cols-[auto_1fr_auto] sm:items-center">
+            <button
+              onClick={exitLesson}
+              className="inline-flex min-h-[2.4rem] items-center justify-center gap-2 rounded-full border border-purple-100 bg-white px-[clamp(0.88rem,1.5vw,1.18rem)] py-[clamp(0.42rem,0.78vh,0.58rem)] font-display text-[clamp(0.78rem,1vw,0.9rem)] font-semibold text-purple-600 shadow-[0_8px_22px_rgba(168,85,247,0.12)] transition hover:-translate-y-0.5 hover:text-pink-500"
+            >
+              <ArrowLeft className="h-4 w-4" /> {copy.exit}
+            </button>
+            <div className="flex min-w-0 items-center gap-[clamp(0.68rem,1.28vw,0.98rem)] rounded-full border border-purple-100 bg-white px-[clamp(0.95rem,1.65vw,1.28rem)] py-[clamp(0.44rem,0.82vh,0.62rem)] shadow-[0_10px_28px_rgba(168,85,247,0.16)]">
+              <span className="whitespace-nowrap font-display text-[clamp(0.9rem,1.16vw,1.02rem)] font-semibold leading-none text-[#55409b]">{copy.progressHint}</span>
+              <div className="relative h-[clamp(0.48rem,0.98vh,0.64rem)] flex-1 overflow-visible rounded-full bg-purple-50 shadow-inner shadow-purple-100">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-100/80 via-purple-50 to-sky-50" />
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-pink-500 via-violet-500 to-sky-400 shadow-[0_0_18px_rgba(168,85,247,0.28)] transition-all duration-500"
+                  style={{ width: `${lessonProgressPercent}%` }}
+                />
+                <div
+                  className="absolute top-[58%] h-[clamp(3.55rem,6.25vw,4.85rem)] w-[clamp(5.33rem,9.38vw,7.27rem)] -translate-x-1/2 -translate-y-1/2 transition-[left] duration-500 ease-in-out"
+                  style={{ left: `clamp(1.15rem, ${lessonProgressPercent}%, calc(100% - 0.65rem))` }}
+                  aria-hidden="true"
+                >
+                  <div className="progress-star-glow relative h-full w-full">
+                    <span className="progress-star-sparkle progress-star-sparkle-a" />
+                    <span className="progress-star-sparkle progress-star-sparkle-b" />
+                    <span className="progress-star-sparkle progress-star-sparkle-c" />
+                    <span className="progress-star-sparkle progress-star-sparkle-d" />
+                    <img
+                      src="/ui/progress-star.png"
+                      alt=""
+                      draggable={false}
+                      className="relative z-10 h-full w-full select-none object-contain"
+                    />
+                    <span className="progress-star-shimmer" />
+                  </div>
+                </div>
+              </div>
+              <span className="min-w-[2.5rem] text-right font-display text-[clamp(0.76rem,1vw,0.88rem)] font-semibold text-purple-700">{lessonProgressPercent}%</span>
+            </div>
+            <button
+              onClick={() => {
+                if (!masterTaskReady || finished !== null) return;
+                nextTask();
+              }}
+              disabled={!masterTaskReady || finished !== null}
+              className="inline-flex min-h-[2.4rem] items-center justify-center gap-2 rounded-full bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500 px-[clamp(1.18rem,2vw,1.72rem)] py-[clamp(0.42rem,0.78vh,0.58rem)] font-display text-[clamp(0.82rem,1.15vw,0.98rem)] font-semibold text-white shadow-[0_10px_24px_rgba(168,85,247,0.28)] transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:from-purple-300 disabled:via-fuchsia-200 disabled:to-pink-200 disabled:text-white/90 disabled:shadow-[0_8px_18px_rgba(168,85,247,0.12)]"
+            >
+              {copy.next} <ArrowRight className="h-4 w-4" />
+            </button>
+          </footer>
+        </div>
+      </div>
+    );
+
+    return typeof document === 'undefined' ? masterRoom : createPortal(masterRoom, document.body);
+  }
 
   const room = (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-gradient-to-br from-pink-50 via-violet-50 to-sky-50 dark:bg-[#150923] dark:bg-none">
@@ -2176,6 +2926,11 @@ export default function InteractiveLessonRoom({
           </div>
 
           {loading && <p className="text-center text-purple-500 dark:text-purple-200">{copy.loading}</p>}
+          {finishError && finished === null && (
+            <div className="mx-auto mb-5 max-w-2xl rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-center font-body text-sm font-black text-rose-600 shadow-sm dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">
+              {finishError}
+            </div>
+          )}
           {!loading && displayedTasks.length === 0 && (
             <div className="text-center py-8">
               <BookOpen className="mx-auto mb-3 h-12 w-12 text-purple-300" />
@@ -2187,7 +2942,7 @@ export default function InteractiveLessonRoom({
             <div className="space-y-6">
               <TheoryLessonView content={theoryTask.payload_json} fallbackTitle={lesson.title} lang={lang} />
               <div className="flex justify-center border-t border-purple-100 pt-6 dark:border-purple-700">
-                <button onClick={() => { playButtonSound('study'); finish(); }} className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-500 px-6 py-3 font-display text-sm font-black text-white shadow-xl shadow-pink-200/50 transition hover:-translate-y-0.5 hover:shadow-2xl dark:shadow-none">
+                <button onClick={() => { playButtonSound('study'); void finish(); }} className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-500 px-6 py-3 font-display text-sm font-black text-white shadow-xl shadow-pink-200/50 transition hover:-translate-y-0.5 hover:shadow-2xl dark:shadow-none">
                   <CheckCircle2 className="h-5 w-5" /> {copy.studied}
                 </button>
               </div>
@@ -2229,7 +2984,7 @@ export default function InteractiveLessonRoom({
             </AnimatePresence>
           )}
           {finished !== null && (
-            <CompletionCelebration stars={finished} copy={copy} onExit={exitLesson} />
+            <CompletionCelebration stars={finished} summary={finishSummary} showScore={lesson.type !== 'theory'} copy={copy} onExit={exitLesson} />
           )}
           </div>
         </div>

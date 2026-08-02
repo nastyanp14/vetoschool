@@ -124,8 +124,33 @@ export const findMechanic = (id: string) => MECHANICS.find(m => m.id === id);
 export const WORKBOOK_ASSETS_BUCKET = 'workbook-assets';
 
 // ============ Lesson-kind tuning ============
-export type LessonKind = 'theory' | 'class_task' | 'homework' | 'practice' | 'checkpoint';
+export type LessonKind = 'theory' | 'class_task' | 'homework' | 'practice' | 'grammar' | 'listening' | 'checkpoint';
 
 /** Kinds that can reward stars. */
-export const REWARDABLE_KINDS: LessonKind[] = ['homework', 'practice', 'checkpoint'];
+export const REWARDABLE_KINDS: LessonKind[] = ['class_task', 'homework', 'practice', 'grammar', 'listening', 'checkpoint'];
 export const canReward = (k: LessonKind) => REWARDABLE_KINDS.includes(k);
+
+export interface InteractiveScoreSummary {
+  totalQuestions: number;
+  errorsCount: number;
+  firstTryCorrect: number;
+  retryAttempts: number;
+  scorePercent: number;
+  starRating: number;
+}
+
+export function calculateInteractiveScore(totalQuestions: number, errorsCount: number): Pick<InteractiveScoreSummary, 'scorePercent' | 'starRating'> {
+  const questions = Math.max(0, Math.round(totalQuestions || 0));
+  const errors = Math.max(0, Math.round(errorsCount || 0));
+  if (questions <= 0) return { scorePercent: 100, starRating: 5 };
+
+  const errorRatio = errors / questions;
+  const scorePercent = Math.max(0, Math.min(100, Math.round(((questions - errors) / questions) * 100)));
+  let starRating = 1;
+  if (errors === 0) starRating = 5;
+  else if (errorRatio <= 0.25) starRating = 4;
+  else if (errorRatio <= 0.6) starRating = 3;
+  else if (errorRatio <= 1) starRating = 2;
+
+  return { scorePercent, starRating };
+}

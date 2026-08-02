@@ -385,6 +385,8 @@ const lessonKindCopy: Record<Lang, Record<LessonKind, string>> = {
     class_task: '🧑‍🏫 Задание на уроке',
     homework: '🏠 Домашка',
     practice: '🎮 Практика',
+    grammar: '📝 Грамматика',
+    listening: '🎧 Аудирование',
     checkpoint: '🏆 Контрольная',
   },
   en: {
@@ -392,6 +394,8 @@ const lessonKindCopy: Record<Lang, Record<LessonKind, string>> = {
     class_task: '🧑‍🏫 Class task',
     homework: '🏠 Homework',
     practice: '🎮 Practice',
+    grammar: '📝 Grammar',
+    listening: '🎧 Listening',
     checkpoint: '🏆 Checkpoint',
   },
   ua: {
@@ -399,6 +403,8 @@ const lessonKindCopy: Record<Lang, Record<LessonKind, string>> = {
     class_task: '🧑‍🏫 Завдання на уроці',
     homework: '🏠 Домашка',
     practice: '🎮 Практика',
+    grammar: '📝 Граматика',
+    listening: '🎧 Аудіювання',
     checkpoint: '🏆 Контрольна',
   },
 };
@@ -1134,14 +1140,30 @@ function DigitalColoringEditor({ payload, onChange, lang }: { payload: any; onCh
 
 function TrueFalseEditor({ payload, onChange, lang }: { payload: any; onChange: (p: any) => void; lang: Lang }) {
   const copy = c(lang);
-  const statements: Array<{ text: string; is_true: boolean }> = payload?.statements || [];
+  const statements: Array<{ text: string; is_true: boolean; image?: string }> = payload?.statements || [];
   const update = (next: typeof statements) => onChange({ ...payload, statements: next });
   return (
     <div className="space-y-3">
       <p className="text-xs text-purple-500">{copy.trueFalseHint}</p>
       {statements.map((statement, i) => (
-        <div key={i} className="grid gap-2 rounded-2xl border border-purple-100 bg-white p-2 sm:grid-cols-[2rem_1fr_auto_2rem] sm:items-center">
+        <div key={i} className="grid gap-2 rounded-2xl border border-purple-100 bg-white p-2 sm:grid-cols-[2rem_auto_1fr_auto_2rem] sm:items-center">
           <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-xs font-900 text-emerald-700">#{i + 1}</span>
+          <div className="flex items-center gap-2">
+            {statement.image ? (
+              <>
+                <AssetImg path={statement.image} className="h-12 w-16 rounded-xl object-cover shadow-sm" />
+                <button
+                  type="button"
+                  onClick={() => update(statements.map((item, idx) => idx === i ? { ...item, image: undefined } : item))}
+                  className="rounded-lg px-2 py-1 text-xs font-800 text-red-400 transition hover:bg-red-50"
+                >
+                  {copy.deletePhoto}
+                </button>
+              </>
+            ) : (
+              <UploadButton lang={lang} onUploaded={path => update(statements.map((item, idx) => idx === i ? { ...item, image: path } : item))} />
+            )}
+          </div>
           <input
             value={statement.text || ''}
             onChange={e => update(statements.map((item, idx) => idx === i ? { ...item, text: e.target.value } : item))}

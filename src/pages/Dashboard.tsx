@@ -1,19 +1,39 @@
-import { useState, useEffect, type MouseEvent } from 'react';
+import { useCallback, useState, useEffect, type MouseEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getCurrentUser, logout } from '../lib/auth';
 import { getStudentSchedule } from '../lib/schedule';
-import { ensureStudentContent, ContentItem, getStudentRating, loadStudentContent, openOrDownload } from '../lib/content';
+import { ensureStudentContent, ContentItem, getStudentRating, isGradedContentType, loadStudentContent, openOrDownload, submitStudentContentWork } from '../lib/content';
 import { loadStudentSchedule } from '../lib/schedule';
 import { Lang, t } from '../lib/i18n';
 import ThemeToggle from '../components/ThemeToggle';
 import DictionaryView from '../components/DictionaryView';
 import AvatarShop, { StarCelebration } from '../components/AvatarShop';
 import InteractiveLessonMap from '../components/InteractiveLessonMap';
+import InteractiveLessonRoom from '../components/InteractiveLessonRoom';
 import { loadStarProfile, clearCelebration, findAvatar } from '../lib/stars';
 import { createTelegramLink, listTelegramParents, TelegramParentAccount } from '../lib/telegram';
+import { getLessonById, Lesson as WorkbookLesson } from '../lib/workbooks';
+import { supabase } from '@/integrations/supabase/client';
+import { pricingPlanNameKeys, type PricingPlanId } from '../lib/pricingCurrency';
+import { redirectToStripeCustomerPortal } from '../lib/stripeCheckout';
 
 type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades' | 'shop' | 'interactive';
+
+type BillingSummary = {
+  payment_status: string | null;
+  payment_failed_at: string | null;
+  stripe_customer_id: string | null;
+  subscription_status: string | null;
+  cancel_at_period_end: boolean | null;
+  canceled_at: string | null;
+  plan_id: string | null;
+  lesson_format: string | null;
+  lessons_total: number | null;
+  lessons_remaining: number | null;
+  current_period_end: string | null;
+  next_payment_date: string | null;
+};
 
 // ---- Audio player ----
 function AudioPlayer({ dataUrl }: { dataUrl: string }) {
@@ -138,15 +158,29 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
 }
 
 // ---- File modal (unlocked) ----
-function FileModal({ item, onClose, lang }: { item: ContentItem; onClose: () => void; lang: Lang }) {
+function FileModal({ item, userId, canSubmitWork, onClose, onSubmitted, onStartInteractive, lang }: { item: ContentItem; userId: string; canSubmitWork: boolean; onClose: () => void; onSubmitted: () => Promise<void>; onStartInteractive?: (item: ContentItem) => void; lang: Lang }) {
   const dataUrl = item.fileUrl || item.fileDataUrl || '';
   const hasContent = !!dataUrl || !!item.externalLink;
+  const hasInteractive = !!item.interactiveLessonId;
   const isImage = /\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(dataUrl) || dataUrl.startsWith('data:image');
   const isAudio = /\.(mp3|wav|ogg|m4a)(\?|$)/i.test(dataUrl) || dataUrl.startsWith('data:audio') || (item.type === 'listening' && !!dataUrl);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState('');
+  const [submissionFile, setSubmissionFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState('');
 
   const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
+  const submittedText = lang === 'en' ? 'Submitted' : lang === 'ua' ? 'Здано' : 'Сдано';
+  const submitTitle = lang === 'en' ? 'Send completed work' : lang === 'ua' ? 'Надіслати виконану роботу' : 'Отправить выполненную работу';
+  const chooseText = lang === 'en' ? 'Choose photo or file' : lang === 'ua' ? 'Вибрати фото або файл' : 'Выбрать фото или файл';
+  const sendText = lang === 'en' ? 'Send to teacher' : lang === 'ua' ? 'Надіслати вчителю' : 'Отправить учителю';
+  const sentText = lang === 'en' ? 'Work sent to teacher' : lang === 'ua' ? 'Роботу надіслано вчителю' : 'Работа отправлена учителю';
+  const noFileText = lang === 'en' ? 'Choose a file first' : lang === 'ua' ? 'Спочатку виберіть файл' : 'Сначала выберите файл';
+  const alreadyGradedText = lang === 'en' ? 'Already graded' : lang === 'ua' ? 'Вже оцінено' : 'Уже оценено';
+  const teacherReviewText = lang === 'en' ? 'Teacher feedback' : lang === 'ua' ? 'Відгук учителя' : 'Отзыв учителя';
+  const checkedText = lang === 'en' ? 'Checked' : lang === 'ua' ? 'Перевірено' : 'Проверено';
+  const revisionText = lang === 'en' ? 'Needs revision' : lang === 'ua' ? 'Потрібно доопрацювати' : 'Нужно доработать';
   const unavailableText = lang === 'en'
     ? 'File is unavailable for download'
     : lang === 'ua'
@@ -164,6 +198,29 @@ function FileModal({ item, onClose, lang }: { item: ContentItem; onClose: () => 
       setDownloadError(unavailableText);
     } finally {
       setIsDownloading(false);
+    }
+  };
+  const canUploadSubmission = canSubmitWork && isGradedContentType(item.type) && !(item.starRating && item.starRating > 0);
+  const teacherFeedback = (item.reviewComment || item.teacherComment || '').trim();
+  const isRevisionRequested = item.homeworkStatus === 'revision_requested' || item.studentResult === 'Revision Requested';
+  const isInteractiveReviewed = !!item.interactiveCompletedAt || item.studentResult === 'Interactive completed' || item.interactiveScorePercent != null;
+  const handleSubmitWork = async () => {
+    if (!submissionFile) {
+      setSubmitMessage(noFileText);
+      return;
+    }
+    setIsSubmitting(true);
+    setSubmitMessage('');
+    try {
+      await submitStudentContentWork(userId, item.id, submissionFile);
+      setSubmissionFile(null);
+      setSubmitMessage(sentText);
+      await onSubmitted();
+    } catch (error) {
+      console.error('submit homework failed', error);
+      setSubmitMessage(error instanceof Error ? error.message : noFileText);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -192,13 +249,44 @@ function FileModal({ item, onClose, lang }: { item: ContentItem; onClose: () => 
                 🗓 {item.scheduledDate} {item.scheduledTime}
               </p>
             )}
+            {item.submittedAt && (
+              <p className="font-body text-sm text-green-500 mt-0.5">
+                ✅ {submittedText}: {new Date(item.submittedAt).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })}
+              </p>
+            )}
           </div>
           <button onClick={onClose} className="text-purple-300 hover:text-pink-500 text-4xl leading-none flex-shrink-0 transition-colors">×</button>
         </div>
 
         {/* Content */}
-        {hasContent ? (
+        {(hasContent || hasInteractive) ? (
           <div className="space-y-4">
+            {hasInteractive && (
+              <div className="rounded-2xl border border-pink-100 bg-gradient-to-br from-white via-pink-50/70 to-purple-50/70 p-4">
+                <div className="mb-3 flex items-center gap-3">
+                  <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-pink-400 to-purple-400 text-xl text-white shadow-sm">🎮</span>
+                  <div>
+                    <div className="font-display font-bold text-purple-700">
+                      {lang === 'en' ? 'Interactive task' : lang === 'ua' ? 'Інтерактивне завдання' : 'Интерактивное задание'}
+                    </div>
+                    <p className="font-body text-xs font-700 text-purple-300">
+                      {item.interactiveCompletedAt
+                        ? (lang === 'en' ? 'Completed' : lang === 'ua' ? 'Виконано' : 'Выполнено')
+                        : (lang === 'en' ? 'Open and complete it here' : lang === 'ua' ? 'Відкрийте та виконайте тут' : 'Откройте и выполните здесь')}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onStartInteractive?.(item)}
+                  className="btn-magic w-full py-3.5 font-display font-bold text-white"
+                >
+                  {item.interactiveCompletedAt
+                    ? (lang === 'en' ? 'Open again' : lang === 'ua' ? 'Відкрити ще раз' : 'Открыть снова')
+                    : (lang === 'en' ? 'Start interactive' : lang === 'ua' ? 'Почати інтерактив' : 'Начать интерактив')}
+                </button>
+              </div>
+            )}
             {/* Audio player */}
             {dataUrl && isAudio && <AudioPlayer dataUrl={dataUrl} />}
 
@@ -231,23 +319,25 @@ function FileModal({ item, onClose, lang }: { item: ContentItem; onClose: () => 
             )}
 
             {/* Download button — prevent long-press context menu on mobile */}
-            <div className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-2xl p-4 border border-pink-100">
-              <button
-                onClick={handleDownload}
-                disabled={isDownloading}
-                className="btn-magic w-full py-3.5 text-white font-display font-bold text-base flex items-center justify-center gap-3 select-none disabled:cursor-wait disabled:opacity-70"
-              >
-                <span className="text-xl">{isDownloading ? '…' : item.externalLink ? '🔗' : '⬇️'}</span>
-                {isDownloading
-                  ? (lang === 'en' ? 'Preparing...' : lang === 'ua' ? 'Готуємо...' : 'Готовим...')
-                  : item.externalLink
-                  ? (lang === 'en' ? 'Open link' : lang === 'ua' ? 'Відкрити посилання' : 'Открыть ссылку')
-                  : t(lang, 'dash_download')}
-              </button>
-              {downloadError && (
-                <p className="mt-2 text-center font-body text-xs font-700 text-rose-500">{downloadError}</p>
-              )}
-            </div>
+            {hasContent && (
+              <div className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-2xl p-4 border border-pink-100">
+                <button
+                  onClick={handleDownload}
+                  disabled={isDownloading}
+                  className="btn-magic w-full py-3.5 text-white font-display font-bold text-base flex items-center justify-center gap-3 select-none disabled:cursor-wait disabled:opacity-70"
+                >
+                  <span className="text-xl">{isDownloading ? '…' : item.externalLink ? '🔗' : '⬇️'}</span>
+                  {isDownloading
+                    ? (lang === 'en' ? 'Preparing...' : lang === 'ua' ? 'Готуємо...' : 'Готовим...')
+                    : item.externalLink
+                    ? (lang === 'en' ? 'Open link' : lang === 'ua' ? 'Відкрити посилання' : 'Открыть ссылку')
+                    : t(lang, 'dash_download')}
+                </button>
+                {downloadError && (
+                  <p className="mt-2 text-center font-body text-xs font-700 text-rose-500">{downloadError}</p>
+                )}
+              </div>
+            )}
 
             {/* Star rating */}
             {item.starRating && item.starRating > 0 && (
@@ -260,12 +350,115 @@ function FileModal({ item, onClose, lang }: { item: ContentItem; onClose: () => 
                 </div>
               </div>
             )}
+
+            {(teacherFeedback || item.checkedAt || isRevisionRequested || isInteractiveReviewed) && (
+              <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-white via-emerald-50/70 to-yellow-50/60 p-4">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-white/85 px-3 py-1 font-body text-xs font-900 text-emerald-600 shadow-sm">
+                    {isRevisionRequested ? `🔁 ${revisionText}` : `✅ ${checkedText}`}
+                  </span>
+                  {item.checkedAt && (
+                    <span className="font-body text-xs font-700 text-purple-300">
+                      {new Date(item.checkedAt).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </span>
+                  )}
+                </div>
+                <div className="font-display font-bold text-purple-700">{teacherReviewText}</div>
+                <p className="mt-1 whitespace-pre-wrap font-body text-sm leading-6 text-purple-500">
+                  {teacherFeedback || (isRevisionRequested ? revisionText : checkedText)}
+                  {isInteractiveReviewed && item.interactiveScorePercent != null ? ` · ${item.interactiveScorePercent}%` : ''}
+                </p>
+              </div>
+            )}
+
+            {isGradedContentType(item.type) && (
+              <div className="rounded-2xl border border-pink-100 bg-gradient-to-br from-white via-pink-50/60 to-purple-50/60 p-4">
+                <div className="mb-3 font-display font-bold text-purple-700">{submitTitle}</div>
+                {item.submittedAttachmentName && (
+                  <div className="mb-3 rounded-2xl bg-white/80 px-3 py-2 font-body text-xs font-700 text-purple-500">
+                    📎 {item.submittedAttachmentName}
+                  </div>
+                )}
+                {canUploadSubmission ? (
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-pink-100 bg-white px-4 py-3 font-body text-sm font-800 text-purple-600 shadow-sm transition hover:bg-pink-50">
+                      {submissionFile ? submissionFile.name : chooseText}
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf,.doc,.docx,audio/*"
+                        className="hidden"
+                        onChange={event => setSubmissionFile(event.target.files?.[0] || null)}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleSubmitWork}
+                      disabled={isSubmitting}
+                      className="btn-magic px-5 py-3 font-display font-bold text-white disabled:opacity-60"
+                    >
+                      {isSubmitting ? '...' : sendText}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl bg-white/75 px-3 py-2 font-body text-sm font-700 text-purple-400">
+                    {item.starRating && item.starRating > 0 ? alreadyGradedText : submittedText}
+                  </div>
+                )}
+                {submitMessage && <p className="mt-2 font-body text-xs font-800 text-pink-500">{submitMessage}</p>}
+              </div>
+            )}
           </div>
         ) : (
-          <div className="text-center py-10 bg-purple-50 rounded-2xl">
-            <div className="text-5xl mb-3">📎</div>
-            <p className="font-body text-purple-500 font-600">{t(lang, 'dash_no_file')}</p>
-            <p className="font-body text-purple-400 text-sm mt-1">{t(lang, 'dash_file_added_soon')}</p>
+          <div className="space-y-4">
+            <div className="text-center py-10 bg-purple-50 rounded-2xl">
+              <div className="text-5xl mb-3">📎</div>
+              <p className="font-body text-purple-500 font-600">{t(lang, 'dash_no_file')}</p>
+              <p className="font-body text-purple-400 text-sm mt-1">{t(lang, 'dash_file_added_soon')}</p>
+            </div>
+            {isGradedContentType(item.type) && (
+              <div className="rounded-2xl border border-pink-100 bg-gradient-to-br from-white via-pink-50/60 to-purple-50/60 p-4">
+                {(teacherFeedback || item.checkedAt || isRevisionRequested) && (
+                  <div className="mb-3 rounded-2xl border border-emerald-100 bg-white/80 px-3 py-2">
+                    <div className="font-body text-xs font-900 text-emerald-600">{teacherReviewText}</div>
+                    <p className="mt-1 whitespace-pre-wrap font-body text-sm leading-5 text-purple-500">
+                      {teacherFeedback || (isRevisionRequested ? revisionText : checkedText)}
+                    </p>
+                  </div>
+                )}
+                <div className="mb-3 font-display font-bold text-purple-700">{submitTitle}</div>
+                {item.submittedAttachmentName && (
+                  <div className="mb-3 rounded-2xl bg-white/80 px-3 py-2 font-body text-xs font-700 text-purple-500">
+                    📎 {item.submittedAttachmentName}
+                  </div>
+                )}
+                {canUploadSubmission ? (
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-pink-100 bg-white px-4 py-3 font-body text-sm font-800 text-purple-600 shadow-sm transition hover:bg-pink-50">
+                      {submissionFile ? submissionFile.name : chooseText}
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf,.doc,.docx,audio/*"
+                        className="hidden"
+                        onChange={event => setSubmissionFile(event.target.files?.[0] || null)}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleSubmitWork}
+                      disabled={isSubmitting}
+                      className="btn-magic px-5 py-3 font-display font-bold text-white disabled:opacity-60"
+                    >
+                      {isSubmitting ? '...' : sendText}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl bg-white/75 px-3 py-2 font-body text-sm font-700 text-purple-400">
+                    {item.starRating && item.starRating > 0 ? alreadyGradedText : submittedText}
+                  </div>
+                )}
+                {submitMessage && <p className="mt-2 font-body text-xs font-800 text-pink-500">{submitMessage}</p>}
+              </div>
+            )}
           </div>
         )}
       </motion.div>
@@ -307,6 +500,11 @@ function LockedModal({ item, onClose, lang }: { item: ContentItem; onClose: () =
 function ContentCard({ item, lang, onClick }: { item: ContentItem; lang: Lang; onClick: () => void }) {
   const isLocked = !item.unlocked;
   const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
+  const teacherFeedback = (item.reviewComment || item.teacherComment || '').trim();
+  const checkedText = lang === 'en' ? 'Checked' : lang === 'ua' ? 'Перевірено' : 'Проверено';
+  const revisionText = lang === 'en' ? 'Needs revision' : lang === 'ua' ? 'Потрібно доопрацювати' : 'Нужно доработать';
+  const isRevisionRequested = item.homeworkStatus === 'revision_requested' || item.studentResult === 'Revision Requested';
+  const isInteractiveReviewed = !!item.interactiveCompletedAt || item.studentResult === 'Interactive completed' || item.interactiveScorePercent != null;
   const colorMap: Record<string, string> = {
     lesson: 'from-pink-50 to-rose-50 border-pink-200',
     homework: 'from-purple-50 to-violet-50 border-purple-200',
@@ -327,6 +525,9 @@ function ContentCard({ item, lang, onClick }: { item: ContentItem; lang: Lang; o
       {!isLocked && item.fileDataUrl && (
         <div className="absolute top-3 right-3 text-xs bg-white/80 text-purple-500 px-2 py-0.5 rounded-full font-body font-600 shadow-sm">📎</div>
       )}
+      {!isLocked && item.interactiveLessonId && (
+        <div className="absolute top-3 right-3 text-xs bg-white/80 text-blue-500 px-2 py-0.5 rounded-full font-body font-600 shadow-sm">🎮</div>
+      )}
       <div className="text-4xl mb-3">{item.emoji}</div>
       <h4 className={`font-display font-bold text-base mb-2 leading-snug pr-10 ${isLocked ? 'text-gray-400' : 'text-purple-700'}`}>
         {item.title}
@@ -339,11 +540,33 @@ function ContentCard({ item, lang, onClick }: { item: ContentItem; lang: Lang; o
       {item.scheduledDate && item.scheduledDate.length > 0 && (
         <p className="font-body text-xs text-blue-400 mb-1">🗓 {item.scheduledDate} {item.scheduledTime}</p>
       )}
+      {item.submittedAt && (
+        <p className="font-body text-xs text-green-500 mb-1">
+          ✅ {lang === 'en' ? 'Submitted' : lang === 'ua' ? 'Здано' : 'Сдано'}
+        </p>
+      )}
       {item.starRating && item.starRating > 0 && (
         <div className="flex gap-0.5 my-1">
           {[1,2,3,4,5].map(s => (
             <span key={s} className={`text-base ${s <= item.starRating! ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
           ))}
+        </div>
+      )}
+      {(item.checkedAt || teacherFeedback || isRevisionRequested || isInteractiveReviewed) && (
+        <div className="mt-2 rounded-2xl border border-white/75 bg-white/80 px-3 py-2 shadow-sm">
+          <div className={`font-body text-xs font-800 ${isRevisionRequested ? 'text-orange-500' : 'text-emerald-600'}`}>
+            {isRevisionRequested ? `🔁 ${revisionText}` : `✅ ${checkedText}`}
+          </div>
+          {isInteractiveReviewed && item.interactiveScorePercent != null && (
+            <p className="mt-1 font-body text-xs font-800 text-emerald-500">
+              {item.interactiveScorePercent}%
+            </p>
+          )}
+          {teacherFeedback && (
+            <p className="mt-1 line-clamp-2 font-body text-xs leading-5 text-purple-500">
+              {teacherFeedback}
+            </p>
+          )}
         </div>
       )}
       <div className={`mt-3 text-xs font-body font-600 px-3 py-1.5 rounded-full inline-block ${
@@ -384,14 +607,18 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   const [content, setContent] = useState<ContentItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [assignedInteractive, setAssignedInteractive] = useState<{ item: ContentItem; lesson: WorkbookLesson } | null>(null);
   const [starProfile, setStarProfile] = useState({ starBalance: 0, totalEarned: 0, pendingCelebration: 0, avatarId: null as string | null });
   const [celebrationAmount, setCelebrationAmount] = useState(0);
+  const [billing, setBilling] = useState<BillingSummary | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalError, setPortalError] = useState('');
 
   const effectiveUserId = previewUserId || user?.id || '';
   const langs: Lang[] = ['ru', 'en', 'ua'];
   const isPreview = !!previewUserId;
 
-  const refreshStars = async () => {
+  const refreshStars = useCallback(async () => {
     if (!effectiveUserId) return;
     const p = await loadStarProfile(effectiveUserId);
     setStarProfile(p);
@@ -399,16 +626,46 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
       setCelebrationAmount(p.pendingCelebration);
       await clearCelebration(effectiveUserId);
     }
-  };
+  }, [effectiveUserId, isPreview]);
+
+  const refreshStudentData = useCallback(async () => {
+    if (!effectiveUserId) return;
+    const [freshContent, billingResult] = await Promise.all([
+      loadStudentContent(effectiveUserId),
+      supabase
+        .from('profiles')
+        .select('payment_status,payment_failed_at,stripe_customer_id,subscription_status,cancel_at_period_end,canceled_at,plan_id,lesson_format,lessons_total,lessons_remaining,current_period_end,next_payment_date')
+        .eq('id', effectiveUserId)
+        .maybeSingle(),
+      refreshStars(),
+    ]);
+    setContent(freshContent);
+    if (billingResult.data) setBilling(billingResult.data);
+    setSelectedItem(prev => prev ? freshContent.find(item => item.id === prev.id) || prev : prev);
+  }, [effectiveUserId, refreshStars]);
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
     const h = new Date().getHours();
     setGreeting(h < 12 ? t(lang, 'dash_morning') : h < 17 ? t(lang, 'dash_afternoon') : t(lang, 'dash_evening'));
     loadStudentSchedule(effectiveUserId).then(setSchedule);
-    loadStudentContent(effectiveUserId).then(setContent);
-    refreshStars();
-  }, [user, navigate, lang, effectiveUserId]);
+    refreshStudentData();
+  }, [user, navigate, lang, effectiveUserId, refreshStudentData]);
+
+  useEffect(() => {
+    if (!effectiveUserId || isPreview) return;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refreshStudentData();
+    };
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    const interval = window.setInterval(() => void refreshStudentData(), 15000);
+    return () => {
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.clearInterval(interval);
+    };
+  }, [effectiveUserId, isPreview, refreshStudentData]);
 
   useEffect(() => { setLang(propLang); }, [propLang]);
 
@@ -416,6 +673,41 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
   const handleLogout = async () => { await logout(); navigate('/'); };
   const handleItemClick = (item: ContentItem) => { setSelectedItem(item); setShowModal(true); };
+  const friendlyPortalError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('Log in')) {
+      return lang === 'en' ? 'Log in to manage your subscription.' : lang === 'ua' ? 'Увійдіть, щоб керувати підпискою.' : 'Войдите, чтобы управлять подпиской.';
+    }
+    if (message.includes('No Stripe subscription')) {
+      return lang === 'en'
+        ? 'No Stripe subscription is connected to this account yet.'
+        : lang === 'ua'
+          ? 'До цього акаунта ще не підключена Stripe-підписка.'
+          : 'К этому аккаунту пока не подключена Stripe-подписка.';
+    }
+    return lang === 'en'
+      ? 'Could not open subscription management.'
+      : lang === 'ua'
+        ? 'Не вдалося відкрити керування підпискою.'
+        : 'Не удалось открыть управление подпиской.';
+  };
+  const handleManageSubscription = async () => {
+    setPortalLoading(true);
+    setPortalError('');
+    try {
+      await redirectToStripeCustomerPortal();
+    } catch (error) {
+      setPortalError(friendlyPortalError(error));
+      setPortalLoading(false);
+    }
+  };
+  const startAssignedInteractive = async (item: ContentItem) => {
+    if (!item.interactiveLessonId) return;
+    const lesson = await getLessonById(item.interactiveLessonId);
+    if (!lesson) return;
+    setShowModal(false);
+    setAssignedInteractive({ item, lesson });
+  };
 
   const lessons = content.filter(i => i.type === 'lesson');
   const homework = content.filter(i => i.type === 'homework');
@@ -426,6 +718,45 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   const completedLessons = lessons.filter(l => l.unlocked).length;
   const { avg: ratingAvg } = getStudentRating(effectiveUserId);
   const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
+  const billingPlanId = billing?.plan_id && billing.plan_id in pricingPlanNameKeys ? billing.plan_id as PricingPlanId : null;
+  const billingPlanName = billingPlanId ? t(lang, pricingPlanNameKeys[billingPlanId]) : billing?.plan_id || (lang === 'en' ? 'No active plan' : lang === 'ua' ? 'Немає активного тарифу' : 'Нет активного тарифа');
+  const billingFormat = billing?.lesson_format === 'individual'
+    ? (lang === 'en' ? 'Individual' : lang === 'ua' ? 'Індивідуально' : 'Индивидуально')
+    : billing?.lesson_format === 'group'
+      ? (lang === 'en' ? 'Group' : lang === 'ua' ? 'Група' : 'Группа')
+      : '—';
+  const hasPaymentProblem = billing?.payment_status === 'failed'
+    || billing?.subscription_status === 'past_due'
+    || billing?.subscription_status === 'unpaid'
+    || billing?.subscription_status === 'incomplete_expired';
+  const isSubscriptionCanceled = billing?.subscription_status === 'canceled';
+  const isCancelAtPeriodEnd = !isSubscriptionCanceled && Boolean(billing?.cancel_at_period_end);
+  const isSubscriptionActive = billing?.subscription_status === 'active' || billing?.subscription_status === 'trialing' || billing?.payment_status === 'paid';
+  const billingStatus = hasPaymentProblem
+    ? (lang === 'en' ? 'Payment problem' : lang === 'ua' ? 'Проблема з оплатою' : 'Проблема с оплатой')
+    : isCancelAtPeriodEnd
+      ? (lang === 'en' ? 'Ends at paid period end' : lang === 'ua' ? 'Скасується в кінці оплаченого періоду' : 'Отменится в конце оплаченного периода')
+      : isSubscriptionCanceled
+        ? (lang === 'en' ? 'Canceled' : lang === 'ua' ? 'Скасована' : 'Отменена')
+        : isSubscriptionActive
+          ? (lang === 'en' ? 'Active' : lang === 'ua' ? 'Активна' : 'Активна')
+          : (lang === 'en' ? 'Pending payment' : lang === 'ua' ? 'Очікує оплати' : 'Ожидает оплаты');
+  const paymentFailedLabel = lang === 'en' ? 'Failed charge' : lang === 'ua' ? 'Невдале списання' : 'Неуспешное списание';
+  const updatePaymentMethodLabel = lang === 'en' ? 'Update payment method' : lang === 'ua' ? 'Оновити спосіб оплати' : 'Обновить способ оплаты';
+  const nextPaymentLabel = lang === 'en' ? 'Next payment' : lang === 'ua' ? 'Наступний платіж' : 'Следующий платёж';
+  const paidPeriodEndLabel = lang === 'en' ? 'Paid period ends' : lang === 'ua' ? 'Оплачений період до' : 'Оплаченный период до';
+  const lessonsBalanceLabel = lang === 'en' ? 'Lessons remaining' : lang === 'ua' ? 'Залишок уроків' : 'Осталось уроков';
+  const tariffLabel = lang === 'en' ? 'Current plan' : lang === 'ua' ? 'Поточний тариф' : 'Текущий тариф';
+  const formatLabel = lang === 'en' ? 'Format' : lang === 'ua' ? 'Формат' : 'Формат';
+  const nextPaymentDate = billing?.next_payment_date || billing?.current_period_end;
+  const hasStripeCustomer = Boolean(billing?.stripe_customer_id || user.stripeCustomerId);
+  const manageSubscriptionLabel = lang === 'en' ? 'Manage subscription' : lang === 'ua' ? 'Керування підпискою' : 'Управление подпиской';
+  const billingStatusClass = hasPaymentProblem || isSubscriptionCanceled
+    ? 'text-red-500'
+    : isCancelAtPeriodEnd
+      ? 'text-amber-500'
+      : 'text-purple-400';
+  const billingDateLabel = isCancelAtPeriodEnd || isSubscriptionCanceled ? paidPeriodEndLabel : nextPaymentLabel;
 
   const tabs: { id: Tab; label: string; emoji: string }[] = [
     { id: 'overview', label: t(lang, 'dash_overview'), emoji: '🏠' },
@@ -452,10 +783,34 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
       <AnimatePresence>
         {showModal && selectedItem && (
           selectedItem.unlocked
-            ? <FileModal item={selectedItem} onClose={() => setShowModal(false)} lang={lang} />
+            ? <FileModal
+                item={selectedItem}
+                userId={effectiveUserId}
+                canSubmitWork={!isPreview}
+                onClose={() => setShowModal(false)}
+                onSubmitted={refreshStudentData}
+                onStartInteractive={startAssignedInteractive}
+                lang={lang}
+              />
             : <LockedModal item={selectedItem} onClose={() => setShowModal(false)} lang={lang} />
         )}
       </AnimatePresence>
+      {assignedInteractive && (
+        <InteractiveLessonRoom
+          lesson={assignedInteractive.lesson}
+          userId={effectiveUserId}
+          contentItemId={assignedInteractive.item.id}
+          lang={lang}
+          onExit={() => {
+            setAssignedInteractive(null);
+            void refreshStudentData();
+          }}
+          onCompleted={() => {
+            void refreshStudentData();
+            void refreshStars();
+          }}
+        />
+      )}
 
       {/* Header */}
       <div className="sticky top-0 z-40 glass border-b border-pink-100" style={{ boxShadow: '0 4px 20px rgba(200,150,220,0.1)' }}>
@@ -570,6 +925,70 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                       <div className="font-body text-xs text-purple-500 mt-1">{stat.label}</div>
                     </motion.div>
                   ))}
+                </div>
+
+                <div className="glass rounded-3xl p-6">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="font-body text-xs font-800 uppercase tracking-[0.12em] text-purple-300">{tariffLabel}</p>
+                      <h3 className="mt-1 font-display text-2xl font-black text-purple-700">{billingPlanName}</h3>
+                      <p className={`mt-1 font-body text-sm font-700 ${billingStatusClass}`}>{billingStatus}</p>
+                      {hasPaymentProblem && billing?.payment_failed_at && (
+                        <p className="mt-1 font-body text-xs font-700 text-purple-400">
+                          {paymentFailedLabel}: {new Date(billing.payment_failed_at).toLocaleDateString(locale)}
+                        </p>
+                      )}
+                      {(isCancelAtPeriodEnd || isSubscriptionCanceled) && billing?.current_period_end && (
+                        <p className="mt-1 font-body text-xs font-700 text-purple-400">
+                          {paidPeriodEndLabel}: {new Date(billing.current_period_end).toLocaleDateString(locale)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3 md:min-w-[34rem]">
+                      <div className="rounded-2xl border border-purple-100 bg-white/60 px-4 py-3">
+                        <p className="font-body text-xs font-800 text-purple-300">{formatLabel}</p>
+                        <p className="font-display text-lg font-black text-purple-700">{billingFormat}</p>
+                      </div>
+                      <div className="rounded-2xl border border-purple-100 bg-white/60 px-4 py-3">
+                        <p className="font-body text-xs font-800 text-purple-300">{lessonsBalanceLabel}</p>
+                        <p className="font-display text-lg font-black text-purple-700">
+                          {billing ? `${billing.lessons_remaining ?? 0}/${billing.lessons_total ?? 0}` : '—'}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-purple-100 bg-white/60 px-4 py-3">
+                        <p className="font-body text-xs font-800 text-purple-300">{billingDateLabel}</p>
+                        <p className="font-display text-sm font-black text-purple-700">
+                          {nextPaymentDate ? new Date(nextPaymentDate).toLocaleDateString(locale) : '—'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  {(hasPaymentProblem || hasStripeCustomer) && (
+                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                      {hasStripeCustomer && (
+                        <button
+                          type="button"
+                          onClick={handleManageSubscription}
+                          disabled={portalLoading}
+                          className="inline-flex min-h-11 items-center justify-center rounded-full border border-purple-200 bg-white/75 px-5 py-2 font-display text-sm font-bold text-purple-600 shadow-sm transition hover:bg-purple-50 disabled:opacity-60"
+                        >
+                          {portalLoading ? '...' : manageSubscriptionLabel}
+                        </button>
+                      )}
+                      {hasPaymentProblem && !hasStripeCustomer && (
+                        <button
+                          type="button"
+                          disabled
+                          className="inline-flex min-h-11 items-center justify-center rounded-full border border-red-200 bg-red-50 px-5 py-2 font-display text-sm font-bold text-red-500 opacity-80"
+                        >
+                          {updatePaymentMethodLabel}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {portalError && (
+                    <p className="mt-2 font-body text-xs font-700 text-red-500">{portalError}</p>
+                  )}
                 </div>
 
                 {!isPreview && (
@@ -792,7 +1211,14 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
             {/* INTERACTIVE LESSONS */}
             {activeTab === 'interactive' && (
-              <InteractiveLessonMap userId={effectiveUserId} hasAccess={user.hasAccess} lang={lang} onStarsChanged={refreshStars} />
+              <InteractiveLessonMap
+                userId={effectiveUserId}
+                hasAccess={user.hasAccess}
+                lang={lang}
+                assignedContent={content.filter(item => !!item.interactiveLessonId)}
+                onStarsChanged={refreshStars}
+                onContentChanged={refreshStudentData}
+              />
             )}
 
 

@@ -2,8 +2,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { cacheGet, cacheSet, cacheClear, subscribe } from './storage';
 import { safeRedirectPath } from './authRedirects';
 
-export type Role = 'admin' | 'student';
-export type PaymentStatus = 'unpaid' | 'pending_review' | 'paid' | 'refunded';
+export type Role = 'admin' | 'teacher' | 'student';
+export type PaymentStatus = 'unpaid' | 'pending_review' | 'paid' | 'refunded' | 'failed';
 export type AccessStatus = 'pending' | 'active' | 'suspended' | 'cancelled';
 
 export interface User {
@@ -18,6 +18,20 @@ export interface User {
   createdAt: string;
   joinedAt: string;
   avatarId?: string | null;
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
+  stripePriceId?: string | null;
+  subscriptionStatus?: string | null;
+  planId?: string | null;
+  lessonFormat?: string | null;
+  lessonsTotal?: number;
+  lessonsRemaining?: number;
+  currentPeriodStart?: string | null;
+  currentPeriodEnd?: string | null;
+  nextPaymentDate?: string | null;
+  paymentFailedAt?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  canceledAt?: string | null;
 }
 
 type AuthResult<T = undefined> = Promise<{ success: boolean; data?: T; error?: string }>;
@@ -29,6 +43,12 @@ export const getCurrentUser = (): User | null => cacheGet<User>(ME_KEY) ?? null;
 export const getUsers = (): User[] => cacheGet<User[]>(USERS_KEY) ?? [];
 export const subscribeAuth = subscribe;
 export { safeRedirectPath };
+
+export function homePathForUser(user?: User | null) {
+  if (user?.role === 'admin') return '/admin';
+  if (user?.role === 'teacher') return '/teacher';
+  return user?.hasAccess ? '/dashboard' : '/pending-activation';
+}
 
 function redirectUrl(path: string) {
   return `${window.location.origin}${path}`;
@@ -94,7 +114,7 @@ async function initializeProfile(authUserId: string, email: string, name?: strin
       payment_status: 'unpaid',
       access_status: 'pending',
       has_access: false,
-    } as any, { onConflict: 'id', ignoreDuplicates: true });
+    }, { onConflict: 'id', ignoreDuplicates: true });
 
   if (!error) return;
   if (!isMissingAccessStatusColumns(error)) throw error;
@@ -106,7 +126,7 @@ async function initializeProfile(authUserId: string, email: string, name?: strin
       email: normalizedEmail,
       name: displayName,
       has_access: false,
-    } as any, { onConflict: 'id', ignoreDuplicates: true });
+    }, { onConflict: 'id', ignoreDuplicates: true });
 
   if (legacyError) throw legacyError;
 }
@@ -119,9 +139,9 @@ async function loadCurrentUser(authUserId: string): Promise<User | null> {
   ]);
 
   if (!profile || !authData.user) return null;
-  const role: Role = roles?.some(r => r.role === 'admin') ? 'admin' : 'student';
-  const accessStatus = ((profile as any).access_status || (profile.has_access ? 'active' : 'pending')) as AccessStatus;
-  const paymentStatus = ((profile as any).payment_status || (profile.has_access ? 'paid' : 'unpaid')) as PaymentStatus;
+  const role: Role = roles?.some(r => r.role === 'admin') ? 'admin' : roles?.some(r => r.role === 'teacher') ? 'teacher' : 'student';
+  const accessStatus = (profile.access_status || (profile.has_access ? 'active' : 'pending')) as AccessStatus;
+  const paymentStatus = (profile.payment_status || (profile.has_access ? 'paid' : 'unpaid')) as PaymentStatus;
 
   return {
     id: profile.id,
@@ -134,7 +154,21 @@ async function loadCurrentUser(authUserId: string): Promise<User | null> {
     emailConfirmed: emailConfirmed(authData.user),
     createdAt: profile.created_at,
     joinedAt: profile.created_at,
-    avatarId: (profile as any).avatar_id ?? null,
+    avatarId: profile.avatar_id ?? null,
+    stripeCustomerId: profile.stripe_customer_id ?? null,
+    stripeSubscriptionId: profile.stripe_subscription_id ?? null,
+    stripePriceId: profile.stripe_price_id ?? null,
+    subscriptionStatus: profile.subscription_status ?? null,
+    planId: profile.plan_id ?? null,
+    lessonFormat: profile.lesson_format ?? null,
+    lessonsTotal: profile.lessons_total ?? 0,
+    lessonsRemaining: profile.lessons_remaining ?? 0,
+    currentPeriodStart: profile.current_period_start ?? null,
+    currentPeriodEnd: profile.current_period_end ?? null,
+    nextPaymentDate: profile.next_payment_date ?? null,
+    paymentFailedAt: profile.payment_failed_at ?? null,
+    cancelAtPeriodEnd: profile.cancel_at_period_end ?? false,
+    canceledAt: profile.canceled_at ?? null,
   };
 }
 
@@ -145,9 +179,12 @@ export async function loadAllUsers(): Promise<User[]> {
   ]);
 
   const roleMap = new Map<string, Role>();
-  roles?.forEach(r => { if (r.role === 'admin') roleMap.set(r.user_id, 'admin'); });
+  roles?.forEach(r => {
+    if (r.role === 'admin') roleMap.set(r.user_id, 'admin');
+    else if (r.role === 'teacher' && roleMap.get(r.user_id) !== 'admin') roleMap.set(r.user_id, 'teacher');
+  });
 
-  const list: User[] = (profiles || []).map((p: any) => {
+  const list: User[] = (profiles || []).map(p => {
     const accessStatus = (p.access_status || (p.has_access ? 'active' : 'pending')) as AccessStatus;
     const paymentStatus = (p.payment_status || (p.has_access ? 'paid' : 'unpaid')) as PaymentStatus;
     return {
@@ -162,6 +199,20 @@ export async function loadAllUsers(): Promise<User[]> {
       createdAt: p.created_at,
       joinedAt: p.created_at,
       avatarId: p.avatar_id ?? null,
+      stripeCustomerId: p.stripe_customer_id ?? null,
+      stripeSubscriptionId: p.stripe_subscription_id ?? null,
+      stripePriceId: p.stripe_price_id ?? null,
+      subscriptionStatus: p.subscription_status ?? null,
+      planId: p.plan_id ?? null,
+      lessonFormat: p.lesson_format ?? null,
+      lessonsTotal: p.lessons_total ?? 0,
+      lessonsRemaining: p.lessons_remaining ?? 0,
+      currentPeriodStart: p.current_period_start ?? null,
+      currentPeriodEnd: p.current_period_end ?? null,
+      nextPaymentDate: p.next_payment_date ?? null,
+      paymentFailedAt: p.payment_failed_at ?? null,
+      cancelAtPeriodEnd: p.cancel_at_period_end ?? false,
+      canceledAt: p.canceled_at ?? null,
     };
   });
 
@@ -325,7 +376,7 @@ export async function completeAuthCallback(next?: string | null): AuthResult<{ r
   cacheSet(ME_KEY, me);
   if (me?.role === 'admin') await loadAllUsers();
 
-  return { success: true, data: { redirectTo: safeRedirectPath(next, me?.role === 'admin' ? '/admin' : '/dashboard') } };
+  return { success: true, data: { redirectTo: safeRedirectPath(next, homePathForUser(me)) } };
 }
 
 export async function validateRecoverySession(): AuthResult {
@@ -360,10 +411,10 @@ export async function logout() {
 }
 
 export async function setAccessStatus(userId: string, accessStatus: AccessStatus, paymentStatus?: PaymentStatus) {
-  const patch: Record<string, string> = { access_status: accessStatus };
+  const patch: { access_status: AccessStatus; payment_status?: PaymentStatus } = { access_status: accessStatus };
   if (paymentStatus) patch.payment_status = paymentStatus;
 
-  const { error } = await supabase.from('profiles').update(patch as any).eq('id', userId);
+  const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
   if (error) {
     if (!isMissingAccessStatusColumns(error)) throw error;
 
@@ -377,7 +428,7 @@ export async function setAccessStatus(userId: string, accessStatus: AccessStatus
 
     const { error: legacyError } = await supabase
       .from('profiles')
-      .update({ has_access: accessStatus === 'active' } as any)
+      .update({ has_access: accessStatus === 'active' })
       .eq('id', userId);
 
     if (legacyError) throw legacyError;

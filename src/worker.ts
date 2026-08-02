@@ -1,9 +1,29 @@
+import { handleCreateStripeCheckoutSession, handleCreateStripePortalSession, handleCreateStripeRefund, handleStripeWebhook } from './lib/stripeCheckoutServer';
+
 type AssetsBinding = {
   fetch(input: Request | string | URL): Promise<Response>;
 };
 
 interface Env {
   ASSETS: AssetsBinding;
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  STRIPE_PORTAL_CONFIGURATION_ID?: string;
+  SUCCESS_URL?: string;
+  CANCEL_URL?: string;
+  VITE_SUPABASE_URL?: string;
+  VITE_SUPABASE_PUBLISHABLE_KEY?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  SENDPULSE_CLIENT_ID?: string;
+  SENDPULSE_CLIENT_SECRET?: string;
+  SENDPULSE_FROM_EMAIL?: string;
+  SENDPULSE_FROM_NAME?: string;
+  SENDPULSE_EMAIL_ENDPOINT?: string;
+  TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_ADMIN_CHAT_ID?: string;
+  TELEGRAM_ADMIN_CHAT_IDS?: string;
+  APP_URL?: string;
+  PUBLIC_APP_URL?: string;
 }
 
 const VALID_SPA_ROUTES = new Set([
@@ -20,9 +40,13 @@ const VALID_SPA_ROUTES = new Set([
   '/account/security',
   '/dashboard',
   '/admin',
+  '/teacher',
   '/cookie-policy',
   '/privacy-policy',
   '/trial-booking',
+  '/pricing',
+  '/payment/success',
+  '/payment/cancel',
 ]);
 
 function normalizePathname(pathname: string) {
@@ -32,7 +56,13 @@ function normalizePathname(pathname: string) {
 
 function isValidSpaRoute(pathname: string) {
   const normalizedPathname = normalizePathname(pathname);
-  return VALID_SPA_ROUTES.has(normalizedPathname) || /^\/analytics\/[^/]+$/.test(normalizedPathname);
+  return (
+    VALID_SPA_ROUTES.has(normalizedPathname) ||
+    /^\/analytics\/[^/]+$/.test(normalizedPathname) ||
+    /^\/checkout\/[^/]+$/.test(normalizedPathname) ||
+    /^\/teacher\/groups\/[^/]+$/.test(normalizedPathname) ||
+    /^\/teacher\/students\/[^/]+$/.test(normalizedPathname)
+  );
 }
 
 function looksLikeStaticAsset(pathname: string) {
@@ -68,6 +98,22 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const pathname = normalizePathname(url.pathname);
+
+    if (pathname === '/api/stripe/create-checkout-session' || pathname === '/api/create-checkout-session') {
+      return handleCreateStripeCheckoutSession(request, env);
+    }
+
+    if (pathname === '/api/stripe/create-portal-session') {
+      return handleCreateStripePortalSession(request, env);
+    }
+
+    if (pathname === '/api/stripe/create-refund') {
+      return handleCreateStripeRefund(request, env);
+    }
+
+    if (pathname === '/api/stripe/webhook') {
+      return handleStripeWebhook(request, env);
+    }
 
     if (looksLikeStaticAsset(pathname)) {
       return env.ASSETS.fetch(request);

@@ -335,7 +335,7 @@ function CurrencySelector({
                 : 'text-purple-500 hover:-translate-y-0.5 hover:bg-white/70 hover:text-pink-500 dark:text-purple-100 dark:hover:bg-white/10 dark:hover:text-pink-100',
             )}
           >
-            {currency === 'CZK' ? 'Kč' : '€'}
+            {currency}
           </button>
         );
       })}
@@ -434,7 +434,7 @@ function PlanCard({
 
         <div className="mb-6 mt-auto">
           <div className="flex items-end gap-2">
-            <p className="font-display text-4xl font-black leading-none text-purple-700 dark:text-white">
+            <p className="whitespace-nowrap font-display text-4xl font-black leading-none text-purple-700 dark:text-white">
               {formatCurrencyAmount(price.monthlyCzk, currency, lang)}
             </p>
             <p className="pb-1 font-body text-sm font-700 text-purple-400 dark:text-purple-200/70">{t(lang, 'pricing_per_month')}</p>
@@ -472,7 +472,7 @@ function PricingCards({
   const accent = accentStyles[lessonType];
 
   return (
-    <section className="pricing-section relative overflow-hidden px-4 py-16 sm:py-20">
+    <section className="pricing-section relative overflow-hidden px-4 pb-16 pt-8 sm:pb-20 sm:pt-10">
       <div className="absolute inset-0 bg-gradient-to-b from-white/56 via-pink-50/52 to-blue-50/50 dark:from-[#140624]/92 dark:via-[#10051d]/88 dark:to-[#0b1024]/92" />
       <div className="absolute left-1/2 top-4 h-60 w-[min(44rem,85vw)] -translate-x-1/2 rounded-full bg-pink-200/30 blur-3xl dark:bg-pink-500/8" />
       <div className="relative z-10 mx-auto max-w-6xl">

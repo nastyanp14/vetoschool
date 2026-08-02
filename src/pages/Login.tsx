@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { login, signInWithGoogle } from '../lib/auth';
+import { homePathForUser, login, signInWithGoogle } from '../lib/auth';
 import { Lang, t } from '../lib/i18n';
 import { AuthAlert, AuthFooterLink, AuthHeader, AuthPageShell, GoogleButton } from '../components/AuthCard';
 import { useToast } from '@/hooks/use-toast';
@@ -29,8 +29,7 @@ export default function Login({ lang }: { lang: Lang }) {
     setLoading(false);
 
     if (result.success && result.data) {
-      if (result.data.role === 'admin') navigate('/admin');
-      else navigate(result.data.hasAccess ? '/dashboard' : '/pending-activation');
+      navigate(homePathForUser(result.data));
     } else {
       setError(result.error || 'Login failed');
     }

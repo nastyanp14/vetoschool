@@ -42,9 +42,9 @@ function normalizeSession(row: any): LiveSession {
     started_at: row.started_at,
     last_seen_at: row.last_seen_at,
     completed_at: row.completed_at ?? null,
-    lesson_title: row.lessons?.title,
-    student_name: row.profiles?.name,
-    student_email: row.profiles?.email,
+    lesson_title: row.lesson_title ?? row.lessons?.title,
+    student_name: row.student_name ?? row.profiles?.name,
+    student_email: row.student_email ?? row.profiles?.email,
   };
 }
 
@@ -187,6 +187,9 @@ export async function recordLiveEvent(input: {
 export async function listLiveSessions(): Promise<LiveSession[]> {
   await cleanupStaleLiveSessions();
   await cleanupDuplicateActiveSessions();
+  const rpc = await (supabase as any).rpc('get_visible_live_sessions');
+  if (!rpc.error) return ((rpc.data as any[]) || []).map(normalizeSession);
+
   const query = (supabase as any)
     .from('lesson_live_sessions')
     .select('*, lessons(title), profiles(name,email)')

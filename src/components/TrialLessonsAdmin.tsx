@@ -11,6 +11,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { Lang } from '@/lib/i18n';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   loadTrialBookings,
   updateTrialBooking,
@@ -272,6 +273,23 @@ function DetailRow({ label, value }: { label: string; value: string | number | n
   );
 }
 
+function FilterSelect({ value, onChange, options }: { value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }> }) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="h-auto rounded-2xl border border-purple-100 bg-white/85 px-3 py-3 font-body text-sm font-bold text-purple-700 shadow-sm outline-none transition focus:border-pink-300 focus:ring-4 focus:ring-pink-100 dark:border-purple-700 dark:bg-white/10 dark:text-purple-100">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="rounded-2xl border-2 border-purple-100 bg-white/95 p-1 shadow-xl shadow-purple-100/60 backdrop-blur-xl dark:border-purple-700 dark:bg-[#1b0c2f]">
+        {options.map(option => (
+          <SelectItem key={option.value} value={option.value} className="rounded-xl font-body text-sm font-bold text-purple-700 focus:bg-pink-50 dark:text-purple-100 dark:focus:bg-white/10">
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 export default function TrialLessonsAdmin({ lang }: { lang: Lang }) {
   const labels = copy[lang];
   const [bookings, setBookings] = useState<TrialBookingRecord[]>([]);
@@ -409,21 +427,16 @@ export default function TrialLessonsAdmin({ lang }: { lang: Lang }) {
             />
           </div>
         </label>
-        <select value={filters.status} onChange={event => setFilters(current => ({ ...current, status: event.target.value as FilterState['status'] }))} className="rounded-2xl border border-purple-100 bg-white/80 px-3 py-3 font-body text-sm font-semibold text-purple-700 outline-none focus:border-pink-300 focus:ring-4 focus:ring-pink-100 dark:border-purple-700 dark:bg-[#1b0c2f] dark:text-purple-100">
-          <option value="all">{labels.status}: {labels.all}</option>
-          {statuses.map(status => <option key={status} value={status}>{labels.statuses[status]}</option>)}
-        </select>
-        <input type="date" value={filters.date} onChange={event => setFilters(current => ({ ...current, date: event.target.value }))} className="rounded-2xl border border-purple-100 bg-white/80 px-3 py-3 font-body text-sm font-semibold text-purple-700 outline-none focus:border-pink-300 focus:ring-4 focus:ring-pink-100 dark:border-purple-700 dark:bg-[#1b0c2f] dark:text-purple-100" aria-label={labels.date} />
-        <select value={filters.language} onChange={event => setFilters(current => ({ ...current, language: event.target.value as FilterState['language'] }))} className="rounded-2xl border border-purple-100 bg-white/80 px-3 py-3 font-body text-sm font-semibold text-purple-700 outline-none focus:border-pink-300 focus:ring-4 focus:ring-pink-100 dark:border-purple-700 dark:bg-[#1b0c2f] dark:text-purple-100">
-          <option value="all">{labels.language}: {labels.all}</option>
-          <option value="ru">{labels.languages.ru}</option>
-          <option value="ua">{labels.languages.ua}</option>
-          <option value="en">{labels.languages.en}</option>
-        </select>
-        <select value={filters.recommendation} onChange={event => setFilters(current => ({ ...current, recommendation: event.target.value as FilterState['recommendation'] }))} className="rounded-2xl border border-purple-100 bg-white/80 px-3 py-3 font-body text-sm font-semibold text-purple-700 outline-none focus:border-pink-300 focus:ring-4 focus:ring-pink-100 dark:border-purple-700 dark:bg-[#1b0c2f] dark:text-purple-100 md:col-span-5">
-          <option value="all">{labels.recommendation}: {labels.all}</option>
-          {recommendations.map(recommendation => <option key={recommendation} value={recommendation}>{recommendation}</option>)}
-        </select>
+        <FilterSelect value={filters.status} onChange={value => setFilters(current => ({ ...current, status: value as FilterState['status'] }))} options={[{ value: 'all', label: `${labels.status}: ${labels.all}` }, ...statuses.map(status => ({ value: status, label: labels.statuses[status] }))]} />
+        <div className="relative">
+          <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-purple-300" aria-hidden="true" />
+          <input type="text" inputMode="numeric" value={filters.date} onChange={event => setFilters(current => ({ ...current, date: event.target.value }))} placeholder="YYYY-MM-DD" className="w-full rounded-2xl border border-purple-100 bg-white/85 py-3 pl-10 pr-10 font-body text-sm font-bold text-purple-700 shadow-sm outline-none transition placeholder:text-purple-300 focus:border-pink-300 focus:ring-4 focus:ring-pink-100 dark:border-purple-700 dark:bg-white/10 dark:text-purple-100" aria-label={labels.date} />
+          {filters.date && <button type="button" onClick={() => setFilters(current => ({ ...current, date: '' }))} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-purple-300 transition hover:bg-purple-50 hover:text-purple-600">×</button>}
+        </div>
+        <FilterSelect value={filters.language} onChange={value => setFilters(current => ({ ...current, language: value as FilterState['language'] }))} options={[{ value: 'all', label: `${labels.language}: ${labels.all}` }, { value: 'ru', label: labels.languages.ru }, { value: 'ua', label: labels.languages.ua }, { value: 'en', label: labels.languages.en }]} />
+        <div className="md:col-span-5">
+          <FilterSelect value={filters.recommendation} onChange={value => setFilters(current => ({ ...current, recommendation: value as FilterState['recommendation'] }))} options={[{ value: 'all', label: `${labels.recommendation}: ${labels.all}` }, ...recommendations.map(recommendation => ({ value: recommendation, label: recommendation }))]} />
+        </div>
       </div>
 
       {message && <div className="mb-4 rounded-2xl bg-green-50 px-4 py-3 font-body text-sm font-bold text-green-700 dark:bg-green-950/30 dark:text-green-100">{message}</div>}
