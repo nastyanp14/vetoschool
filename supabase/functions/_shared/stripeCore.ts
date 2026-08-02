@@ -174,3 +174,57 @@ export function safeErrorMessage(error: unknown, fallback = 'Request failed'): s
   if (error instanceof Error && /^[A-Za-z0-9 _.,'()-]{0,160}$/.test(error.message)) return error.message;
   return fallback;
 }
+
+/** Parses the Stripe-Signature header into its timestamp and v1 signatures. */
+export function parseStripeSignatureHeader(header: string | null | undefined) {
+  if (!header) return null;
+  let timestamp: number | null = null;
+  const signatures: string[] = [];
+  for (const part of header.split(',')) {
+    const [key, value] = part.split('=', 2).map((chunk) => chunk?.trim());
+    if (key === 't' && value) timestamp = Number(value);
+    if (key === 'v1' && value) signatures.push(value);
+  }
+  if (timestamp === null || !Number.isFinite(timestamp) || signatures.length === 0) return null;
+  return { timestamp, signatures };
+}
+
+function timingSafeEqual(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+/**
+ * Verifies a Stripe webhook signature against the RAW request body.
+ * Fails closed when the secret or header is missing.
+ */
+export async function verifyStripeSignature(
+  rawBody: string,
+  header: string | null | undefined,
+  secret: string | null | undefined,
+  options: { toleranceSeconds?: number; nowMs?: number } = {},
+): Promise<boolean> {
+  if (!secret) return false;
+  const parsed = parseStripeSignatureHeader(header);
+  if (!parsed) return false;
+
+  const tolerance = options.toleranceSeconds ?? 300;
+  const now = Math.floor((options.nowMs ?? Date.now()) / 1000);
+  if (Math.abs(now - parsed.timestamp) > tolerance) return false;
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${parsed.timestamp}.${rawBody}`));
+  const expected = Array.from(new Uint8Array(mac))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+
+  return parsed.signatures.some((signature) => timingSafeEqual(signature, expected));
+}
