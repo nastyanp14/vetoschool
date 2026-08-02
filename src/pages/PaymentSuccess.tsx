@@ -4,7 +4,7 @@ import { CheckCircle2, CreditCard, LoaderCircle } from 'lucide-react';
 import Footer from '../components/Footer';
 import { Lang } from '../lib/i18n';
 import { openBillingPortal } from '../lib/stripe';
-import { getCurrentUser, refreshCurrentUser } from '../lib/auth';
+import { bootstrapAuth, getCurrentUser } from '../lib/auth';
 
 const copy = {
   ru: {
@@ -33,7 +33,7 @@ export default function PaymentSuccess({ lang }: { lang: Lang }) {
 
   useEffect(() => {
     // The webhook activates access; refresh the local profile so the UI catches up.
-    const timer = setTimeout(() => { refreshCurrentUser?.().catch(() => {}); }, 4000);
+    const timer = setTimeout(() => { bootstrapAuth().catch(() => {}); }, 4000);
     return () => clearTimeout(timer);
   }, []);
 
