@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, CreditCard, LockKeyhole, Sparkles } from 'lucide-react';
+import { ArrowLeft, CreditCard, LoaderCircle, LockKeyhole, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
+import { startCheckout } from '../lib/stripe';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import Footer from '../components/Footer';
 import { Lang, t } from '../lib/i18n';
@@ -28,6 +31,19 @@ export default function CheckoutPlaceholder({ lang }: CheckoutPlaceholderProps) 
   const selectedCurrency = normalizeCurrency(searchParams.get('currency'));
   const selectedPrice = pricingPlanPrices[selectedPlanId];
   const planNameKey = pricingPlanNameKeys[selectedPlanId];
+  const [paying, setPaying] = useState(false);
+
+  const payLabel = lang === 'en' ? 'Pay with card' : lang === 'ua' ? 'Оплатити карткою' : 'Оплатить картой';
+
+  const handlePay = async () => {
+    setPaying(true);
+    try {
+      await startCheckout(selectedPlanId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Checkout failed');
+      setPaying(false);
+    }
+  };
 
   return (
     <main className="pricing-page min-h-screen overflow-x-hidden bg-[#fff8ff] dark:bg-[#0a0613]">
@@ -97,6 +113,15 @@ export default function CheckoutPlaceholder({ lang }: CheckoutPlaceholderProps) 
               )}
 
               <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  disabled={paying}
+                  onClick={handlePay}
+                  className="pricing-button inline-flex min-h-12 items-center justify-center gap-2 overflow-hidden rounded-full px-6 py-3 font-display text-sm font-bold shadow-xl disabled:opacity-60"
+                >
+                  {paying ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CreditCard className="h-4 w-4" aria-hidden="true" />}
+                  <span>{payLabel}</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => navigate('/pricing')}

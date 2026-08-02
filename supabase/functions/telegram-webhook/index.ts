@@ -128,8 +128,13 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
+    // Fail closed: without a configured shared secret the endpoint refuses every request.
     const webhookSecret = Deno.env.get('SENDPULSE_WEBHOOK_SECRET');
-    if (webhookSecret && req.headers.get('x-webhook-secret') !== webhookSecret && req.headers.get('Authorization') !== `Bearer ${webhookSecret}`) {
+    if (!webhookSecret) {
+      console.error('telegram-webhook: SENDPULSE_WEBHOOK_SECRET is not configured');
+      return json({ error: 'Webhook is not configured' }, 500);
+    }
+    if (req.headers.get('x-webhook-secret') !== webhookSecret && req.headers.get('Authorization') !== `Bearer ${webhookSecret}`) {
       return json({ error: 'Forbidden' }, 403);
     }
 
