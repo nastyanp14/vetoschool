@@ -15,3 +15,14 @@ verify_jwt = false
 [functions.admin-delete-user]
 verify_jwt = true
 
+[functions.create-checkout-session]
+verify_jwt = true
+
+[functions.create-portal-session]
+verify_jwt = true
+
+[functions.create-refund]
+verify_jwt = true
+
+[functions.stripe-webhook]
+verify_jwt = false
