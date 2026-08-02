@@ -6,6 +6,8 @@ import Navbar from '../components/Navbar';
 import Home from './Home';
 import Pricing from './Pricing';
 import CheckoutPlaceholder from './CheckoutPlaceholder';
+import PaymentSuccess from './PaymentSuccess';
+import PaymentCancel from './PaymentCancel';
 import Login from './Login';
 import Register from './Register';
 import CheckEmail from './CheckEmail';
@@ -162,6 +164,8 @@ export default function Index() {
         <Route path="/trial-booking" element={<><Seo {...seo.trialBooking} /><Navbar lang={lang} setLang={setLang} /><TrialBooking lang={lang} /></>} />
         <Route path="/pricing" element={<><Seo {...seo.pricing} /><Navbar lang={lang} setLang={setLang} /><Pricing lang={lang} /></>} />
         <Route path="/checkout/:planId" element={<><Seo {...seo.checkout} /><Navbar lang={lang} setLang={setLang} /><CheckoutPlaceholder lang={lang} /></>} />
+        <Route path="/payment/success" element={<><Seo title="Payment Successful | Vetoschool" description="Vetoschool payment confirmation." path="/payment/success" noindex /><Navbar lang={lang} setLang={setLang} /><PaymentSuccess lang={lang} /></>} />
+        <Route path="/payment/cancel" element={<><Seo title="Payment Cancelled | Vetoschool" description="Vetoschool payment was cancelled." path="/payment/cancel" noindex /><Navbar lang={lang} setLang={setLang} /><PaymentCancel lang={lang} /></>} />
         <Route path="*" element={<><Seo {...seo.notFound} /><NotFound lang={lang} /></>} />
       </Routes>
       <CookieConsentBanner lang={lang} />
