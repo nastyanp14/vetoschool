@@ -1607,22 +1607,28 @@ export type Database = {
       }
       student_parent_links: {
         Row: {
+          active: boolean
           created_at: string
           id: string
+          linked_at: string
           parent_id: string
           relationship: string | null
           student_id: string
         }
         Insert: {
+          active?: boolean
           created_at?: string
           id?: string
+          linked_at?: string
           parent_id: string
           relationship?: string | null
           student_id: string
         }
         Update: {
+          active?: boolean
           created_at?: string
           id?: string
+          linked_at?: string
           parent_id?: string
           relationship?: string | null
           student_id?: string
@@ -2245,6 +2251,7 @@ export type Database = {
           created_by: string | null
           expires_at: string
           id: string
+          revoked_at: string | null
           student_id: string
           token_hash: string
           used_at: string | null
@@ -2255,6 +2262,7 @@ export type Database = {
           created_by?: string | null
           expires_at: string
           id?: string
+          revoked_at?: string | null
           student_id: string
           token_hash: string
           used_at?: string | null
@@ -2265,6 +2273,7 @@ export type Database = {
           created_by?: string | null
           expires_at?: string
           id?: string
+          revoked_at?: string | null
           student_id?: string
           token_hash?: string
           used_at?: string | null
@@ -2372,8 +2381,12 @@ export type Database = {
       telegram_parent_accounts: {
         Row: {
           created_at: string
+          display_name: string | null
+          first_name: string | null
           id: string
           language: string
+          last_name: string | null
+          linked_at: string | null
           notify_grades: boolean
           notify_homework: boolean
           notify_lesson_reminders: boolean
@@ -2387,8 +2400,12 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          display_name?: string | null
+          first_name?: string | null
           id?: string
           language?: string
+          last_name?: string | null
+          linked_at?: string | null
           notify_grades?: boolean
           notify_homework?: boolean
           notify_lesson_reminders?: boolean
@@ -2402,8 +2419,12 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          display_name?: string | null
+          first_name?: string | null
           id?: string
           language?: string
+          last_name?: string | null
+          linked_at?: string | null
           notify_grades?: boolean
           notify_homework?: boolean
           notify_lesson_reminders?: boolean
@@ -2897,6 +2918,22 @@ export type Database = {
         Returns: boolean
       }
       link_current_teacher_by_email: { Args: never; Returns: string }
+      link_telegram_parent: {
+        Args: {
+          p_chat_id: string
+          p_first_name: string
+          p_last_name: string
+          p_telegram_user_id: string
+          p_token_hash: string
+          p_username: string
+        }
+        Returns: {
+          parent_id: string
+          status: string
+          student_id: string
+          student_name: string
+        }[]
+      }
       repair_student_interactive_completion: {
         Args: { _user_id: string }
         Returns: undefined
