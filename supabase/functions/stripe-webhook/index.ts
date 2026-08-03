@@ -88,6 +88,7 @@ type StripeCheckoutEnv = {
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_ADMIN_CHAT_ID?: string;
   TELEGRAM_ADMIN_CHAT_IDS?: string;
+  STRIPE_TELEGRAM_NOTIFICATION_WINDOW_SECONDS?: string;
   APP_URL?: string;
   stripeWebhookProcessor?: (event: StripeWebhookLogEvent) => Promise<void> | void;
 };
@@ -106,6 +107,7 @@ type StripeRefundRequestBody = {
 };
 
 const STRIPE_WEBHOOK_TOLERANCE_SECONDS = 5 * 60;
+const DEFAULT_STRIPE_TELEGRAM_NOTIFICATION_WINDOW_SECONDS = 30 * 60;
 const HANDLED_STRIPE_WEBHOOK_EVENTS = new Set([
   'checkout.session.completed',
   'invoice.paid',
@@ -326,6 +328,7 @@ type TelegramNotificationInput = {
   userId: string;
   text: string;
   stripeEventId?: string | null;
+  stripeEventCreatedAt?: number | null;
   stripePaymentId?: string | null;
   stripeRefundId?: string | null;
 };
@@ -863,6 +866,38 @@ async function stripeApiPostForm<T>(path: string, body: URLSearchParams, env: St
   return await response.json() as T;
 }
 
+async function createStripeCustomerForProfile(profile: VetoschoolProfile, authUser: SupabaseAuthUser, env: StripeCheckoutEnv) {
+  const body = new URLSearchParams({
+    'metadata[user_id]': authUser.id || profile.id,
+    'metadata[profile_id]': profile.id,
+    'metadata[source]': 'vetoschool',
+  });
+  const email = profile.email || authUser.email || '';
+  if (email) body.set('email', email);
+  if (profile.name) body.set('name', profile.name);
+
+  const payload = await stripeApiPostForm<{ id?: string }>('/customers', body, env, `vetoschool-customer-${profile.id}`);
+  if (!payload.id) throw new Error('stripe_customer_creation_failed');
+  return payload.id;
+}
+
+async function saveStripeCustomerId(profileId: string, customerId: string, env: StripeCheckoutEnv) {
+  const supabaseUrl = requireSupabaseUrl(env);
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        ...supabaseHeaders(env),
+        prefer: 'return=minimal',
+      },
+      body: JSON.stringify({ stripe_customer_id: customerId }),
+    },
+  );
+
+  if (!response.ok) throw new Error(`profile_customer_update_failed_${response.status}`);
+}
+
 function asStripePaymentIntent(value: StripeInvoice['payment_intent'] | StripeCheckoutSession['payment_intent']) {
   return typeof value === 'object' && value && 'id' in value ? value as StripePaymentIntent : null;
 }
@@ -1142,7 +1177,17 @@ function telegramAdminChatIds(env: StripeCheckoutEnv) {
   return [...new Set(raw.map(value => value?.trim()).filter(Boolean) as string[])];
 }
 
-async function reserveTelegramNotification(input: TelegramNotificationInput, chatLabel: string, env: StripeCheckoutEnv): Promise<TelegramNotificationRow | null> {
+function stripeTelegramNotificationWindowSeconds(env: StripeCheckoutEnv) {
+  const value = Number(env.STRIPE_TELEGRAM_NOTIFICATION_WINDOW_SECONDS);
+  return Number.isFinite(value) && value >= 0 ? value : DEFAULT_STRIPE_TELEGRAM_NOTIFICATION_WINDOW_SECONDS;
+}
+
+function isHistoricalStripeTelegramNotification(input: TelegramNotificationInput, env: StripeCheckoutEnv) {
+  if (!input.stripeEventCreatedAt) return false;
+  return Math.floor(Date.now() / 1000) - input.stripeEventCreatedAt > stripeTelegramNotificationWindowSeconds(env);
+}
+
+async function reserveTelegramNotification(input: TelegramNotificationInput, chatLabel: string, chatId: string, env: StripeCheckoutEnv): Promise<TelegramNotificationRow | null> {
   const supabaseUrl = requireSupabaseUrl(env);
   const response = await fetch(`${supabaseUrl}/rest/v1/telegram_notifications`, {
     method: 'POST',
@@ -1151,7 +1196,7 @@ async function reserveTelegramNotification(input: TelegramNotificationInput, cha
       prefer: 'return=representation',
     },
     body: JSON.stringify({
-      event_key: `${input.notificationKey}:telegram:${chatLabel}`,
+      event_key: `${input.notificationKey}:telegram:${input.type}:${chatId}`,
       notification_type: input.type,
       student_id: input.userId,
       parent_id: null,
@@ -1163,8 +1208,10 @@ async function reserveTelegramNotification(input: TelegramNotificationInput, cha
       payload: {
         kind: 'stripe_admin_notification',
         stripeEventId: input.stripeEventId || null,
+        stripeEventCreatedAt: input.stripeEventCreatedAt || null,
         stripePaymentId: input.stripePaymentId || null,
         stripeRefundId: input.stripeRefundId || null,
+        telegramChatId: chatId,
         preview: input.text.split('\n').slice(0, 2).join(' '),
       },
     }),
@@ -1213,6 +1260,15 @@ async function sendDirectTelegramAdminMessage(chatId: string, text: string, env:
 }
 
 async function sendTelegramNotificationSafe(input: TelegramNotificationInput, env: StripeCheckoutEnv) {
+  if (isHistoricalStripeTelegramNotification(input, env)) {
+    console.warn('[Stripe Telegram notification skipped]', {
+      type: input.type,
+      eventId: input.stripeEventId || null,
+      reason: 'historical_stripe_event',
+    });
+    return;
+  }
+
   const chatIds = telegramAdminChatIds(env);
   if (!env.TELEGRAM_BOT_TOKEN || chatIds.length === 0) {
     console.warn('[Stripe Telegram notification skipped]', {
@@ -1226,7 +1282,7 @@ async function sendTelegramNotificationSafe(input: TelegramNotificationInput, en
   await Promise.all(chatIds.map(async (chatId, index) => {
     const chatLabel = `admin_${index + 1}`;
     try {
-      const reserved = await reserveTelegramNotification(input, chatLabel, env);
+      const reserved = await reserveTelegramNotification(input, chatLabel, chatId, env);
       if (!reserved) return;
 
       try {
@@ -1775,6 +1831,7 @@ async function processCheckoutSessionCompleted(event: StripeWebhookLogEvent, env
     type: 'stripe.checkout.session.completed',
     userId: profile.id,
     stripeEventId: event.id,
+    stripeEventCreatedAt: event.created,
     text: [
       'Vetoschool: оплата прошла',
       telegramLines([
@@ -1865,6 +1922,7 @@ async function processInvoicePaid(event: StripeWebhookLogEvent, env: StripeCheck
     type: 'stripe.invoice.paid',
     userId: profile.id,
     stripeEventId: event.id,
+    stripeEventCreatedAt: event.created,
     text: [
       'Vetoschool: подписка продлена',
       telegramLines([
@@ -1950,6 +2008,7 @@ async function processInvoicePaymentFailed(event: StripeWebhookLogEvent, env: St
     type: 'stripe.invoice.payment_failed',
     userId: profile.id,
     stripeEventId: event.id,
+    stripeEventCreatedAt: event.created,
     text: [
       'Vetoschool: проблема с оплатой',
       telegramLines([
@@ -2073,6 +2132,7 @@ async function applySubscriptionWebhookState(
           : 'stripe.customer.subscription.updated.renewal_restored',
       userId: profile.id,
       stripeEventId: event.id,
+      stripeEventCreatedAt: event.created,
       text: [
         options.deleted
           ? 'Vetoschool: подписка завершена'
@@ -2135,11 +2195,10 @@ export async function handleCreateStripeCheckoutSession(request: Request, env: S
 
   const secretKey = env.STRIPE_SECRET_KEY;
   if (!secretKey) {
-    return jsonResponse({ error: 'Stripe secret key is not configured on the server.' }, 500);
+    return jsonResponse({ code: 'stripe_config_error', error: 'Stripe secret key is not configured on the server.' }, 500);
   }
 
   let authUser: SupabaseAuthUser;
-  const accessToken = authorizationBearerToken(request);
   try {
     authUser = await requireAuthenticatedCheckoutUser(request, env);
     console.log('[Stripe Checkout debug]', { stage: 'auth', status: 200 });
@@ -2148,6 +2207,7 @@ export async function handleCreateStripeCheckoutSession(request: Request, env: S
     const status = message === 'checkout_auth_required' || message === 'checkout_auth_invalid' ? 401 : 500;
     console.log('[Stripe Checkout debug]', { stage: 'auth', status });
     return jsonResponse({
+      code: status === 401 ? 'auth_required' : 'server_configuration_error',
       error: status === 401
         ? 'Log in before paying so we can attach the subscription to your Vetoschool account.'
         : 'Checkout authentication is not configured on the server.',
@@ -2157,43 +2217,75 @@ export async function handleCreateStripeCheckoutSession(request: Request, env: S
   const body = await readCheckoutBody(request);
   if (!isPricingPlanId(body.planId)) {
     console.log('[Stripe Checkout debug]', { stage: 'plan', status: 400 });
-    return jsonResponse({ error: 'Unknown Vetoschool plan.' }, 400);
+    return jsonResponse({ code: 'invalid_tariff', error: 'Unknown Vetoschool plan.' }, 400);
   }
   console.log('[Stripe Checkout debug]', { stage: 'plan', status: 200, planId: body.planId });
 
   const priceId = stripePriceIdsByPlan[body.planId];
   const planConfig = stripePlanConfig[body.planId];
+  if (!priceId || !planConfig?.priceId) {
+    return jsonResponse({ code: 'unavailable_price', error: 'Stripe price is not available for this tariff.' }, 500);
+  }
   const appUrl = appBaseUrl(env);
   const successUrl = `${appUrl}/payment/success`;
   const cancelUrl = `${appUrl}/payment/cancel`;
-  const profile = await loadProfileById(authUser.id, env, accessToken);
+  let profile: VetoschoolProfile | null;
+  try {
+    profile = await loadProfileById(authUser.id, env);
+  } catch (error) {
+    console.log('[Stripe Checkout debug]', {
+      stage: 'profile',
+      status: 500,
+      error: error instanceof Error ? error.message : 'profile_lookup_failed',
+    });
+    return jsonResponse({ code: 'profile_lookup_failed', error: 'Vetoschool profile lookup failed.' }, 500);
+  }
   if (!profile) {
     console.log('[Stripe Checkout debug]', { stage: 'profile', status: 409 });
-    return jsonResponse({ error: 'Vetoschool profile was not found for the authenticated user.' }, 409);
+    return jsonResponse({ code: 'profile_not_found', error: 'Vetoschool profile was not found for the authenticated user.' }, 409);
   }
   console.log('[Stripe Checkout debug]', { stage: 'profile', status: 200, hasCustomer: Boolean(profile.stripe_customer_id) });
+
+  let customerId = profile.stripe_customer_id || '';
+  if (!customerId) {
+    try {
+      customerId = await createStripeCustomerForProfile(profile, authUser, env);
+      await saveStripeCustomerId(profile.id, customerId, env);
+      profile = { ...profile, stripe_customer_id: customerId };
+      console.log('[Stripe Checkout debug]', { stage: 'stripe_customer', status: 200 });
+    } catch (error) {
+      console.log('[Stripe Checkout debug]', {
+        stage: 'stripe_customer',
+        status: 502,
+        error: error instanceof Error ? error.message : 'stripe_customer_creation_failed',
+      });
+      return jsonResponse({ code: 'stripe_api_error', error: 'Stripe customer was not created.' }, 502);
+    }
+  }
+
   const stripeBody = new URLSearchParams({
     mode: 'subscription',
     success_url: checkoutSuccessUrlWithSessionId(successUrl),
     cancel_url: cancelUrl,
     client_reference_id: authUser.id,
+    customer: customerId,
     'line_items[0][price]': priceId,
     'line_items[0][quantity]': '1',
     'metadata[user_id]': authUser.id,
+    'metadata[profile_id]': profile.id,
     'metadata[plan_id]': body.planId,
     'metadata[lesson_format]': planConfig.lessonFormat,
+    'metadata[lessons_per_month]': String(planConfig.lessonsTotal),
+    'metadata[currency]': 'czk',
     'metadata[source]': 'vetoschool',
     'subscription_data[metadata][user_id]': authUser.id,
+    'subscription_data[metadata][profile_id]': profile.id,
     'subscription_data[metadata][plan_id]': body.planId,
     'subscription_data[metadata][lesson_format]': planConfig.lessonFormat,
+    'subscription_data[metadata][lessons_per_month]': String(planConfig.lessonsTotal),
+    'subscription_data[metadata][currency]': 'czk',
     'subscription_data[metadata][source]': 'vetoschool',
   });
-
-  if (profile?.stripe_customer_id) {
-    stripeBody.set('customer', profile.stripe_customer_id);
-  } else if (authUser.email) {
-    stripeBody.set('customer_email', authUser.email);
-  }
 
   if (body.currency) {
     stripeBody.set('metadata[display_currency]', body.currency);
@@ -2217,12 +2309,13 @@ export async function handleCreateStripeCheckoutSession(request: Request, env: S
     stripeErrorCode: stripePayload.error?.code || null,
   });
   if (!stripeResponse.ok || !stripePayload.id) {
-    return jsonResponse({ error: 'Stripe Checkout Session was not created.' }, 502);
+    return jsonResponse({ code: 'stripe_api_error', error: 'Stripe Checkout Session was not created.' }, 502);
   }
 
   return jsonResponse({
     sessionId: stripePayload.id,
     checkoutUrl: stripePayload.url,
+    url: stripePayload.url,
   });
 }
 

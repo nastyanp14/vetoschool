@@ -3,10 +3,18 @@ import { supabase } from '@/integrations/supabase/client';
 
 type StripeSessionResponse = {
   url?: string;
-  error?: string;
+  checkoutUrl?: string;
+  error?: string | { message?: string; code?: string };
+  code?: string;
 };
 
-export async function redirectToStripeCheckout(planId: PricingPlanId, _currency: DisplayCurrency) {
+function stripeErrorMessage(payload: StripeSessionResponse | null | undefined, fallback?: string) {
+  if (typeof payload?.error === 'string') return payload.error;
+  if (payload?.error?.message) return payload.error.message;
+  return fallback || 'Could not create Stripe Checkout Session.';
+}
+
+export async function redirectToStripeCheckout(planId: PricingPlanId, currency: DisplayCurrency) {
   const { data } = await supabase.auth.getSession();
   const accessToken = data.session?.access_token;
   if (!accessToken) {
@@ -14,14 +22,15 @@ export async function redirectToStripeCheckout(planId: PricingPlanId, _currency:
   }
 
   const { data: payload, error } = await supabase.functions.invoke<StripeSessionResponse>('create-checkout-session', {
-    body: { planId },
+    body: { planId, currency },
   });
 
-  if (error || !payload?.url) {
-    throw new Error(payload?.error || error?.message || 'Could not create Stripe Checkout Session.');
+  const checkoutUrl = payload?.url || payload?.checkoutUrl;
+  if (error || !checkoutUrl) {
+    throw new Error(stripeErrorMessage(payload, error?.message));
   }
 
-  window.location.assign(payload.url);
+  window.location.assign(checkoutUrl);
 }
 
 export async function redirectToStripeCustomerPortal() {

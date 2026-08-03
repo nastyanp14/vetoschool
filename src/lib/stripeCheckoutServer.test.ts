@@ -86,6 +86,8 @@ describe('handleStripeWebhook', () => {
 
   it('creates Checkout Session only for authenticated users and sends safe metadata', async () => {
     let stripeCheckoutBody = '';
+    let stripeCustomerBody = '';
+    let profilePatchBody = '';
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
@@ -93,8 +95,18 @@ describe('handleStripeWebhook', () => {
         return json({ id: 'user_checkout_1', email: 'student@example.com' });
       }
 
+      if (url.includes('/rest/v1/profiles?id=eq.user_checkout_1') && init?.method === 'PATCH') {
+        profilePatchBody = String(init?.body);
+        return new Response(null, { status: 204 });
+      }
+
       if (url.includes('/rest/v1/profiles')) {
-        return json([{ id: 'user_checkout_1', email: 'student@example.com', stripe_customer_id: null }]);
+        return json([{ id: 'user_checkout_1', email: 'student@example.com', name: 'Student Test', stripe_customer_id: null }]);
+      }
+
+      if (url === 'https://api.stripe.com/v1/customers') {
+        stripeCustomerBody = String(init?.body);
+        return json({ id: 'cus_created_checkout' });
       }
 
       if (url === 'https://api.stripe.com/v1/checkout/sessions') {
@@ -117,14 +129,33 @@ describe('handleStripeWebhook', () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body).toMatchObject({ sessionId: 'cs_test_checkout' });
+    expect(body).toMatchObject({
+      sessionId: 'cs_test_checkout',
+      checkoutUrl: 'https://checkout.stripe.test/session',
+      url: 'https://checkout.stripe.test/session',
+    });
+    expect(JSON.parse(profilePatchBody)).toEqual({ stripe_customer_id: 'cus_created_checkout' });
+
+    const customerParams = new URLSearchParams(stripeCustomerBody);
+    expect(customerParams.get('email')).toBe('student@example.com');
+    expect(customerParams.get('name')).toBe('Student Test');
+    expect(customerParams.get('metadata[user_id]')).toBe('user_checkout_1');
+    expect(customerParams.get('metadata[profile_id]')).toBe('user_checkout_1');
 
     const params = new URLSearchParams(stripeCheckoutBody);
+    expect(params.get('customer')).toBe('cus_created_checkout');
     expect(params.get('metadata[user_id]')).toBe('user_checkout_1');
+    expect(params.get('metadata[profile_id]')).toBe('user_checkout_1');
     expect(params.get('metadata[plan_id]')).toBe('group-progress');
     expect(params.get('metadata[lesson_format]')).toBe('group');
+    expect(params.get('metadata[lessons_per_month]')).toBe('8');
+    expect(params.get('metadata[currency]')).toBe('czk');
     expect(params.get('subscription_data[metadata][user_id]')).toBe('user_checkout_1');
+    expect(params.get('subscription_data[metadata][profile_id]')).toBe('user_checkout_1');
+    expect(params.get('subscription_data[metadata][lessons_per_month]')).toBe('8');
+    expect(params.get('subscription_data[metadata][currency]')).toBe('czk');
     expect(params.get('line_items[0][price]')).toBe(STRIPE_PRICE_GROUP_PROGRESS);
+    expect(stripeCheckoutBody).not.toContain('customer_email');
   });
 
   it('rejects unauthenticated Customer Portal requests', async () => {
@@ -461,7 +492,9 @@ describe('handleStripeWebhook', () => {
       if (url.endsWith('/rest/v1/telegram_notifications') && init?.method === 'POST') {
         telegramReserveCalls += 1;
         const payload = JSON.parse(String(init?.body));
-        expect(payload.event_key).toBe('evt_checkout_once:checkout.session.completed:telegram:admin_1');
+        expect(payload.event_key).toBe(
+          'evt_checkout_once:checkout.session.completed:telegram:stripe.checkout.session.completed:admin_chat_unit'
+        );
         expect(payload.notification_type).toBe('stripe.checkout.session.completed');
         expect(payload.recipient_type).toBe('admin');
         expect(JSON.stringify(payload)).not.toContain('cus_test_once');

@@ -57,16 +57,40 @@ export async function createTelegramLink(studentId: string) {
 }
 
 export async function listTelegramParents(studentId: string): Promise<TelegramParentAccount[]> {
-  const { data, error } = await asAnySupabase()
+  const selectWithExplicitRelation = `
+    parent_id,
+    telegram_parent_accounts!student_parent_links_parent_id_fkey (
+      id,
+      parent_name,
+      telegram_username,
+      language,
+      notify_lesson_reminders,
+      notify_homework,
+      notify_grades,
+      notify_schedule_changes
+    )
+  `;
+
+  const firstResult = await asAnySupabase()
     .from('student_parent_links')
-    .select('telegram_parent_accounts(*)')
+    .select(selectWithExplicitRelation)
     .eq('student_id', studentId);
+
+  const { data, error } = firstResult.error
+    ? await asAnySupabase()
+      .from('student_parent_links')
+      .select('telegram_parent_accounts(*)')
+      .eq('student_id', studentId)
+    : firstResult;
+
   if (error) {
     console.warn('Could not load Telegram parents', error);
     return [];
   }
   return (data || [])
-    .map((row: any) => row.telegram_parent_accounts)
+    .map((row: any) => Array.isArray(row.telegram_parent_accounts)
+      ? row.telegram_parent_accounts[0]
+      : row.telegram_parent_accounts)
     .filter(Boolean)
     .map((parent: any) => ({
       id: parent.id,
@@ -78,6 +102,15 @@ export async function listTelegramParents(studentId: string): Promise<TelegramPa
       notifyGrades: !!parent.notify_grades,
       notifyScheduleChanges: !!parent.notify_schedule_changes,
     }));
+}
+
+export async function disconnectTelegramParent(studentId: string, parentId: string) {
+  const { error } = await asAnySupabase()
+    .from('student_parent_links')
+    .delete()
+    .eq('student_id', studentId)
+    .eq('parent_id', parentId);
+  if (error) throw error;
 }
 
 export async function notifyContentChanges(studentId: string, before: ContentItem[], after: ContentItem[]) {

@@ -95,17 +95,17 @@ const checkoutAmountLabels: Record<Lang, { currency: string; total: string }> = 
 const checkoutStripeLabels: Record<Lang, { redirecting: string; error: string; authRequired: string }> = {
   ru: {
     redirecting: 'Переходим к защищённой оплате Stripe...',
-    error: 'Не удалось открыть Stripe Checkout. Проверьте ключи Stripe Sandbox и попробуйте ещё раз.',
+    error: 'Не удалось открыть Stripe Checkout. Попробуйте ещё раз или напишите администратору Vetoschool.',
     authRequired: 'Войдите в аккаунт перед оплатой, чтобы мы привязали подписку к вашему профилю Vetoschool.',
   },
   en: {
     redirecting: 'Opening secure Stripe Checkout...',
-    error: 'Could not open Stripe Checkout. Check the Stripe Sandbox keys and try again.',
+    error: 'Could not open Stripe Checkout. Try again or message the Vetoschool administrator.',
     authRequired: 'Log in before paying so we can attach the subscription to your Vetoschool account.',
   },
   ua: {
     redirecting: 'Переходимо до захищеної оплати Stripe...',
-    error: 'Не вдалося відкрити Stripe Checkout. Перевірте ключі Stripe Sandbox і спробуйте ще раз.',
+    error: 'Не вдалося відкрити Stripe Checkout. Спробуйте ще раз або напишіть адміністратору Vetoschool.',
     authRequired: 'Увійдіть в акаунт перед оплатою, щоб ми прив’язали підписку до вашого профілю Vetoschool.',
   },
 };
@@ -180,7 +180,7 @@ export default function CheckoutPlaceholder({ lang }: CheckoutPlaceholderProps) 
     } catch (error) {
       console.error('Stripe Checkout redirect failed', error);
       const message = error instanceof Error ? error.message : '';
-      setPaymentError(message.includes('Log in before paying') ? stripeLabels.authRequired : stripeLabels.error);
+      setPaymentError(message.includes('Log in before paying') ? stripeLabels.authRequired : message || stripeLabels.error);
       setIsRedirectingToStripe(false);
     }
   };
