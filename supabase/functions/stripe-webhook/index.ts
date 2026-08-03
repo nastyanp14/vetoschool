@@ -2002,9 +2002,9 @@ async function applySubscriptionWebhookState(
   let lessonFormat: string | null = null;
 
   if (!options.deleted) {
-    stripePriceId = subscriptionPriceId(subscription);
-    planId = planIdFromStripePriceId(stripePriceId);
-    if (!stripePriceId || !planId) throw new Error('subscription_unknown_price_id');
+    stripePriceId = subscriptionPriceId(subscription) || null;
+    planId = planIdFromStripePriceId(stripePriceId) || stripeMetadataPlanId(subscription);
+    if (!planId) throw new Error('subscription_unknown_price_id');
     lessonFormat = stripePlanConfig[planId].lessonFormat;
   }
 
