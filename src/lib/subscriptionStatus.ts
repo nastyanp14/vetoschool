@@ -40,7 +40,7 @@ export function activeSubscriptionStatus(input: BillingLike) {
   ) return 'payment_failed';
   if (input.cancelAtPeriodEnd && hasStripeSubscriptionLink(input)) return 'cancels_at_period_end';
   if (input.subscriptionStatus === 'trialing' && hasStripeSubscriptionLink(input)) return 'trial';
-  if (input.subscriptionStatus === 'active' && hasConfirmedStripePayment(input)) return 'active';
+  if (input.subscriptionStatus === 'active' && hasStripeSubscriptionLink(input)) return 'active';
   return 'pending_payment';
 }
 

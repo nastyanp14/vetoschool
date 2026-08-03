@@ -154,6 +154,137 @@ describe('create-refund Edge Function', () => {
     expect(stripeRefundCalls).toBe(1);
   });
 
+  it('creates a full refund when the UI passes a Stripe invoice id', async () => {
+    let stripeRefundBody = '';
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/auth/v1/user')) return json({ id: 'admin_1', email: 'admin@example.com' });
+      if (url.includes('/rest/v1/user_roles')) return json([{ user_id: 'admin_1', role: 'admin' }]);
+      if (url.includes('/rest/v1/stripe_refunds?idempotency_key=eq.refund-invoice-key')) return json([]);
+      if (url.includes('/rest/v1/stripe_payments?id=eq.in_test_from_ui')) return json([]);
+      if (url.includes('/rest/v1/stripe_payments?stripe_invoice_id=eq.in_test_from_ui')) {
+        return json([{
+          id: 'payment_from_invoice',
+          user_id: 'student_1',
+          checkout_session_id: null,
+          stripe_invoice_id: 'in_test_from_ui',
+          stripe_customer_id: 'cus_test_1',
+          stripe_subscription_id: 'sub_test_1',
+          stripe_payment_intent_id: null,
+          stripe_charge_id: null,
+          plan_id: 'group-progress',
+          lesson_format: 'group',
+          amount_total: 280000,
+          currency: 'czk',
+          paid_at: '2026-07-29T10:00:00.000Z',
+          created_at: '2026-07-29T10:00:00.000Z',
+        }]);
+      }
+      if (url === 'https://api.stripe.com/v1/invoices/in_test_from_ui?expand[]=payment_intent.latest_charge&expand[]=charge') {
+        return json({
+          id: 'in_test_from_ui',
+          payment_intent: {
+            id: 'pi_from_invoice',
+            latest_charge: { id: 'ch_from_invoice', amount: 280000, amount_refunded: 0, currency: 'czk', payment_intent: 'pi_from_invoice' },
+          },
+        });
+      }
+      if (url.includes('/rest/v1/stripe_payments?id=eq.payment_from_invoice') && init?.method === 'PATCH') return json({});
+      if (url === 'https://api.stripe.com/v1/refunds') {
+        stripeRefundBody = String(init?.body);
+        return json({ id: 're_invoice_1', amount: 280000, currency: 'czk', status: 'succeeded', payment_intent: 'pi_from_invoice', charge: 'ch_from_invoice' });
+      }
+      if (url.endsWith('/rest/v1/stripe_refunds') && init?.method === 'POST') {
+        return json([{ id: 'refund_row_invoice', user_id: 'student_1', stripe_payment_id: 'payment_from_invoice', stripe_refund_id: 're_invoice_1', stripe_payment_intent_id: 'pi_from_invoice', stripe_charge_id: 'ch_from_invoice', idempotency_key: 'refund-invoice-key', amount: 280000, currency: 'czk', refund_type: 'full', reason: 'Parent request', status: 'succeeded', created_by_admin_id: 'admin_1', created_at: '2026-07-29T10:05:00.000Z', updated_at: '2026-07-29T10:05:00.000Z' }]);
+      }
+      return json({}, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await handleCreateRefund(refundRequest({
+      stripePaymentId: 'in_test_from_ui',
+      refundType: 'full',
+      reason: 'Parent request',
+      idempotencyKey: 'refund-invoice-key',
+    }), env());
+    const body = await response.json();
+    const params = new URLSearchParams(stripeRefundBody);
+
+    expect(response.status).toBe(200);
+    expect(body.refund.stripe_refund_id).toBe('re_invoice_1');
+    expect(params.get('payment_intent')).toBe('pi_from_invoice');
+  });
+
+  it('returns a controlled error for an invoice missing from payment history', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith('/auth/v1/user')) return json({ id: 'admin_1', email: 'admin@example.com' });
+      if (url.includes('/rest/v1/user_roles')) return json([{ user_id: 'admin_1', role: 'admin' }]);
+      if (url.includes('/rest/v1/stripe_refunds?idempotency_key=eq.refund-missing-invoice')) return json([]);
+      if (url.includes('/rest/v1/stripe_payments')) return json([]);
+
+      return json({}, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await handleCreateRefund(refundRequest({
+      stripePaymentId: 'in_missing',
+      refundType: 'full',
+      reason: 'Parent request',
+      idempotencyKey: 'refund-missing-invoice',
+    }), env());
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.error).toBe('Invoice was not found in Vetoschool payment history.');
+  });
+
+  it('returns a controlled error for an invoice without a refundable payment source', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith('/auth/v1/user')) return json({ id: 'admin_1', email: 'admin@example.com' });
+      if (url.includes('/rest/v1/user_roles')) return json([{ user_id: 'admin_1', role: 'admin' }]);
+      if (url.includes('/rest/v1/stripe_refunds?idempotency_key=eq.refund-no-source')) return json([]);
+      if (url.includes('/rest/v1/stripe_payments?id=eq.payment_no_source')) {
+        return json([{
+          id: 'payment_no_source',
+          user_id: 'student_1',
+          checkout_session_id: null,
+          stripe_invoice_id: 'in_no_source',
+          stripe_customer_id: 'cus_test_1',
+          stripe_subscription_id: 'sub_test_1',
+          stripe_payment_intent_id: null,
+          stripe_charge_id: null,
+          plan_id: 'group-progress',
+          lesson_format: 'group',
+          amount_total: 280000,
+          currency: 'czk',
+          paid_at: '2026-07-29T10:00:00.000Z',
+          created_at: '2026-07-29T10:00:00.000Z',
+        }]);
+      }
+      if (url === 'https://api.stripe.com/v1/invoices/in_no_source?expand[]=payment_intent.latest_charge&expand[]=charge') {
+        return json({ id: 'in_no_source', payment_intent: null, charge: null });
+      }
+      return json({}, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await handleCreateRefund(refundRequest({
+      stripePaymentId: 'payment_no_source',
+      refundType: 'full',
+      reason: 'Parent request',
+      idempotencyKey: 'refund-no-source',
+    }), env());
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body.error).toBe('Stripe invoice does not contain a refundable PaymentIntent or Charge.');
+  });
+
   it('returns an existing refund for a repeated idempotency key without calling Stripe', async () => {
     let stripeRefundCalls = 0;
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {

@@ -77,7 +77,11 @@ describe('create-checkout-session Edge Function', () => {
           apikey: 'service_role_unit',
           authorization: 'Bearer service_role_unit',
         });
-        return json([{ id: 'user_checkout_edge_1', email: 'student@example.com', stripe_customer_id: 'cus_existing' }]);
+        return json([{ id: 'user_checkout_edge_1', email: 'student@example.com', stripe_customer_id: 'cus_existing', stripe_subscription_id: null, subscription_status: null }]);
+      }
+
+      if (url.includes('https://api.stripe.com/v1/subscriptions?customer=cus_existing')) {
+        return json({ data: [] });
       }
 
       if (url === 'https://api.stripe.com/v1/checkout/sessions') {
@@ -145,7 +149,7 @@ describe('create-checkout-session Edge Function', () => {
       }
 
       if (url.includes('/rest/v1/profiles?id=eq.user_fresh_edge')) {
-        return json([{ id: 'user_fresh_edge', email: 'fresh@example.com', name: 'Fresh Student', stripe_customer_id: null }]);
+        return json([{ id: 'user_fresh_edge', email: 'fresh@example.com', name: 'Fresh Student', stripe_customer_id: null, stripe_subscription_id: null, subscription_status: null }]);
       }
 
       if (url === 'https://api.stripe.com/v1/customers') {
@@ -160,6 +164,10 @@ describe('create-checkout-session Edge Function', () => {
       if (url === 'https://api.stripe.com/v1/checkout/sessions') {
         stripeCheckoutBody = String(init?.body);
         return json({ id: 'cs_fresh_edge', url: 'https://checkout.stripe.com/c/pay/cs_fresh_edge' });
+      }
+
+      if (url.includes('https://api.stripe.com/v1/subscriptions?customer=cus_created_edge')) {
+        return json({ data: [] });
       }
 
       return json({}, 404);
@@ -200,5 +208,68 @@ describe('create-checkout-session Edge Function', () => {
     expect(response.status).toBe(500);
     expect(body.error).toBe('Checkout APP_URL is not configured for production.');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks Checkout when the profile already has an active teaching subscription', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith('/auth/v1/user')) {
+        return json({ id: 'user_active_sub', email: 'student@example.com' });
+      }
+
+      if (url.includes('/rest/v1/profiles?id=eq.user_active_sub')) {
+        return json([{
+          id: 'user_active_sub',
+          email: 'student@example.com',
+          stripe_customer_id: 'cus_active',
+          stripe_subscription_id: 'sub_active_profile',
+          subscription_status: 'active',
+          plan_id: 'group-lite',
+        }]);
+      }
+
+      return json({}, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await handleCreateCheckoutSession(checkoutRequest({ planId: 'group-progress' }), env());
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toMatchObject({
+      code: 'active_subscription_exists',
+      error: expect.stringContaining('already has an active Vetoschool subscription'),
+    });
+    expect(fetchMock).not.toHaveBeenCalledWith('https://api.stripe.com/v1/checkout/sessions', expect.anything());
+  });
+
+  it('blocks Checkout when Stripe has an active teaching subscription not yet reflected on the profile', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith('/auth/v1/user')) return json({ id: 'user_stripe_active', email: 'student@example.com' });
+      if (url.includes('/rest/v1/profiles?id=eq.user_stripe_active')) {
+        return json([{ id: 'user_stripe_active', email: 'student@example.com', stripe_customer_id: 'cus_existing', stripe_subscription_id: null, subscription_status: null }]);
+      }
+      if (url.includes('https://api.stripe.com/v1/subscriptions?customer=cus_existing')) {
+        return json({
+          data: [{
+            id: 'sub_active_stripe',
+            status: 'active',
+            items: { data: [{ price: { id: 'price_1Txb9HLCIsxnginYf4mX2Uwg' } }] },
+          }],
+        });
+      }
+
+      return json({}, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await handleCreateCheckoutSession(checkoutRequest({ planId: 'group-progress' }), env());
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.code).toBe('active_subscription_exists');
   });
 });

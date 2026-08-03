@@ -2,6 +2,8 @@
 import { supabase } from '@/integrations/supabase/client';
 import { User } from './auth';
 import { awardStars } from './stars';
+import { notifyHomeworkReviewed, notifyLessonGradePublished, notifyScheduleSaved } from './telegram';
+import type { ScheduleSlot } from './schedule';
 
 export type TeacherStatus = 'active' | 'inactive' | 'vacation' | 'blocked';
 export type LessonStatus = 'scheduled' | 'upcoming' | 'ready' | 'in_progress' | 'completed' | 'cancelled' | 'rescheduled' | 'student_absent' | 'teacher_absent';
@@ -382,6 +384,21 @@ function rowToLesson(row: any): TeacherLesson {
     carryOverToNextLesson: row.carry_over_to_next_lesson ?? null,
     structure: [],
     result: null,
+  };
+}
+
+function lessonToScheduleSlot(lesson: TeacherLesson): ScheduleSlot {
+  return {
+    id: lesson.id,
+    day: lesson.day,
+    date: lesson.date,
+    time: lesson.time,
+    topic: lesson.title,
+    isConducted: lesson.isConducted,
+    sourceLessonId: lesson.sourceLessonId,
+    status: lesson.status,
+    groupId: lesson.groupId,
+    teacherId: lesson.teacherId,
   };
 }
 
@@ -1186,6 +1203,9 @@ export async function saveTeacherLesson(input: {
   comment?: string;
   assignedBlocks?: TeacherLessonPlanBlockInput[];
 }) {
+  const { data: previousRow } = input.id
+    ? await (supabase as any).from('schedules').select('*').eq('id', input.id).maybeSingle()
+    : { data: null };
   const row = {
     user_id: input.studentId,
     teacher_id: input.teacherId,
@@ -1217,6 +1237,10 @@ export async function saveTeacherLesson(input: {
   const savedLesson = rowToLesson(data);
   if (input.assignedBlocks !== undefined) {
     await saveLessonPlanBlocks(savedLesson.id, input.assignedBlocks);
+  }
+  if (input.studentId && !['completed', 'cancelled'].includes(savedLesson.status)) {
+    const before = previousRow ? [lessonToScheduleSlot(rowToLesson(previousRow))] : [];
+    await notifyScheduleSaved(input.studentId, before, [lessonToScheduleSlot(savedLesson)]);
   }
   return savedLesson;
 }
@@ -1509,6 +1533,19 @@ export async function completeTeacherLesson(input: {
       groupId: input.groupId || null,
       grades: input.grades,
     });
+    const { data: scheduleRow } = await (supabase as any)
+      .from('schedules')
+      .select('topic,title,day,time,scheduled_date')
+      .eq('id', input.lessonId)
+      .maybeSingle();
+    const title = scheduleRow?.topic || scheduleRow?.title || input.summary.trim() || 'Lesson result';
+    await Promise.all(input.grades.map(grade => notifyLessonGradePublished(grade.studentId, {
+      lessonId: input.lessonId,
+      title,
+      score: grade.score,
+      comment: grade.comment || input.teacherComment,
+      category: grade.category || 'Participation',
+    })));
   }
 
   return rowToLessonResult(result);
@@ -1551,7 +1588,7 @@ export async function saveLessonAttendances(rows: Array<{ lessonId: string; teac
 export async function saveHomeworkComment(homeworkId: string, patch: { teacherId?: string; teacherComment?: string; resultPercent?: number | null; errorsCount?: number | null; starRating?: number | null; status?: 'reviewed' | 'revision_requested' }) {
   const previous = await (supabase as any)
     .from('content_items')
-    .select('user_id,type,star_rating,checked_at')
+    .select('id,user_id,type,title,star_rating,checked_at')
     .eq('id', homeworkId)
     .maybeSingle();
   if (previous.error && !isSchemaNotReadyError(previous.error)) throw previous.error;
@@ -1580,6 +1617,15 @@ export async function saveHomeworkComment(homeworkId: string, patch: { teacherId
       _status: patch.status || 'reviewed',
     });
     if (!rpcError) {
+      if (previousRow?.user_id) {
+        await notifyHomeworkReviewed(previousRow.user_id, {
+          id: homeworkId,
+          type: previousRow.type,
+          title: previousRow.title || 'Homework',
+          starRating: patch.starRating,
+          teacherComment: patch.teacherComment,
+        });
+      }
       return;
     }
     if (!isSchemaNotReadyError(rpcError)) throw rpcError;
@@ -1601,6 +1647,15 @@ export async function saveHomeworkComment(homeworkId: string, patch: { teacherId
     .eq('id', homeworkId);
   if (error) throw error;
   await awardIfNeeded();
+  if (previousRow?.user_id) {
+    await notifyHomeworkReviewed(previousRow.user_id, {
+      id: homeworkId,
+      type: previousRow.type,
+      title: previousRow.title || 'Homework',
+      starRating: patch.starRating,
+      teacherComment: patch.teacherComment,
+    });
+  }
 }
 
 export async function updateTeacherContentAccess(contentItemId: string, unlocked: boolean) {

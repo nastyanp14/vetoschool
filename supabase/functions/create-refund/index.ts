@@ -242,6 +242,33 @@ async function loadStripePaymentById(stripePaymentId: string, env: RuntimeEnv) {
   return rows[0] || null;
 }
 
+function stripePaymentLookupFilter(identifier: string) {
+  if (identifier.startsWith('in_')) return `stripe_invoice_id=eq.${encodeURIComponent(identifier)}`;
+  if (identifier.startsWith('pi_')) return `stripe_payment_intent_id=eq.${encodeURIComponent(identifier)}`;
+  if (identifier.startsWith('ch_')) return `stripe_charge_id=eq.${encodeURIComponent(identifier)}`;
+  if (identifier.startsWith('cs_')) return `checkout_session_id=eq.${encodeURIComponent(identifier)}`;
+  return '';
+}
+
+async function loadStripePaymentByStripeIdentifier(identifier: string, env: RuntimeEnv) {
+  const filter = stripePaymentLookupFilter(identifier);
+  if (!filter) return null;
+  const response = await fetch(
+    `${supabaseUrl(env)}/rest/v1/stripe_payments?${filter}&select=id,user_id,checkout_session_id,stripe_invoice_id,stripe_customer_id,stripe_subscription_id,stripe_payment_intent_id,stripe_charge_id,plan_id,lesson_format,amount_total,currency,paid_at,created_at&order=created_at.desc&limit=1`,
+    { headers: supabaseServiceHeaders(env) },
+  );
+
+  if (!response.ok) throw new Error(`stripe_payment_lookup_failed_${response.status}`);
+
+  const rows = await response.json() as VetoschoolStripePayment[];
+  return rows[0] || null;
+}
+
+async function loadStripePaymentForRefund(identifier: string, env: RuntimeEnv) {
+  return await loadStripePaymentById(identifier, env)
+    || await loadStripePaymentByStripeIdentifier(identifier, env);
+}
+
 async function loadStripeRefundByIdempotencyKey(idempotencyKey: string, env: RuntimeEnv) {
   const response = await fetch(
     `${supabaseUrl(env)}/rest/v1/stripe_refunds?idempotency_key=eq.${encodeURIComponent(idempotencyKey)}&select=id,user_id,stripe_payment_id,stripe_refund_id,stripe_payment_intent_id,stripe_charge_id,idempotency_key,amount,currency,refund_type,reason,status,created_by_admin_id,created_at,updated_at&limit=1`,
@@ -487,8 +514,14 @@ export async function handleCreateRefund(request: Request, env: RuntimeEnv = run
       }, 200, origin, env);
     }
 
-    const payment = await loadStripePaymentById(stripePaymentId, env);
-    if (!payment) return jsonResponse({ error: 'Payment was not found.' }, 404, origin, env);
+    const payment = await loadStripePaymentForRefund(stripePaymentId, env);
+    if (!payment) {
+      return jsonResponse({
+        error: stripePaymentId.startsWith('in_')
+          ? 'Invoice was not found in Vetoschool payment history.'
+          : 'Payment was not found.',
+      }, 404, origin, env);
+    }
 
     const source = await resolveStripeRefundPaymentSource(payment, env);
     if (source.availableAmount <= 0) {
@@ -544,6 +577,15 @@ export async function handleCreateRefund(request: Request, env: RuntimeEnv = run
       stripeErrorType: null,
       stripeErrorCode: null,
     });
+    if (message === 'stripe_refund_payment_source_not_found') {
+      return jsonResponse({ error: 'Stripe invoice does not contain a refundable PaymentIntent or Charge.' }, 422, origin, env);
+    }
+    if (message.includes('stripe_api_post_failed_400')) {
+      return jsonResponse({ error: 'Stripe rejected this refund. Check whether this payment is already refunded or belongs to a different Stripe mode.' }, 400, origin, env);
+    }
+    if (message.includes('stripe_api_get_failed_404')) {
+      return jsonResponse({ error: 'Stripe payment source was not found for this invoice.' }, 404, origin, env);
+    }
     return jsonResponse({ error: 'Could not create Stripe refund. Please check the payment and try again.' }, 502, origin, env);
   }
 }

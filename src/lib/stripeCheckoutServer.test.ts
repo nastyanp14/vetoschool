@@ -109,6 +109,10 @@ describe('handleStripeWebhook', () => {
         return json({ id: 'cus_created_checkout' });
       }
 
+      if (url.includes('https://api.stripe.com/v1/subscriptions?customer=cus_created_checkout')) {
+        return json({ data: [] });
+      }
+
       if (url === 'https://api.stripe.com/v1/checkout/sessions') {
         stripeCheckoutBody = String(init?.body);
         return json({ id: 'cs_test_checkout', url: 'https://checkout.stripe.test/session' });

@@ -14,6 +14,7 @@ export interface TelegramParentAccount {
   id: string;
   parentName?: string | null;
   telegramUsername?: string | null;
+  linkedAt?: string | null;
   language: 'ru' | 'ua' | 'en';
   notifyLessonReminders: boolean;
   notifyHomework: boolean;
@@ -42,6 +43,24 @@ async function invokeTelegram(body: Record<string, unknown>) {
   }
 }
 
+export function telegramParentFromLinkRow(row: any): TelegramParentAccount | null {
+  const parent = Array.isArray(row?.telegram_parent_accounts)
+    ? row.telegram_parent_accounts[0]
+    : row?.telegram_parent_accounts;
+  if (!parent?.id) return null;
+  return {
+    id: parent.id,
+    parentName: parent.parent_name || parent.display_name || [parent.first_name, parent.last_name].filter(Boolean).join(' ') || null,
+    telegramUsername: parent.telegram_username,
+    linkedAt: row.linked_at || parent.linked_at || row.created_at || null,
+    language: parent.language || 'ru',
+    notifyLessonReminders: !!parent.notify_lesson_reminders,
+    notifyHomework: !!parent.notify_homework,
+    notifyGrades: !!parent.notify_grades,
+    notifyScheduleChanges: !!parent.notify_schedule_changes,
+  };
+}
+
 export async function createTelegramLink(studentId: string) {
   const { data, error } = await supabase.functions.invoke('telegram-notifications', {
     body: { action: 'create_link_token', studentId },
@@ -59,11 +78,18 @@ export async function createTelegramLink(studentId: string) {
 export async function listTelegramParents(studentId: string): Promise<TelegramParentAccount[]> {
   const selectWithExplicitRelation = `
     parent_id,
+    linked_at,
+    created_at,
+    active,
     telegram_parent_accounts!student_parent_links_parent_id_fkey (
       id,
       parent_name,
+      display_name,
+      first_name,
+      last_name,
       telegram_username,
       language,
+      linked_at,
       notify_lesson_reminders,
       notify_homework,
       notify_grades,
@@ -74,13 +100,17 @@ export async function listTelegramParents(studentId: string): Promise<TelegramPa
   const firstResult = await asAnySupabase()
     .from('student_parent_links')
     .select(selectWithExplicitRelation)
-    .eq('student_id', studentId);
+    .eq('student_id', studentId)
+    .eq('active', true)
+    .order('linked_at', { ascending: false });
 
   const { data, error } = firstResult.error
     ? await asAnySupabase()
       .from('student_parent_links')
-      .select('telegram_parent_accounts(*)')
+      .select('linked_at,created_at,active,telegram_parent_accounts(*)')
       .eq('student_id', studentId)
+      .eq('active', true)
+      .order('linked_at', { ascending: false })
     : firstResult;
 
   if (error) {
@@ -88,20 +118,8 @@ export async function listTelegramParents(studentId: string): Promise<TelegramPa
     return [];
   }
   return (data || [])
-    .map((row: any) => Array.isArray(row.telegram_parent_accounts)
-      ? row.telegram_parent_accounts[0]
-      : row.telegram_parent_accounts)
-    .filter(Boolean)
-    .map((parent: any) => ({
-      id: parent.id,
-      parentName: parent.parent_name,
-      telegramUsername: parent.telegram_username,
-      language: parent.language || 'ru',
-      notifyLessonReminders: !!parent.notify_lesson_reminders,
-      notifyHomework: !!parent.notify_homework,
-      notifyGrades: !!parent.notify_grades,
-      notifyScheduleChanges: !!parent.notify_schedule_changes,
-    }));
+    .map(telegramParentFromLinkRow)
+    .filter((parent): parent is TelegramParentAccount => Boolean(parent));
 }
 
 export async function disconnectTelegramParent(studentId: string, parentId: string) {
@@ -158,6 +176,52 @@ export async function notifyContentDeleted(studentId: string, item: ContentItem 
 
 export async function notifyLessonConducted(studentId: string, slot: ScheduleSlot) {
   await invokeTelegram({ action: 'schedule_event', type: 'lesson_conducted', studentId, slot });
+}
+
+export async function notifyHomeworkReviewed(studentId: string, item: {
+  id: string;
+  type: string;
+  title: string;
+  starRating?: number | null;
+  teacherComment?: string | null;
+  reviewComment?: string | null;
+}) {
+  if (!studentId || !item.id || !item.starRating || item.starRating <= 0) return;
+  await invokeTelegram({
+    action: 'content_event',
+    type: 'grade_published',
+    studentId,
+    item: {
+      id: item.id,
+      type: item.type,
+      title: item.title,
+      starRating: item.starRating,
+      teacherComment: item.teacherComment || item.reviewComment || '',
+    },
+  });
+}
+
+export async function notifyLessonGradePublished(studentId: string, input: {
+  lessonId: string;
+  title: string;
+  score: number;
+  comment?: string | null;
+  category?: string | null;
+}) {
+  if (!studentId || !input.lessonId || !input.score || input.score <= 0) return;
+  const categoryKey = (input.category || 'lesson').toLowerCase().replace(/[^a-z0-9_-]+/gi, '-');
+  await invokeTelegram({
+    action: 'content_event',
+    type: 'grade_published',
+    studentId,
+    item: {
+      id: `lesson-result:${input.lessonId}:${studentId}:${categoryKey}`,
+      type: 'checkpoint',
+      title: input.title,
+      starRating: input.score,
+      teacherComment: input.comment || '',
+    },
+  });
 }
 
 export async function notifyScheduleSaved(studentId: string, before: ScheduleSlot[], after: ScheduleSlot[]) {

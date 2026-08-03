@@ -200,6 +200,28 @@ async function isAdmin(admin: any, userId: string | null) {
   return !!data?.some((row: { role: string }) => row.role === 'admin');
 }
 
+async function canNotifyForStudent(admin: any, userId: string | null, studentId: string) {
+  if (!userId || !studentId) return false;
+  if (userId === studentId) return true;
+  if (await isAdmin(admin, userId)) return true;
+
+  const { data: directTeacher } = await admin
+    .from('teacher_students')
+    .select('teacher_id')
+    .eq('teacher_id', userId)
+    .eq('student_id', studentId)
+    .maybeSingle();
+  if (directTeacher) return true;
+
+  const { data: groupTeacher } = await admin
+    .from('student_group_members')
+    .select('student_groups!inner(teacher_id)')
+    .eq('user_id', studentId)
+    .eq('student_groups.teacher_id', userId)
+    .maybeSingle();
+  return !!groupTeacher;
+}
+
 async function studentName(admin: any, studentId: string) {
   const { data } = await admin.from('profiles').select('name,email').eq('id', studentId).maybeSingle();
   return data?.name || data?.email?.split('@')[0] || 'ученик';
@@ -320,7 +342,25 @@ async function handleContentEvent(admin: any, body: any) {
 
 function slotLabel(slot: any) {
   if (!slot) return '';
-  return [slot.day, slot.time].filter(Boolean).join(' ');
+  return [slot.date || slot.scheduled_date || slot.day, slot.time].filter(Boolean).join(' ');
+}
+
+function slotLessonAt(slot: any) {
+  const date = slot?.date || slot?.scheduled_date;
+  const time = slot?.time;
+  if (!date || !time) return null;
+  const value = new Date(`${date}T${time}`);
+  return Number.isNaN(value.getTime()) ? null : value.toISOString();
+}
+
+function preferenceAllows(parent: ParentRow, notificationType: string) {
+  if (notificationType === 'lesson_reminder_24h' || notificationType === 'lesson_reminder_1h' || notificationType === 'lesson_conducted') {
+    return parent.notify_lesson_reminders;
+  }
+  if (notificationType === 'homework_published') return parent.notify_homework;
+  if (notificationType === 'grade_published') return parent.notify_grades;
+  if (notificationType === 'lesson_rescheduled' || notificationType === 'lesson_canceled') return parent.notify_schedule_changes;
+  return true;
 }
 
 async function handleScheduleEvent(admin: any, body: any) {
@@ -333,6 +373,7 @@ async function handleScheduleEvent(admin: any, body: any) {
   const now = new Date().toISOString();
   const lessonRef = `schedule:${slot.id || `${slot.day}-${slot.time}-${slot.topic}`}`;
   const url = `${dashboardUrl(studentId)}&tab=schedule`;
+  const lessonAt = slotLessonAt(slot);
 
   if (type === 'lesson_conducted') {
     for (const parent of parents.filter(parent => parent.notify_lesson_reminders)) {
@@ -350,6 +391,22 @@ async function handleScheduleEvent(admin: any, body: any) {
 
   if (type === 'lesson_rescheduled' || type === 'lesson_canceled' || type === 'lesson_scheduled') {
     await cancelLessonReminders(admin, studentId, lessonRef);
+    if (lessonAt && type !== 'lesson_canceled') {
+      for (const parent of parents.filter(parent => parent.notify_lesson_reminders)) {
+        for (const reminder of [{ suffix: '24h', minutes: 24 * 60 }, { suffix: '1h', minutes: 60 }]) {
+          const scheduledFor = minutesBefore(lessonAt, reminder.minutes);
+          if (new Date(scheduledFor).getTime() <= Date.now()) continue;
+          await enqueue(admin, {
+            event_key: `${lessonRef}:${parent.id}:reminder:${reminder.suffix}:${lessonAt}`,
+            notification_type: reminder.suffix === '24h' ? 'lesson_reminder_24h' : 'lesson_reminder_1h',
+            student_id: studentId,
+            parent_id: parent.id,
+            scheduled_for: scheduledFor,
+            payload: { studentName: name, topic: slot.topic, lessonAt, lessonRef, url },
+          });
+        }
+      }
+    }
     for (const parent of parents.filter(parent => parent.notify_schedule_changes)) {
       await enqueue(admin, {
         event_key: `${lessonRef}:${parent.id}:${type}:${slotLabel(oldSlot)}:${slotLabel(slot)}`,
@@ -376,19 +433,34 @@ async function processDue(admin: any, limit = 25) {
   let sent = 0;
   let failed = 0;
   for (const notification of data || []) {
+    const { data: claimed } = await admin
+      .from('telegram_notifications')
+      .update({ attempts: notification.attempts + 1, updated_at: new Date().toISOString() })
+      .eq('id', notification.id)
+      .eq('status', 'pending')
+      .eq('attempts', notification.attempts)
+      .select('id')
+      .maybeSingle();
+    if (!claimed) continue;
+
     const parent = notification.telegram_parent_accounts as ParentRow | null;
     if (!parent) {
-      await admin.from('telegram_notifications').update({ status: 'failed', error: 'Parent account not found', attempts: notification.attempts + 1 }).eq('id', notification.id);
+      await admin.from('telegram_notifications').update({ status: 'failed', error: 'Parent account not found' }).eq('id', notification.id);
+      failed++;
+      continue;
+    }
+    if (!preferenceAllows(parent, notification.notification_type)) {
+      await admin.from('telegram_notifications').update({ status: 'canceled', canceled_at: new Date().toISOString(), error: 'Notification preference is disabled' }).eq('id', notification.id);
       failed++;
       continue;
     }
     try {
       const message = notificationMessage(parent, notification);
       await sendToParent(parent, message.text, message.buttons);
-      await admin.from('telegram_notifications').update({ status: 'sent', sent_at: new Date().toISOString(), attempts: notification.attempts + 1, error: null }).eq('id', notification.id);
+      await admin.from('telegram_notifications').update({ status: 'sent', sent_at: new Date().toISOString(), error: null }).eq('id', notification.id);
       sent++;
     } catch (error) {
-      await admin.from('telegram_notifications').update({ status: 'failed', attempts: notification.attempts + 1, error: (error as Error).message }).eq('id', notification.id);
+      await admin.from('telegram_notifications').update({ status: 'failed', error: (error as Error).message }).eq('id', notification.id);
       failed++;
     }
   }
@@ -448,13 +520,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!adminUser && action !== 'process_due') return json({ error: 'Forbidden' }, 403);
-
     if (action === 'content_event') {
+      if (!adminUser && !(await canNotifyForStudent(admin, userId, body.studentId))) return json({ error: 'Forbidden' }, 403);
       await handleContentEvent(admin, body);
       return json({ success: true });
     }
     if (action === 'schedule_event') {
+      if (!adminUser && !(await canNotifyForStudent(admin, userId, body.studentId))) return json({ error: 'Forbidden' }, 403);
       await handleScheduleEvent(admin, body);
       return json({ success: true });
     }

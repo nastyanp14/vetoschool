@@ -39,6 +39,9 @@ type VetoschoolProfile = {
   email?: string | null;
   name?: string | null;
   stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+  subscription_status?: string | null;
+  plan_id?: string | null;
 };
 
 type CheckoutErrorCode =
@@ -47,6 +50,7 @@ type CheckoutErrorCode =
   | 'profile_not_found'
   | 'profile_lookup_failed'
   | 'invalid_tariff'
+  | 'active_subscription_exists'
   | 'unavailable_price'
   | 'stripe_configuration_error'
   | 'stripe_api_error'
@@ -69,6 +73,26 @@ type StripeCheckoutSessionResponse = {
 
 type StripeCustomerResponse = {
   id?: string;
+  error?: {
+    type?: string;
+    code?: string;
+    message?: string;
+  };
+};
+
+type StripeSubscriptionListResponse = {
+  data?: Array<{
+    id?: string;
+    status?: string | null;
+    metadata?: Record<string, string | undefined> | null;
+    items?: {
+      data?: Array<{
+        price?: {
+          id?: string | null;
+        } | null;
+      }>;
+    };
+  }>;
   error?: {
     type?: string;
     code?: string;
@@ -226,7 +250,7 @@ async function requireAuthenticatedUser(request: Request, env: RuntimeEnv): Prom
 
 async function loadProfileById(userId: string, env: RuntimeEnv) {
   const response = await fetch(
-    `${supabaseUrl(env)}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,email,name,stripe_customer_id&limit=1`,
+    `${supabaseUrl(env)}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,email,name,stripe_customer_id,stripe_subscription_id,subscription_status,plan_id&limit=1`,
     { headers: supabaseServiceHeaders(env) },
   );
 
@@ -234,6 +258,50 @@ async function loadProfileById(userId: string, env: RuntimeEnv) {
 
   const rows = await response.json() as VetoschoolProfile[];
   return rows[0] || null;
+}
+
+const activeStripeSubscriptionStatuses = new Set(['active', 'trialing', 'past_due', 'unpaid']);
+
+function teachingPriceIds() {
+  return new Set(Object.values(stripePlanConfig).map(plan => plan.priceId));
+}
+
+function profileHasActiveTeachingSubscription(profile: VetoschoolProfile) {
+  return Boolean(
+    profile.stripe_customer_id
+    && profile.stripe_subscription_id
+    && profile.subscription_status
+    && activeStripeSubscriptionStatuses.has(profile.subscription_status)
+  );
+}
+
+async function loadActiveTeachingSubscriptions(customerId: string, env: RuntimeEnv) {
+  if (!customerId) return [];
+  const secretKey = requireEnv(env, ['STRIPE_SECRET_KEY'], 'stripe_secret_key_missing');
+  const response = await fetch(
+    `https://api.stripe.com/v1/subscriptions?customer=${encodeURIComponent(customerId)}&status=all&limit=20&expand[]=data.items.data.price`,
+    {
+      headers: { authorization: `Bearer ${secretKey}` },
+    },
+  );
+
+  const payload = await response.json() as StripeSubscriptionListResponse;
+  if (!response.ok) {
+    console.warn('[create-checkout-session]', {
+      stage: 'stripe_subscription_list',
+      status: response.status,
+      stripeErrorType: payload.error?.type || null,
+      stripeErrorCode: payload.error?.code || null,
+    });
+    throw new Error('stripe_subscription_lookup_failed');
+  }
+
+  const prices = teachingPriceIds();
+  return (payload.data || []).filter(subscription => {
+    if (!subscription.id || !subscription.status || !activeStripeSubscriptionStatuses.has(subscription.status)) return false;
+    const hasTeachingPrice = (subscription.items?.data || []).some(item => item.price?.id && prices.has(item.price.id));
+    return hasTeachingPrice || subscription.metadata?.source === 'vetoschool' || Boolean(subscription.metadata?.plan_id);
+  });
 }
 
 async function saveStripeCustomerId(userId: string, customerId: string, env: RuntimeEnv) {
@@ -311,6 +379,15 @@ async function createStripeCheckoutUrl(input: {
 
     customerId = customerPayload.id;
     await saveStripeCustomerId(input.profile.id, customerId, input.env);
+  }
+
+  if (profileHasActiveTeachingSubscription({ ...input.profile, stripe_customer_id: customerId })) {
+    throw new Error('active_subscription_exists');
+  }
+
+  const activeTeachingSubscriptions = await loadActiveTeachingSubscriptions(customerId, input.env);
+  if (activeTeachingSubscriptions.length > 0) {
+    throw new Error(`active_subscription_exists:${activeTeachingSubscriptions.map(subscription => subscription.id).join(',')}`);
   }
 
   const stripeBody = new URLSearchParams({
@@ -450,8 +527,14 @@ export async function handleCreateCheckoutSession(request: Request, env: Runtime
       ? 'stripe_configuration_error'
       : message.includes('stripe_price_missing')
         ? 'unavailable_price'
-        : 'stripe_api_error';
-    return jsonResponse(checkoutError(code, 'Stripe Checkout Session was not created.'), 502, origin, env);
+        : message.includes('active_subscription_exists')
+          ? 'active_subscription_exists'
+          : 'stripe_api_error';
+    const status = code === 'active_subscription_exists' ? 409 : 502;
+    const errorText = code === 'active_subscription_exists'
+      ? 'This account already has an active Vetoschool subscription. Use subscription management to change the current plan instead of creating a second one.'
+      : 'Stripe Checkout Session was not created.';
+    return jsonResponse(checkoutError(code, errorText), status, origin, env);
   }
 }
 

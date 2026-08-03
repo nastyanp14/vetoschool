@@ -207,6 +207,8 @@ type VetoschoolProfile = {
   name?: string | null;
   stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;
+  subscription_status?: string | null;
+  plan_id?: string | null;
 };
 
 type VetoschoolRoleRow = {
@@ -711,7 +713,7 @@ async function requireAdminUser(request: Request, env: StripeCheckoutEnv): Promi
 async function loadProfileById(userId: string, env: StripeCheckoutEnv, accessToken?: string): Promise<VetoschoolProfile | null> {
   const supabaseUrl = requireSupabaseUrl(env);
   const response = await fetch(
-    `${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,email,name,stripe_customer_id,stripe_subscription_id&limit=1`,
+    `${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,email,name,stripe_customer_id,stripe_subscription_id,subscription_status,plan_id&limit=1`,
     { headers: accessToken ? supabaseUserHeaders(env, accessToken) : supabaseHeaders(env) },
   );
 
@@ -719,6 +721,39 @@ async function loadProfileById(userId: string, env: StripeCheckoutEnv, accessTok
 
   const rows = await response.json() as VetoschoolProfile[];
   return rows[0] || null;
+}
+
+const activeStripeSubscriptionStatuses = new Set(['active', 'trialing', 'past_due', 'unpaid']);
+
+function profileHasActiveTeachingSubscription(profile: VetoschoolProfile) {
+  return Boolean(
+    profile.stripe_customer_id
+    && profile.stripe_subscription_id
+    && profile.subscription_status
+    && activeStripeSubscriptionStatuses.has(profile.subscription_status)
+  );
+}
+
+async function loadActiveTeachingSubscriptions(customerId: string, env: StripeCheckoutEnv) {
+  if (!customerId) return [];
+  const response = await fetch(
+    `https://api.stripe.com/v1/subscriptions?customer=${encodeURIComponent(customerId)}&status=all&limit=20&expand[]=data.items.data.price`,
+    {
+      headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}` },
+    },
+  );
+  const payload = await response.json().catch(() => ({})) as { data?: any[]; error?: { type?: string; code?: string } };
+  if (!response.ok) throw new Error(`stripe_subscription_lookup_failed_${response.status}`);
+  const teachingPrices = new Set(Object.values(stripePriceIdsByPlan));
+  return (payload.data || []).filter(subscription => (
+    subscription?.id
+    && activeStripeSubscriptionStatuses.has(subscription.status)
+    && (
+      (subscription.items?.data || []).some((item: any) => item.price?.id && teachingPrices.has(item.price.id))
+      || subscription.metadata?.source === 'vetoschool'
+      || Boolean(subscription.metadata?.plan_id)
+    )
+  ));
 }
 
 async function loadStripePaymentById(stripePaymentId: string, env: StripeCheckoutEnv): Promise<VetoschoolStripePayment | null> {
@@ -732,6 +767,32 @@ async function loadStripePaymentById(stripePaymentId: string, env: StripeCheckou
 
   const rows = await response.json() as VetoschoolStripePayment[];
   return rows[0] || null;
+}
+
+function stripePaymentLookupFilter(identifier: string) {
+  if (identifier.startsWith('in_')) return `stripe_invoice_id=eq.${encodeURIComponent(identifier)}`;
+  if (identifier.startsWith('pi_')) return `stripe_payment_intent_id=eq.${encodeURIComponent(identifier)}`;
+  if (identifier.startsWith('ch_')) return `stripe_charge_id=eq.${encodeURIComponent(identifier)}`;
+  if (identifier.startsWith('cs_')) return `checkout_session_id=eq.${encodeURIComponent(identifier)}`;
+  return '';
+}
+
+async function loadStripePaymentByStripeIdentifier(identifier: string, env: StripeCheckoutEnv): Promise<VetoschoolStripePayment | null> {
+  const filter = stripePaymentLookupFilter(identifier);
+  if (!filter) return null;
+  const supabaseUrl = requireSupabaseUrl(env);
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/stripe_payments?${filter}&select=id,user_id,checkout_session_id,stripe_invoice_id,stripe_customer_id,stripe_subscription_id,stripe_payment_intent_id,stripe_charge_id,plan_id,lesson_format,amount_total,currency,paid_at,created_at&order=created_at.desc&limit=1`,
+    { headers: supabaseHeaders(env) },
+  );
+  if (!response.ok) throw new Error(`stripe_payment_lookup_failed_${response.status}`);
+  const rows = await response.json() as VetoschoolStripePayment[];
+  return rows[0] || null;
+}
+
+async function loadStripePaymentForRefund(identifier: string, env: StripeCheckoutEnv): Promise<VetoschoolStripePayment | null> {
+  return await loadStripePaymentById(identifier, env)
+    || await loadStripePaymentByStripeIdentifier(identifier, env);
 }
 
 async function loadStripeRefundByIdempotencyKey(idempotencyKey: string, env: StripeCheckoutEnv): Promise<VetoschoolStripeRefund | null> {
@@ -2221,6 +2282,29 @@ export async function handleCreateStripeCheckoutSession(request: Request, env: S
     }
   }
 
+  try {
+    if (profileHasActiveTeachingSubscription({ ...profile, stripe_customer_id: customerId })) {
+      return jsonResponse({
+        code: 'active_subscription_exists',
+        error: 'This account already has an active Vetoschool subscription. Use subscription management to change the current plan instead of creating a second one.',
+      }, 409);
+    }
+    const activeTeachingSubscriptions = await loadActiveTeachingSubscriptions(customerId, env);
+    if (activeTeachingSubscriptions.length > 0) {
+      return jsonResponse({
+        code: 'active_subscription_exists',
+        error: 'This account already has an active Vetoschool subscription. Use subscription management to change the current plan instead of creating a second one.',
+      }, 409);
+    }
+  } catch (error) {
+    console.log('[Stripe Checkout debug]', {
+      stage: 'stripe_subscription_lookup',
+      status: 502,
+      error: error instanceof Error ? error.message : 'stripe_subscription_lookup_failed',
+    });
+    return jsonResponse({ code: 'stripe_api_error', error: 'Stripe Checkout Session was not created.' }, 502);
+  }
+
   const stripeBody = new URLSearchParams({
     mode: 'subscription',
     success_url: checkoutSuccessUrlWithSessionId(successUrl),
@@ -2392,8 +2476,14 @@ export async function handleCreateStripeRefund(request: Request, env: StripeChec
       });
     }
 
-    const payment = await loadStripePaymentById(stripePaymentId, env);
-    if (!payment) return jsonResponse({ error: 'Payment was not found.' }, 404);
+    const payment = await loadStripePaymentForRefund(stripePaymentId, env);
+    if (!payment) {
+      return jsonResponse({
+        error: stripePaymentId.startsWith('in_')
+          ? 'Invoice was not found in Vetoschool payment history.'
+          : 'Payment was not found.',
+      }, 404);
+    }
 
     const source = await resolveStripeRefundPaymentSource(payment, env);
     if (source.availableAmount <= 0) {
@@ -2491,6 +2581,15 @@ export async function handleCreateStripeRefund(request: Request, env: StripeChec
       stripeErrorType: null,
       stripeErrorCode: null,
     });
+    if (message === 'stripe_refund_payment_source_not_found') {
+      return jsonResponse({ error: 'Stripe invoice does not contain a refundable PaymentIntent or Charge.' }, 422);
+    }
+    if (message.includes('stripe_api_post_failed_400')) {
+      return jsonResponse({ error: 'Stripe rejected this refund. Check whether this payment is already refunded or belongs to a different Stripe mode.' }, 400);
+    }
+    if (message.includes('stripe_api_get_failed_404')) {
+      return jsonResponse({ error: 'Stripe payment source was not found for this invoice.' }, 404);
+    }
     return jsonResponse({ error: 'Could not create Stripe refund. Please check the payment and try again.' }, 502);
   }
 }

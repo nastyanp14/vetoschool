@@ -1981,7 +1981,15 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
         },
       });
 
-      if (error) throw new Error(payload?.error || error.message || 'refund_failed');
+      if (error) {
+        let functionError = payload?.error || '';
+        const context = (error as { context?: Response }).context;
+        if (!functionError && context?.json) {
+          const body = await context.clone().json().catch(() => null) as { error?: string } | null;
+          functionError = body?.error || '';
+        }
+        throw new Error(functionError || error.message || 'refund_failed');
+      }
 
       await refreshSubscriptionHistory();
       setRefundTarget(null);
