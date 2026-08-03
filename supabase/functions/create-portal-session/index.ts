@@ -265,6 +265,6 @@ export async function handleCreatePortalSession(request: Request, env: RuntimeEn
   }
 }
 
-if (typeof Deno !== 'undefined' && import.meta.main) {
+if (typeof Deno !== 'undefined' && (import.meta as unknown as { main?: boolean }).main) {
   Deno.serve(request => handleCreatePortalSession(request, Deno.env));
 }

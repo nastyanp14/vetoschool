@@ -187,6 +187,11 @@ type StripeInvoice = {
 
 type StripePaymentIntent = {
   id?: string;
+  last_payment_error?: {
+    code?: string | null;
+    decline_code?: string | null;
+    message?: string | null;
+  } | null;
   latest_charge?: string | StripeCharge | null;
   charges?: {
     data?: StripeCharge[];
@@ -211,7 +216,7 @@ type StripeRefund = {
 };
 
 type SupabaseAuthUser = {
-  id?: string;
+  id: string;
   email?: string | null;
 };
 
@@ -2150,7 +2155,7 @@ export async function handleCreateStripeCheckoutSession(request: Request, env: S
     body: stripeBody,
   });
 
-  const stripePayload = await stripeResponse.json() as { id?: string; url?: string; error?: { message?: string } };
+  const stripePayload = await stripeResponse.json() as { id?: string; url?: string; error?: { message?: string; type?: string; code?: string } };
   console.log('[Stripe Checkout debug]', {
     stage: 'stripe_checkout_session',
     status: stripeResponse.status,
@@ -2290,7 +2295,7 @@ export async function handleCreateStripeRefund(request: Request, env: StripeChec
       return jsonResponse({ error: 'This payment has already been fully refunded.' }, 409);
     }
 
-    const refundAmount = refundType === 'full' ? source.availableAmount : body.amount;
+    const refundAmount = refundType === 'full' ? source.availableAmount : (body.amount ?? 0);
     if (!Number.isInteger(refundAmount) || refundAmount <= 0) {
       return jsonResponse({ error: 'Enter a valid refund amount.' }, 400);
     }
@@ -2484,6 +2489,6 @@ function edgeEnvFromDeno(): StripeCheckoutEnv {
   };
 }
 
-if (typeof Deno !== 'undefined' && import.meta.main) {
+if (typeof Deno !== 'undefined' && (import.meta as unknown as { main?: boolean }).main) {
   Deno.serve(request => handleStripeWebhook(request, edgeEnvFromDeno()));
 }

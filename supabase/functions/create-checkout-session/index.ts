@@ -322,6 +322,6 @@ export async function handleCreateCheckoutSession(request: Request, env: Runtime
   }
 }
 
-if (typeof Deno !== 'undefined' && import.meta.main) {
+if (typeof Deno !== 'undefined' && (import.meta as unknown as { main?: boolean }).main) {
   Deno.serve(request => handleCreateCheckoutSession(request, Deno.env));
 }

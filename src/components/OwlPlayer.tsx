@@ -88,7 +88,7 @@ const buildPlaybackPlan = (state: OwlPlayerState): PlaybackPlan => {
     };
   }
 
-  if (asset?.type === 'video' && state !== 'idle') {
+  if (asset?.type === 'video' && (state as string) !== 'idle') {
     return {
       mode: 'one-shot',
       sources: [asset.src],
@@ -308,14 +308,14 @@ export default function OwlPlayer({ state, onStateComplete, className = '' }: Ow
   useEffect(() => {
     const requestedPlan = buildPlaybackPlan(state);
     const activePlan = activePlanRef.current;
-    const requestedHasOwnVideo = state === 'idle'
+    const requestedHasOwnVideo = (state as string) === 'idle'
       || Boolean(owlAssets[state]?.type === 'video');
 
     if (
       requestedPlan.mode === activePlan.mode
       && requestedPlan.sources[requestedPlan.index] === activePlan.sources[activePlan.index]
     ) {
-      if (!requestedHasOwnVideo && state !== 'idle') {
+      if (!requestedHasOwnVideo && (state as string) !== 'idle') {
         const timeout = window.setTimeout(() => onStateCompleteRef.current?.(state), 400);
         return () => window.clearTimeout(timeout);
       }
@@ -329,7 +329,7 @@ export default function OwlPlayer({ state, onStateComplete, className = '' }: Ow
     void transitionToSource(requestedPlan.sources[0], token).then(switched => {
       if (cancelled || !switched) return;
       activePlanRef.current = requestedPlan;
-      if (!requestedHasOwnVideo && state !== 'idle') {
+      if (!requestedHasOwnVideo && (state as string) !== 'idle') {
         window.setTimeout(() => onStateCompleteRef.current?.(state), 400);
       }
     });
