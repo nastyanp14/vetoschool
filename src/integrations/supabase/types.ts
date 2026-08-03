@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_access_overrides: {
+        Row: {
+          admin_user_id: string
+          created_at: string
+          id: string
+          new_access_status: string | null
+          new_payment_status: string | null
+          previous_access_status: string | null
+          previous_payment_status: string | null
+          reason: string
+          user_id: string
+        }
+        Insert: {
+          admin_user_id: string
+          created_at?: string
+          id?: string
+          new_access_status?: string | null
+          new_payment_status?: string | null
+          previous_access_status?: string | null
+          previous_payment_status?: string | null
+          reason?: string
+          user_id: string
+        }
+        Update: {
+          admin_user_id?: string
+          created_at?: string
+          id?: string
+          new_access_status?: string | null
+          new_payment_status?: string | null
+          previous_access_status?: string | null
+          previous_payment_status?: string | null
+          reason?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_access_overrides_admin_user_id_fkey"
+            columns: ["admin_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_access_overrides_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_lesson_adjustments: {
         Row: {
           admin_user_id: string
@@ -2932,6 +2983,14 @@ export type Database = {
           status: string
           student_id: string
           student_name: string
+        }[]
+      }
+      repair_stripe_profile_sync: {
+        Args: { p_user_id: string }
+        Returns: {
+          lessons_remaining: number
+          lessons_total: number
+          subscription_status: string
         }[]
       }
       repair_student_interactive_completion: {
