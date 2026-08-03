@@ -158,6 +158,26 @@ async function sendDirectTelegram(chatId: string, text: string, buttons: any[]) 
   return true;
 }
 
+let cachedBotUsername: string | null = null;
+async function telegramBotUsername() {
+  if (cachedBotUsername) return cachedBotUsername;
+  const envName = (Deno.env.get('TELEGRAM_BOT_USERNAME') || '').replace(/^@/, '');
+  if (envName) {
+    cachedBotUsername = envName;
+    return cachedBotUsername;
+  }
+  const token = Deno.env.get('TELEGRAM_BOT_TOKEN');
+  if (!token) return '';
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+    const data = await response.json().catch(() => ({}));
+    cachedBotUsername = data?.result?.username || '';
+    return cachedBotUsername;
+  } catch {
+    return '';
+  }
+}
+
 async function sendToParent(parent: ParentRow, text: string, buttons: any[]) {
   if (!Deno.env.get('TELEGRAM_BOT_TOKEN')) throw new Error('TELEGRAM_BOT_TOKEN is not configured');
   if (!parent.telegram_chat_id) throw new Error('Parent is not connected to the Telegram bot');
@@ -189,9 +209,12 @@ async function parentsFor(admin: any, studentId: string): Promise<ParentRow[]> {
   const { data, error } = await admin
     .from('student_parent_links')
     .select('telegram_parent_accounts(*)')
-    .eq('student_id', studentId);
+    .eq('student_id', studentId)
+    .eq('active', true);
   if (error) throw error;
-  return (data || []).map((row: any) => row.telegram_parent_accounts).filter(Boolean);
+  return (data || [])
+    .map((row: any) => row.telegram_parent_accounts)
+    .filter((parent: any) => parent && parent.telegram_chat_id);
 }
 
 async function enqueue(admin: any, row: any) {
@@ -406,7 +429,23 @@ Deno.serve(async (req) => {
         expires_at: expiresAt,
       });
       if (error) throw error;
-      return json({ token, expiresAt });
+
+      // Any previous unused invitation for this student becomes invalid.
+      await admin
+        .from('telegram_link_tokens')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('student_id', studentId)
+        .neq('token_hash', tokenHash)
+        .is('used_at', null)
+        .is('revoked_at', null);
+
+      const botUsername = await telegramBotUsername();
+      return json({
+        token,
+        expiresAt,
+        botUsername,
+        url: botUsername ? `https://t.me/${botUsername}?start=${encodeURIComponent(token)}` : null,
+      });
     }
 
     if (!adminUser && action !== 'process_due') return json({ error: 'Forbidden' }, 403);
