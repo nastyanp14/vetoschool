@@ -78,7 +78,7 @@ export default function AccountSecurity({ lang }: { lang: Lang }) {
     <div className="page-bg-dashboard min-h-screen p-4">
       <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center py-8">
         <div className="mb-4 flex items-center justify-between">
-          <Link to={user.hasAccess ? '/dashboard' : '/pending-activation'} className="font-body text-sm font-700 text-pink-500 hover:text-purple-500">
+          <Link to="/dashboard" className="font-body text-sm font-700 text-pink-500 hover:text-purple-500">
             {copy.back}
           </Link>
           <ThemeToggle />

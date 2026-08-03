@@ -16,7 +16,6 @@ import AuthLinkExpired from './AuthLinkExpired';
 import ForgotPassword from './ForgotPassword';
 import ResetPassword from './ResetPassword';
 import AccountSecurity from './AccountSecurity';
-import PendingActivation from './PendingActivation';
 import Dashboard from './Dashboard';
 import Admin from './Admin';
 import TeacherDashboard from './TeacherDashboard';
@@ -120,17 +119,14 @@ const seo = {
 function ProtectedRoute({
   children,
   role,
-  requirePaidAccess = false,
 }: {
   children: JSX.Element;
   role?: 'admin' | 'teacher' | 'student';
-  requirePaidAccess?: boolean;
 }) {
   const user = getCurrentUser();
   if (!user) return <Navigate to="/login" replace />;
   if (!user.emailConfirmed) return <Navigate to={`/auth/check-email?email=${encodeURIComponent(user.email)}`} replace />;
   if (role && user.role !== role) return <Navigate to={homePathForUser(user)} replace />;
-  if (requirePaidAccess && user.role === 'student' && !user.hasAccess) return <Navigate to="/pending-activation" replace />;
   return children;
 }
 
@@ -172,9 +168,9 @@ export default function Index() {
         <Route path="/auth/link-expired" element={<><Seo title="Auth Link Expired | Vetoschool" description="Vetoschool authentication link expired." path="/auth/link-expired" noindex /><AuthLinkExpired lang={lang} /></>} />
         <Route path="/forgot-password" element={<><Seo title="Forgot Password | Vetoschool" description="Recover your Vetoschool password." path="/forgot-password" noindex /><ForgotPassword lang={lang} /></>} />
         <Route path="/reset-password" element={<><Seo title="Reset Password | Vetoschool" description="Reset your Vetoschool password." path="/reset-password" noindex /><ResetPassword lang={lang} /></>} />
-        <Route path="/pending-activation" element={<><Seo title="Pending Activation | Vetoschool" description="Vetoschool paid access pending activation." path="/pending-activation" noindex /><ProtectedRoute><PendingActivation lang={lang} /></ProtectedRoute></>} />
+        <Route path="/pending-activation" element={<><Seo title="Pending Activation | Vetoschool" description="Vetoschool paid access pending activation." path="/pending-activation" noindex /><ProtectedRoute><Navigate to="/dashboard" replace /></ProtectedRoute></>} />
         <Route path="/account/security" element={<><Seo title="Account Security | Vetoschool" description="Manage Vetoschool account security." path="/account/security" noindex /><ProtectedRoute><AccountSecurity lang={lang} /></ProtectedRoute></>} />
-        <Route path="/dashboard" element={<><Seo {...seo.dashboard} /><ProtectedRoute role="student" requirePaidAccess><Dashboard lang={lang} /></ProtectedRoute></>} />
+        <Route path="/dashboard" element={<><Seo {...seo.dashboard} /><ProtectedRoute role="student"><Dashboard lang={lang} /></ProtectedRoute></>} />
         <Route path="/admin" element={<><Seo {...seo.admin} /><ProtectedRoute role="admin"><Admin lang={lang} setLang={setLang} /></ProtectedRoute></>} />
         <Route path="/teacher" element={<><Seo {...seo.teacher} /><ProtectedRoute role="teacher"><TeacherDashboard lang={lang} setLang={setLang} /></ProtectedRoute></>} />
         <Route path="/teacher/groups/:groupId" element={<><Seo {...seo.teacher} /><ProtectedRoute role="teacher"><TeacherDashboard lang={lang} setLang={setLang} mode="group" /></ProtectedRoute></>} />

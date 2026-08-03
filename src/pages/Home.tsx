@@ -139,9 +139,9 @@ export default function Home({ lang }: HomeProps) {
           >
             <span className="text-2xl">🎁</span>
             <div className="text-left">
-              {lang === 'ru' && <p className="font-body font-700 text-purple-700 text-sm">Запишитесь на <span className="text-pink-500">бесплатный пробный урок</span> прямо на сайте!</p>}
-              {lang === 'en' && <p className="font-body font-700 text-purple-700 text-sm">Book a <span className="text-pink-500">free trial lesson</span> directly on the website!</p>}
-              {lang === 'ua' && <p className="font-body font-700 text-purple-700 text-sm">Запишіться на <span className="text-pink-500">безкоштовний пробний урок</span> прямо на сайті!</p>}
+              {lang === 'ru' && <p className="font-body font-700 text-purple-700 text-sm">Запишитесь на <span className="text-pink-500">бесплатный пробный урок</span></p>}
+              {lang === 'en' && <p className="font-body font-700 text-purple-700 text-sm">Book a <span className="text-pink-500">free trial lesson</span></p>}
+              {lang === 'ua' && <p className="font-body font-700 text-purple-700 text-sm">Запишіться на <span className="text-pink-500">безкоштовний пробний урок</span></p>}
             </div>
           </motion.div>
 

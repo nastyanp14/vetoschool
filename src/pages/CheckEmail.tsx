@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { confirmEmailCode, resendConfirmationEmail } from '../lib/auth';
+import { confirmEmailCode, homePathForUser, resendConfirmationEmail } from '../lib/auth';
 import { Lang } from '../lib/i18n';
 import { AuthAlert, AuthHeader, AuthPageShell } from '../components/AuthCard';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 
 const text = {
   ru: {
@@ -85,8 +86,7 @@ export default function CheckEmail({ lang }: { lang: Lang }) {
     setLoading(false);
 
     if (result.success && result.data) {
-      if (result.data.role === 'admin') navigate('/admin', { replace: true });
-      else navigate(result.data.hasAccess ? '/dashboard' : '/pending-activation', { replace: true });
+      navigate(homePathForUser(result.data), { replace: true });
     } else {
       setError(result.error || 'Неверный или устаревший код.');
     }
@@ -118,15 +118,26 @@ export default function CheckEmail({ lang }: { lang: Lang }) {
         <form onSubmit={confirm} className="space-y-4">
           <div>
             <label className="font-body font-600 text-purple-600 text-sm mb-2 block">{copy.code}</label>
-            <input
+            <InputOTP
+              maxLength={6}
+              value={code}
+              onChange={value => setCode(value.replace(/\D/g, '').slice(0, 6))}
               inputMode="numeric"
               autoComplete="one-time-code"
-              value={code}
-              onChange={event => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder={copy.codePlaceholder}
-              className="input-magic text-center font-display text-2xl tracking-[0.35em]"
-              required
-            />
+              containerClassName="mt-3 justify-center gap-2 sm:gap-3"
+              className="w-full"
+            >
+              <InputOTPGroup className="gap-2 sm:gap-3">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <InputOTPSlot
+                    key={index}
+                    index={index}
+                    className="h-12 w-11 rounded-2xl border border-pink-100 bg-white/85 text-center font-display text-2xl font-bold text-purple-700 shadow-sm transition-all first:rounded-2xl first:border last:rounded-2xl sm:h-14 sm:w-12"
+                  />
+                ))}
+              </InputOTPGroup>
+            </InputOTP>
+            <p className="mt-2 text-center font-body text-xs font-600 text-purple-300">{copy.codePlaceholder}</p>
           </div>
           <AuthAlert type="info">{copy.hint}</AuthAlert>
           {message && <AuthAlert type="success">{message}</AuthAlert>}

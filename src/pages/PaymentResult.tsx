@@ -2,11 +2,13 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, CheckCircle2, CreditCard, RefreshCw, Sparkles, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import Footer from '../components/Footer';
 import type { Lang } from '../lib/i18n';
 import { t } from '../lib/i18n';
 import { pricingPlanNameKeys, type PricingPlanId } from '../lib/pricingCurrency';
 import { supabase } from '@/integrations/supabase/client';
+import { hasConfirmedStripePayment } from '../lib/subscriptionStatus';
 
 type PaymentResultVariant = 'success' | 'cancel';
 
@@ -17,6 +19,9 @@ type PaymentResultProps = {
 
 type PaymentProfile = {
   payment_status: string | null;
+  subscription_status: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
   plan_id: string | null;
   lesson_format: string | null;
   lessons_total: number | null;
@@ -88,33 +93,55 @@ const paymentResultCopy: Record<PaymentResultVariant, Record<Lang, {
 };
 
 export default function PaymentResult({ lang, variant }: PaymentResultProps) {
+  const [searchParams] = useSearchParams();
   const copy = paymentResultCopy[variant][lang];
   const isSuccess = variant === 'success';
   const Icon = isSuccess ? CheckCircle2 : XCircle;
   const PrimaryIcon = isSuccess ? Sparkles : RefreshCw;
   const primaryPath = isSuccess ? '/dashboard' : '/pricing';
   const [profile, setProfile] = useState<PaymentProfile | null>(null);
+  const [polling, setPolling] = useState(isSuccess);
+  const sessionId = searchParams.get('session_id') || '';
 
   useEffect(() => {
     if (!isSuccess) return;
 
     let cancelled = false;
+    let attempts = 0;
     const loadPaymentProfile = async () => {
       const { data: sessionData } = await supabase.auth.getSession();
       const userId = sessionData.session?.user.id;
-      if (!userId) return;
+      if (!userId) {
+        setPolling(false);
+        return;
+      }
 
       const { data } = await supabase
         .from('profiles')
-        .select('payment_status,plan_id,lesson_format,lessons_total,lessons_remaining,next_payment_date,current_period_end')
+        .select('payment_status,subscription_status,stripe_customer_id,stripe_subscription_id,plan_id,lesson_format,lessons_total,lessons_remaining,next_payment_date,current_period_end')
         .eq('id', userId)
         .maybeSingle();
 
-      if (!cancelled && data) setProfile(data);
+      attempts += 1;
+      if (!cancelled && data) {
+        setProfile(data);
+        if (hasConfirmedStripePayment({
+          paymentStatus: data.payment_status,
+          subscriptionStatus: data.subscription_status,
+          stripeCustomerId: data.stripe_customer_id,
+          stripeSubscriptionId: data.stripe_subscription_id,
+        })) {
+          setPolling(false);
+        } else if (attempts >= 12) {
+          setPolling(false);
+        }
+      } else if (!cancelled && attempts >= 12) {
+        setPolling(false);
+      }
     };
 
     void loadPaymentProfile();
-    const interval = window.setInterval(() => void loadPaymentProfile(), 5000);
+    const interval = window.setInterval(() => void loadPaymentProfile(), 2500);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
@@ -129,8 +156,15 @@ export default function PaymentResult({ lang, variant }: PaymentResultProps) {
       ? (lang === 'en' ? 'Group' : lang === 'ua' ? 'Група' : 'Группа')
       : '';
   const nextPaymentDate = profile?.next_payment_date || profile?.current_period_end;
-  const profileSummary = profile?.payment_status === 'paid' && planName
+  const isSynchronized = hasConfirmedStripePayment({
+    paymentStatus: profile?.payment_status,
+    subscriptionStatus: profile?.subscription_status,
+    stripeCustomerId: profile?.stripe_customer_id,
+    stripeSubscriptionId: profile?.stripe_subscription_id,
+  }) && !!planName;
+  const profileSummary = isSynchronized
     ? [
+        lang === 'en' ? 'Subscription activated' : lang === 'ua' ? 'Підписку активовано' : 'Подписка активирована',
         planName,
         formatName,
         `${profile.lessons_remaining ?? 0}/${profile.lessons_total ?? 0}`,
@@ -138,10 +172,13 @@ export default function PaymentResult({ lang, variant }: PaymentResultProps) {
       ].filter(Boolean).join(' · ')
     : '';
   const waitingText = lang === 'en'
-    ? 'Payment is being confirmed by Stripe. This page only shows the result; access is updated by the webhook.'
+    ? 'Payment received. Your subscription is being activated.'
     : lang === 'ua'
-      ? 'Stripe підтверджує оплату. Ця сторінка лише показує результат; доступ оновлює webhook.'
-      : 'Stripe подтверждает оплату. Эта страница только показывает результат; доступ обновляет webhook.';
+      ? 'Оплату отримано. Ваша підписка активується.'
+      : 'Оплата получена. Ваша подписка активируется.';
+  const sessionText = sessionId
+    ? `Stripe session: ${sessionId.slice(0, 18)}...`
+    : '';
 
   return (
     <main className="pricing-page min-h-screen overflow-hidden bg-[#fff8ff] dark:bg-[#0a0613]">
@@ -191,6 +228,8 @@ export default function PaymentResult({ lang, variant }: PaymentResultProps) {
 
             <div className="mx-auto mt-7 max-w-2xl rounded-[1.35rem] border border-white/75 bg-gradient-to-br from-white/68 via-purple-50/54 to-blue-50/58 p-5 font-body text-sm font-800 leading-relaxed text-purple-500 shadow-xl shadow-purple-100/24 backdrop-blur-xl dark:border-white/10 dark:from-white/[0.07] dark:via-purple-400/8 dark:to-blue-400/8 dark:text-purple-100/74">
               {isSuccess ? profileSummary || waitingText : copy.note}
+              {isSuccess && polling && <RefreshCw className="mx-auto mt-3 h-4 w-4 animate-spin" aria-hidden="true" />}
+              {isSuccess && sessionText && <div className="mt-3 text-xs text-purple-300">{sessionText}</div>}
             </div>
 
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">

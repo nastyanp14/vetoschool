@@ -32,6 +32,10 @@ export interface User {
   paymentFailedAt?: string | null;
   cancelAtPeriodEnd?: boolean;
   canceledAt?: string | null;
+  manualAccessOverride?: boolean;
+  manualAccessOverrideBy?: string | null;
+  manualAccessOverrideAt?: string | null;
+  manualAccessOverrideReason?: string | null;
 }
 
 type AuthResult<T = undefined> = Promise<{ success: boolean; data?: T; error?: string }>;
@@ -47,11 +51,15 @@ export { safeRedirectPath };
 export function homePathForUser(user?: User | null) {
   if (user?.role === 'admin') return '/admin';
   if (user?.role === 'teacher') return '/teacher';
-  return user?.hasAccess ? '/dashboard' : '/pending-activation';
+  return user ? '/dashboard' : '/';
 }
 
 function redirectUrl(path: string) {
-  return `${window.location.origin}${path}`;
+  const publicOrigin =
+    (import.meta.env.VITE_PUBLIC_SITE_URL as string | undefined)
+    || (import.meta.env.VITE_SITE_URL as string | undefined)
+    || window.location.origin;
+  return `${publicOrigin.replace(/\/+$/, '')}${path}`;
 }
 
 function emailConfirmed(authUser: { email_confirmed_at?: string | null; confirmed_at?: string | null }) {
@@ -91,6 +99,7 @@ function isMissingAccessStatusColumns(error: unknown) {
   return (
     text.includes('access_status') ||
     text.includes('payment_status') ||
+    text.includes('manual_access_override') ||
     text.includes('schema cache') ||
     text.includes('pgrst204') ||
     text.includes('42703')
@@ -169,6 +178,10 @@ async function loadCurrentUser(authUserId: string): Promise<User | null> {
     paymentFailedAt: profile.payment_failed_at ?? null,
     cancelAtPeriodEnd: profile.cancel_at_period_end ?? false,
     canceledAt: profile.canceled_at ?? null,
+    manualAccessOverride: profile.manual_access_override ?? false,
+    manualAccessOverrideBy: profile.manual_access_override_by ?? null,
+    manualAccessOverrideAt: profile.manual_access_override_at ?? null,
+    manualAccessOverrideReason: profile.manual_access_override_reason ?? null,
   };
 }
 
@@ -213,6 +226,10 @@ export async function loadAllUsers(): Promise<User[]> {
       paymentFailedAt: p.payment_failed_at ?? null,
       cancelAtPeriodEnd: p.cancel_at_period_end ?? false,
       canceledAt: p.canceled_at ?? null,
+      manualAccessOverride: p.manual_access_override ?? false,
+      manualAccessOverrideBy: p.manual_access_override_by ?? null,
+      manualAccessOverrideAt: p.manual_access_override_at ?? null,
+      manualAccessOverrideReason: p.manual_access_override_reason ?? null,
     };
   });
 
@@ -290,18 +307,39 @@ export async function register(name: string, email: string, password: string): A
 
 export async function signInWithGoogle(next = '/dashboard'): AuthResult {
   const redirectTo = redirectUrl(`/auth/callback?next=${encodeURIComponent(safeRedirectPath(next))}`);
-  const { error } = await supabase.auth.signInWithOAuth({
+  const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
       redirectTo,
+      skipBrowserRedirect: true,
       queryParams: {
         access_type: 'offline',
         prompt: 'select_account',
       },
-    },
+    } as any,
   });
 
-  return error ? { success: false, error: friendlyAuthError(error.message) } : { success: true };
+  if (error) return { success: false, error: friendlyAuthError(error.message) };
+  const url = data?.url;
+  if (!url) return { success: false, error: 'Google-вход сейчас недоступен. OAuth URL не был создан.' };
+
+  try {
+    const response = await fetch(url, { method: 'GET', redirect: 'manual' });
+    const contentType = response.headers.get('Content-Type') || '';
+    if (response.status >= 400 && contentType.includes('application/json')) {
+      const detail = await response.json().catch(() => null) as { msg?: string; error?: string; error_description?: string } | null;
+      return { success: false, error: friendlyAuthError(detail?.msg || detail?.error_description || detail?.error || `Google OAuth failed (${response.status})`) };
+    }
+    if (response.status >= 400) {
+      return { success: false, error: friendlyAuthError(`Google OAuth failed (${response.status})`) };
+    }
+  } catch {
+    // If the provider is correctly configured, some browsers may block this preflight.
+    // Continue with the normal OAuth redirect in that case.
+  }
+
+  window.location.assign(url);
+  return { success: true };
 }
 
 export async function resendConfirmationEmail(email: string): AuthResult {
@@ -411,8 +449,25 @@ export async function logout() {
 }
 
 export async function setAccessStatus(userId: string, accessStatus: AccessStatus, paymentStatus?: PaymentStatus) {
-  const patch: { access_status: AccessStatus; payment_status?: PaymentStatus } = { access_status: accessStatus };
+  const { data: sessionData } = await supabase.auth.getSession();
+  const patch: {
+    access_status: AccessStatus;
+    payment_status?: PaymentStatus;
+    manual_access_override?: boolean;
+    manual_access_override_by?: string | null;
+    manual_access_override_at?: string | null;
+  } = {
+    access_status: accessStatus,
+    manual_access_override: accessStatus === 'active',
+    manual_access_override_by: sessionData.session?.user.id ?? null,
+    manual_access_override_at: new Date().toISOString(),
+  };
   if (paymentStatus) patch.payment_status = paymentStatus;
+  if (accessStatus !== 'active') {
+    patch.manual_access_override = false;
+    patch.manual_access_override_by = null;
+    patch.manual_access_override_at = null;
+  }
 
   const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
   if (error) {
@@ -433,6 +488,79 @@ export async function setAccessStatus(userId: string, accessStatus: AccessStatus
 
     if (legacyError) throw legacyError;
   }
+  await loadAllUsers();
+}
+
+function isMissingManualAccessAudit(error: unknown) {
+  const err = error as { message?: string; details?: string; hint?: string; code?: string };
+  const text = `${err?.code || ''} ${err?.message || ''} ${err?.details || ''} ${err?.hint || ''}`.toLowerCase();
+  return text.includes('manual_access_overrides') || text.includes('schema cache') || text.includes('pgrst204') || text.includes('42p01') || text.includes('42703');
+}
+
+function hasActiveStripeAccess(profile: {
+  payment_status?: string | null;
+  subscription_status?: string | null;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+}) {
+  return Boolean(
+    profile.payment_status === 'paid'
+    && profile.stripe_customer_id
+    && profile.stripe_subscription_id
+    && (profile.subscription_status === 'active' || profile.subscription_status === 'trialing'),
+  );
+}
+
+export async function setManualAccessOverride(userId: string, enabled: boolean, reason: string) {
+  const normalizedReason = reason.trim();
+  if (normalizedReason.length < 8) throw new Error('Укажите причину ручного доступа минимум 8 символов.');
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const adminId = sessionData.session?.user.id ?? null;
+  if (!adminId) throw new Error('Нужно снова войти в аккаунт администратора.');
+
+  const { data: current, error: loadError } = await (supabase as any)
+    .from('profiles')
+    .select('payment_status,subscription_status,stripe_customer_id,stripe_subscription_id')
+    .eq('id', userId)
+    .maybeSingle();
+  if (loadError) throw loadError;
+
+  const keepStripeAccess = !enabled && current && hasActiveStripeAccess(current);
+  const now = new Date().toISOString();
+  const patch = enabled
+    ? {
+      access_status: 'active' as AccessStatus,
+      has_access: true,
+      manual_access_override: true,
+      manual_access_override_by: adminId,
+      manual_access_override_at: now,
+      manual_access_override_reason: normalizedReason,
+    }
+    : {
+      access_status: keepStripeAccess ? 'active' as AccessStatus : 'pending' as AccessStatus,
+      has_access: keepStripeAccess,
+      manual_access_override: false,
+      manual_access_override_by: null,
+      manual_access_override_at: null,
+      manual_access_override_reason: normalizedReason,
+    };
+
+  const { error } = await (supabase as any).from('profiles').update(patch).eq('id', userId);
+  if (error) {
+    if (!isMissingAccessStatusColumns(error)) throw error;
+    throw new Error('В базе ещё нет полей ручного доступа. Pending migration: 20260802090000_manual_access_override_audit.sql.');
+  }
+
+  const { error: auditError } = await (supabase as any).from('manual_access_overrides').insert({
+    student_id: userId,
+    admin_id: adminId,
+    action: enabled ? 'enabled' : 'disabled',
+    reason: normalizedReason,
+    created_at: now,
+  });
+  if (auditError && !isMissingManualAccessAudit(auditError)) throw auditError;
+
   await loadAllUsers();
 }
 

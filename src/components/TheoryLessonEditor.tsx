@@ -9,7 +9,7 @@ import {
 import { toast } from 'sonner';
 import {
   DEFAULT_ELEVENLABS_MODEL_ID, DEFAULT_ELEVENLABS_VOICE_ID, deleteCardAudio,
-  generateCardAudio, signedLessonAudioUrl,
+  deleteLessonAudioBlock, generateCardAudio, generateLessonAudioBlock, signedLessonAudioUrl,
 } from '../lib/cardAudio';
 import { persistFunctionalLocalStorage, readFunctionalLocalStorage } from '../lib/cookieConsent';
 import type { Lang } from '../lib/i18n';
@@ -574,9 +574,11 @@ function ImageEditor({ block, onChange, lang }: { block: TheoryImageBlock; onCha
   );
 }
 
-function AudioEditor({ block, onChange, lang }: { block: TheoryAudioBlock; onChange: (b: TheoryAudioBlock) => void; lang: Lang }) {
+function AudioEditor({ block, onChange, lessonId, voiceId, modelId, lang }: { block: TheoryAudioBlock; onChange: (b: TheoryAudioBlock) => void; lessonId?: string; voiceId: string; modelId: string; lang: Lang }) {
   const copy = tc(lang);
   const [uploading, setUploading] = useState(false);
+  const [busy, setBusy] = useState<'generate' | 'delete' | null>(null);
+  const generatedAudioUrl = block.audio_url || (/^(https?:|data:|blob:)/.test(block.audio || '') ? '' : block.audio);
   const upload = async (file?: File) => {
     if (!file) return;
     setUploading(true);
@@ -585,6 +587,40 @@ function AudioEditor({ block, onChange, lang }: { block: TheoryAudioBlock; onCha
     if (!path) return toast.error(copy.audioUploadError);
     onChange({ ...block, audio: path });
     toast.success(copy.audioUploaded);
+  };
+  const generate = async () => {
+    if (!lessonId) return toast.error(copy.saveTheoryFirst);
+    const text = `${block.title}\n${block.description}`.trim();
+    if (!text) return toast.error(copy.fillEnglishFirst);
+    setBusy('generate');
+    try {
+      const result = await generateLessonAudioBlock({
+        lesson_id: lessonId,
+        block_id: block.id,
+        text,
+        voice_id: voiceId.trim() || DEFAULT_ELEVENLABS_VOICE_ID,
+        model_id: modelId.trim() || DEFAULT_ELEVENLABS_MODEL_ID,
+      });
+      onChange({ ...block, audio: result.audio_url || '', audio_url: result.audio_url, audio_voice_id: voiceId, audio_model_id: modelId });
+      toast.success(block.audio_url ? copy.audioRegenerated : copy.audioGenerated);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : copy.audioGenerateError);
+    } finally {
+      setBusy(null);
+    }
+  };
+  const removeGenerated = async () => {
+    if (!lessonId) return;
+    setBusy('delete');
+    try {
+      await deleteLessonAudioBlock(lessonId, block.id);
+      onChange({ ...block, audio: '', audio_url: undefined, audio_voice_id: undefined, audio_model_id: undefined });
+      toast.success(copy.audioDeleted);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : copy.audioDeleteError);
+    } finally {
+      setBusy(null);
+    }
   };
   return (
     <div className="grid gap-3">
@@ -596,6 +632,17 @@ function AudioEditor({ block, onChange, lang }: { block: TheoryAudioBlock; onCha
         <input type="file" accept="audio/*" className="hidden" onChange={e => upload(e.target.files?.[0])} />
       </label>
       {block.audio && <div className="truncate rounded-2xl bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-200">{copy.audioAttached} {block.audio}</div>}
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={generate} disabled={!!busy} className="inline-flex items-center gap-2 rounded-xl bg-pink-100 px-3 py-2 text-xs font-black text-pink-600 transition hover:bg-pink-200 disabled:opacity-60">
+          {busy === 'generate' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+          {generatedAudioUrl ? copy.regenerate : copy.generateAudio}
+        </button>
+        {generatedAudioUrl && (
+          <button type="button" onClick={removeGenerated} disabled={!!busy} className="rounded-xl border border-red-100 bg-white px-3 py-2 text-xs font-black text-red-400 hover:bg-red-50 disabled:opacity-60">
+            {copy.deleteAudio}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -817,7 +864,7 @@ export default function TheoryLessonEditor({ lessonTitle, task, onCreate, onSave
         {(Object.keys(blockMetaBase) as TheoryBlock['type'][]).map(type => { const meta = blockMetaBase[type]; const Icon = meta.icon; return <button type="button" key={type} onClick={() => setContent(current => ({ ...current, blocks: [...current.blocks, makeBlock(type)] }))} className="inline-flex items-center gap-2 rounded-2xl border border-white bg-white px-3 py-2 text-xs font-black text-purple-700 shadow-sm transition hover:-translate-y-0.5 hover:border-pink-200 dark:border-purple-700 dark:bg-[#2a183a] dark:text-purple-100"><Icon className="h-4 w-4 text-pink-400" />{blockLabel(lang, type)}</button>; })}
       </div>
       {content.blocks.length === 0 && <div className="rounded-3xl border border-dashed border-purple-200 bg-purple-50/40 p-8 text-center"><Sparkles className="mx-auto mb-2 h-7 w-7 text-pink-400" /><p className="font-display font-black text-purple-700">{copy.addFirstBlock}</p><p className="mt-1 text-sm font-bold text-purple-400">{copy.addFirstBlockHint}</p></div>}
-      <div className="space-y-3">{content.blocks.map((block, index) => { const meta = blockMetaBase[block.type]; const Icon = meta.icon; return <article key={block.id} className="rounded-3xl border border-purple-100 bg-gradient-to-br from-white to-purple-50/35 p-4 dark:border-purple-700 dark:from-[#241331] dark:to-[#1c1029]"><div className="mb-3 flex items-center justify-between gap-3"><div className="flex items-center gap-2 font-display text-sm font-black text-purple-700 dark:text-purple-100"><span className={`flex h-9 w-9 items-center justify-center rounded-2xl ${meta.color}`}><Icon className="h-4 w-4" /></span>{blockLabel(lang, block.type)}</div><BlockToolbar index={index} total={content.blocks.length} lang={lang} onMove={to => moveBlock(index, to)} onDelete={() => setContent(current => ({ ...current, blocks: current.blocks.filter((_, i) => i !== index) }))} /></div>{block.type === 'text' && <TextEditor block={block} lang={lang} onChange={next => setBlock(index, next)} />}{block.type === 'vocabulary' && <VocabularyEditor block={block} lang={lang} onChange={next => setBlock(index, next)} lessonId={task?.lesson_id} voiceId={voiceId} modelId={modelId} />}{block.type === 'grammar' && <GrammarEditor block={block} lang={lang} onChange={next => setBlock(index, next)} />}{block.type === 'image' && <ImageEditor block={block} lang={lang} onChange={next => setBlock(index, next)} />}{block.type === 'audio' && <AudioEditor block={block} lang={lang} onChange={next => setBlock(index, next)} />}{block.type === 'rule' && <RuleEditor block={block} lang={lang} onChange={next => setBlock(index, next)} />}{block.type === 'examples' && <ExamplesEditor block={block} lang={lang} onChange={next => setBlock(index, next)} lessonId={task?.lesson_id} voiceId={voiceId} modelId={modelId} />}</article>; })}</div>
+      <div className="space-y-3">{content.blocks.map((block, index) => { const meta = blockMetaBase[block.type]; const Icon = meta.icon; return <article key={block.id} className="rounded-3xl border border-purple-100 bg-gradient-to-br from-white to-purple-50/35 p-4 dark:border-purple-700 dark:from-[#241331] dark:to-[#1c1029]"><div className="mb-3 flex items-center justify-between gap-3"><div className="flex items-center gap-2 font-display text-sm font-black text-purple-700 dark:text-purple-100"><span className={`flex h-9 w-9 items-center justify-center rounded-2xl ${meta.color}`}><Icon className="h-4 w-4" /></span>{blockLabel(lang, block.type)}</div><BlockToolbar index={index} total={content.blocks.length} lang={lang} onMove={to => moveBlock(index, to)} onDelete={() => setContent(current => ({ ...current, blocks: current.blocks.filter((_, i) => i !== index) }))} /></div>{block.type === 'text' && <TextEditor block={block} lang={lang} onChange={next => setBlock(index, next)} />}{block.type === 'vocabulary' && <VocabularyEditor block={block} lang={lang} onChange={next => setBlock(index, next)} lessonId={task?.lesson_id} voiceId={voiceId} modelId={modelId} />}{block.type === 'grammar' && <GrammarEditor block={block} lang={lang} onChange={next => setBlock(index, next)} />}{block.type === 'image' && <ImageEditor block={block} lang={lang} onChange={next => setBlock(index, next)} />}{block.type === 'audio' && <AudioEditor block={block} lang={lang} onChange={next => setBlock(index, next)} lessonId={task?.lesson_id} voiceId={voiceId} modelId={modelId} />}{block.type === 'rule' && <RuleEditor block={block} lang={lang} onChange={next => setBlock(index, next)} />}{block.type === 'examples' && <ExamplesEditor block={block} lang={lang} onChange={next => setBlock(index, next)} lessonId={task?.lesson_id} voiceId={voiceId} modelId={modelId} />}</article>; })}</div>
     </section>
   );
 }

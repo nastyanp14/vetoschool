@@ -12,11 +12,12 @@ import AvatarShop, { StarCelebration } from '../components/AvatarShop';
 import InteractiveLessonMap from '../components/InteractiveLessonMap';
 import InteractiveLessonRoom from '../components/InteractiveLessonRoom';
 import { loadStarProfile, clearCelebration, findAvatar } from '../lib/stars';
-import { createTelegramLink, listTelegramParents, TelegramParentAccount } from '../lib/telegram';
+import { createTelegramLink, disconnectTelegramParent, listTelegramParents, TelegramParentAccount } from '../lib/telegram';
 import { getLessonById, Lesson as WorkbookLesson } from '../lib/workbooks';
 import { supabase } from '@/integrations/supabase/client';
 import { pricingPlanNameKeys, type PricingPlanId } from '../lib/pricingCurrency';
 import { redirectToStripeCustomerPortal } from '../lib/stripeCheckout';
+import { activeSubscriptionStatus, billingStatusClass, billingStatusLabel, shouldShowActiveTariff } from '../lib/subscriptionStatus';
 
 type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades' | 'shop' | 'interactive';
 
@@ -24,6 +25,7 @@ type BillingSummary = {
   payment_status: string | null;
   payment_failed_at: string | null;
   stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
   subscription_status: string | null;
   cancel_at_period_end: boolean | null;
   canceled_at: string | null;
@@ -33,6 +35,9 @@ type BillingSummary = {
   lessons_remaining: number | null;
   current_period_end: string | null;
   next_payment_date: string | null;
+  manual_access_override: boolean | null;
+  manual_access_override_by: string | null;
+  manual_access_override_at: string | null;
 };
 
 // ---- Audio player ----
@@ -52,7 +57,10 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
   const [link, setLink] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [waitingForLink, setWaitingForLink] = useState(false);
 
   const copy = async () => {
     if (!link) return;
@@ -62,18 +70,55 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
   };
 
   const loadParents = async () => setParents(await listTelegramParents(studentId));
+  const refreshParents = async () => {
+    setRefreshing(true);
+    try {
+      await loadParents();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+  const disconnectParent = async (parentId: string) => {
+    setDisconnectingId(parentId);
+    try {
+      await disconnectTelegramParent(studentId, parentId);
+      await loadParents();
+    } finally {
+      setDisconnectingId(null);
+    }
+  };
   const createLink = async () => {
     setLoading(true);
     try {
       const data = await createTelegramLink(studentId);
       setLink(data.url);
       setExpiresAt(data.expiresAt);
+      setWaitingForLink(true);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => { loadParents(); }, [studentId]);
+  useEffect(() => {
+    if (!waitingForLink) return;
+    let alive = true;
+    let attempts = 0;
+    const interval = window.setInterval(async () => {
+      attempts += 1;
+      const nextParents = await listTelegramParents(studentId);
+      if (!alive) return;
+      setParents(nextParents);
+      if (nextParents.length > 0 || attempts >= 12) {
+        setWaitingForLink(false);
+        window.clearInterval(interval);
+      }
+    }, 2500);
+    return () => {
+      alive = false;
+      window.clearInterval(interval);
+    };
+  }, [studentId, waitingForLink]);
 
   const text = {
     ru: {
@@ -84,7 +129,10 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
       expires: 'Ссылка активна до',
       linked: 'Подключённые родители',
       empty: 'Пока нет подключённых родителей',
+      refresh: 'Обновить',
+      disconnect: 'Отключить',
       settings: 'Настройки уведомлений меняются в боте: напоминания, домашки, оценки, переносы и отмены.',
+      waiting: 'Ждём подтверждения из Telegram...',
     },
     ua: {
       title: 'Telegram для батьків',
@@ -94,7 +142,10 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
       expires: 'Посилання активне до',
       linked: 'Підключені батьки',
       empty: 'Поки немає підключених батьків',
+      refresh: 'Оновити',
+      disconnect: 'Відключити',
       settings: 'Налаштування сповіщень змінюються в боті: нагадування, домашки, оцінки, перенесення та скасування.',
+      waiting: 'Чекаємо підтвердження з Telegram...',
     },
     en: {
       title: 'Telegram for parents',
@@ -104,7 +155,10 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
       expires: 'Link active until',
       linked: 'Connected parents',
       empty: 'No connected parents yet',
+      refresh: 'Refresh',
+      disconnect: 'Disconnect',
       settings: 'Notification settings are changed in the bot: reminders, homework, grades, reschedules and cancellations.',
+      waiting: 'Waiting for Telegram confirmation...',
     },
   }[lang];
 
@@ -133,11 +187,17 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
               {text.expires}: {new Date(expiresAt).toLocaleString(lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU')}
             </p>
           )}
+          {waitingForLink && <p className="mt-2 font-body text-xs font-700 text-sky-500">{text.waiting}</p>}
         </div>
       )}
 
       <div className="mt-4">
-        <div className="font-body font-700 text-sm text-purple-600 mb-2">{text.linked}</div>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="font-body font-700 text-sm text-purple-600">{text.linked}</div>
+          <button onClick={refreshParents} disabled={refreshing} className="rounded-xl bg-white/70 px-3 py-1.5 font-body text-xs font-800 text-purple-500 hover:bg-pink-50 disabled:opacity-60">
+            {refreshing ? '...' : text.refresh}
+          </button>
+        </div>
         {parents.length === 0 ? (
           <div className="font-body text-sm text-purple-400 bg-white/60 rounded-2xl px-4 py-3">{text.empty}</div>
         ) : (
@@ -148,6 +208,14 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
                   {parent.parentName || parent.telegramUsername || 'Telegram'}
                 </div>
                 <div className="font-body text-xs text-purple-400 uppercase">{parent.language}</div>
+                <button
+                  type="button"
+                  onClick={() => disconnectParent(parent.id)}
+                  disabled={disconnectingId === parent.id}
+                  className="mt-2 rounded-xl border border-red-100 bg-red-50/70 px-3 py-1.5 font-body text-xs font-800 text-red-500 hover:bg-red-100 disabled:opacity-60"
+                >
+                  {disconnectingId === parent.id ? '...' : text.disconnect}
+                </button>
               </div>
             ))}
           </div>
@@ -597,9 +665,11 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const previewUserId = searchParams.get('preview');
+  const isPreview = !!previewUserId;
+  const isLimitedAccess = Boolean(user?.role === 'student' && !user.hasAccess && !isPreview);
   const initialTabParam = searchParams.get('tab');
   const allowedTabs: Tab[] = ['overview', 'interactive', 'lessons', 'homework', 'schedule', 'practice', 'grammar', 'listening', 'checkpoint', 'dictionary', 'grades', 'shop'];
-  const initialTab = allowedTabs.includes(initialTabParam as Tab) ? initialTabParam as Tab : 'overview';
+  const initialTab = isLimitedAccess ? 'overview' : allowedTabs.includes(initialTabParam as Tab) ? initialTabParam as Tab : 'overview';
 
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [greeting, setGreeting] = useState('');
@@ -616,7 +686,6 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
   const effectiveUserId = previewUserId || user?.id || '';
   const langs: Lang[] = ['ru', 'en', 'ua'];
-  const isPreview = !!previewUserId;
 
   const refreshStars = useCallback(async () => {
     if (!effectiveUserId) return;
@@ -630,19 +699,32 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
   const refreshStudentData = useCallback(async () => {
     if (!effectiveUserId) return;
+    const billingQuery = supabase
+      .from('profiles')
+      .select('payment_status,payment_failed_at,stripe_customer_id,stripe_subscription_id,subscription_status,cancel_at_period_end,canceled_at,plan_id,lesson_format,lessons_total,lessons_remaining,current_period_end,next_payment_date,manual_access_override,manual_access_override_by,manual_access_override_at')
+      .eq('id', effectiveUserId)
+      .maybeSingle();
+
+    if (isLimitedAccess) {
+      const [, billingResult] = await Promise.all([
+        refreshStars(),
+        billingQuery,
+      ]);
+      setContent([]);
+      if (billingResult.data) setBilling(billingResult.data);
+      setSelectedItem(null);
+      return;
+    }
+
     const [freshContent, billingResult] = await Promise.all([
       loadStudentContent(effectiveUserId),
-      supabase
-        .from('profiles')
-        .select('payment_status,payment_failed_at,stripe_customer_id,subscription_status,cancel_at_period_end,canceled_at,plan_id,lesson_format,lessons_total,lessons_remaining,current_period_end,next_payment_date')
-        .eq('id', effectiveUserId)
-        .maybeSingle(),
+      billingQuery,
       refreshStars(),
     ]);
     setContent(freshContent);
     if (billingResult.data) setBilling(billingResult.data);
     setSelectedItem(prev => prev ? freshContent.find(item => item.id === prev.id) || prev : prev);
-  }, [effectiveUserId, refreshStars]);
+  }, [effectiveUserId, isLimitedAccess, refreshStars]);
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -668,6 +750,10 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   }, [effectiveUserId, isPreview, refreshStudentData]);
 
   useEffect(() => { setLang(propLang); }, [propLang]);
+
+  useEffect(() => {
+    if (isLimitedAccess && activeTab !== 'overview') setActiveTab('overview');
+  }, [activeTab, isLimitedAccess]);
 
   if (!user) return null;
 
@@ -719,28 +805,36 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   const { avg: ratingAvg } = getStudentRating(effectiveUserId);
   const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
   const billingPlanId = billing?.plan_id && billing.plan_id in pricingPlanNameKeys ? billing.plan_id as PricingPlanId : null;
-  const billingPlanName = billingPlanId ? t(lang, pricingPlanNameKeys[billingPlanId]) : billing?.plan_id || (lang === 'en' ? 'No active plan' : lang === 'ua' ? 'Немає активного тарифу' : 'Нет активного тарифа');
+  const billingKind = activeSubscriptionStatus({
+    paymentStatus: billing?.payment_status,
+    subscriptionStatus: billing?.subscription_status,
+    stripeCustomerId: billing?.stripe_customer_id || user.stripeCustomerId,
+    stripeSubscriptionId: billing?.stripe_subscription_id || user.stripeSubscriptionId,
+    cancelAtPeriodEnd: billing?.cancel_at_period_end,
+    manualAccessOverride: billing?.manual_access_override,
+    accessStatus: user.accessStatus,
+  });
+  const hasVisibleTariff = shouldShowActiveTariff({
+    paymentStatus: billing?.payment_status,
+    subscriptionStatus: billing?.subscription_status,
+    stripeCustomerId: billing?.stripe_customer_id || user.stripeCustomerId,
+    stripeSubscriptionId: billing?.stripe_subscription_id || user.stripeSubscriptionId,
+    cancelAtPeriodEnd: billing?.cancel_at_period_end,
+    manualAccessOverride: billing?.manual_access_override,
+    accessStatus: user.accessStatus,
+  });
+  const billingPlanName = hasVisibleTariff
+    ? (billingPlanId ? t(lang, pricingPlanNameKeys[billingPlanId]) : billing?.plan_id || (billingKind === 'manual_access' ? billingStatusLabel('manual_access', lang) : '—'))
+    : (lang === 'en' ? 'No active plan' : lang === 'ua' ? 'Немає активного тарифу' : 'Нет активного тарифа');
   const billingFormat = billing?.lesson_format === 'individual'
     ? (lang === 'en' ? 'Individual' : lang === 'ua' ? 'Індивідуально' : 'Индивидуально')
     : billing?.lesson_format === 'group'
       ? (lang === 'en' ? 'Group' : lang === 'ua' ? 'Група' : 'Группа')
       : '—';
-  const hasPaymentProblem = billing?.payment_status === 'failed'
-    || billing?.subscription_status === 'past_due'
-    || billing?.subscription_status === 'unpaid'
-    || billing?.subscription_status === 'incomplete_expired';
+  const hasPaymentProblem = billingKind === 'payment_failed';
   const isSubscriptionCanceled = billing?.subscription_status === 'canceled';
-  const isCancelAtPeriodEnd = !isSubscriptionCanceled && Boolean(billing?.cancel_at_period_end);
-  const isSubscriptionActive = billing?.subscription_status === 'active' || billing?.subscription_status === 'trialing' || billing?.payment_status === 'paid';
-  const billingStatus = hasPaymentProblem
-    ? (lang === 'en' ? 'Payment problem' : lang === 'ua' ? 'Проблема з оплатою' : 'Проблема с оплатой')
-    : isCancelAtPeriodEnd
-      ? (lang === 'en' ? 'Ends at paid period end' : lang === 'ua' ? 'Скасується в кінці оплаченого періоду' : 'Отменится в конце оплаченного периода')
-      : isSubscriptionCanceled
-        ? (lang === 'en' ? 'Canceled' : lang === 'ua' ? 'Скасована' : 'Отменена')
-        : isSubscriptionActive
-          ? (lang === 'en' ? 'Active' : lang === 'ua' ? 'Активна' : 'Активна')
-          : (lang === 'en' ? 'Pending payment' : lang === 'ua' ? 'Очікує оплати' : 'Ожидает оплаты');
+  const isCancelAtPeriodEnd = billingKind === 'cancels_at_period_end';
+  const billingStatus = billingStatusLabel(billingKind, lang);
   const paymentFailedLabel = lang === 'en' ? 'Failed charge' : lang === 'ua' ? 'Невдале списання' : 'Неуспешное списание';
   const updatePaymentMethodLabel = lang === 'en' ? 'Update payment method' : lang === 'ua' ? 'Оновити спосіб оплати' : 'Обновить способ оплаты';
   const nextPaymentLabel = lang === 'en' ? 'Next payment' : lang === 'ua' ? 'Наступний платіж' : 'Следующий платёж';
@@ -751,12 +845,56 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   const nextPaymentDate = billing?.next_payment_date || billing?.current_period_end;
   const hasStripeCustomer = Boolean(billing?.stripe_customer_id || user.stripeCustomerId);
   const manageSubscriptionLabel = lang === 'en' ? 'Manage subscription' : lang === 'ua' ? 'Керування підпискою' : 'Управление подпиской';
-  const billingStatusClass = hasPaymentProblem || isSubscriptionCanceled
+  const changeTariffLabel = lang === 'en' ? 'Change tariff' : lang === 'ua' ? 'Змінити тариф' : 'Сменить тариф';
+  const billingStatusTextClass = hasPaymentProblem || isSubscriptionCanceled
     ? 'text-red-500'
     : isCancelAtPeriodEnd
       ? 'text-amber-500'
-      : 'text-purple-400';
+      : billingKind === 'manual_access'
+        ? 'text-blue-500'
+        : 'text-purple-400';
   const billingDateLabel = isCancelAtPeriodEnd || isSubscriptionCanceled ? paidPeriodEndLabel : nextPaymentLabel;
+  const limitedCopy = {
+    ru: {
+      banner: 'Кабинет уже открыт. Полный доступ появится после пробного урока, выбора тарифа или подтверждения администратором.',
+      cta: 'Выбрать следующий шаг',
+      title: 'Личный кабинет готов',
+      desc: 'Пока уроки, домашние задания, интерактивы, оценки и материалы закрыты. Здесь можно записаться на пробный урок, выбрать тариф или написать нам в Telegram.',
+      trial: 'Пробный урок',
+      pricing: 'Выбрать тариф',
+      telegram: 'Написать в Telegram',
+      nowTitle: 'Сейчас доступно',
+      nowDesc: 'Профиль, статус аккаунта, Telegram для родителей и выбор следующего шага.',
+      lockedTitle: 'Откроется после активации',
+      lockedDesc: 'Уроки, домашки, интерактивы, оценки, словарь, аудио и рейтинг.',
+    },
+    en: {
+      banner: 'Your cabinet is open. Full access appears after a trial lesson, plan choice, or admin activation.',
+      cta: 'Choose next step',
+      title: 'Your cabinet is ready',
+      desc: 'Lessons, homework, interactives, grades and materials are locked for now. You can book a trial lesson, choose a plan or message us on Telegram.',
+      trial: 'Trial lesson',
+      pricing: 'Choose plan',
+      telegram: 'Message Telegram',
+      nowTitle: 'Available now',
+      nowDesc: 'Profile, account status, parent Telegram and next-step choices.',
+      lockedTitle: 'Unlocks after activation',
+      lockedDesc: 'Lessons, homework, interactives, grades, dictionary, audio and rating.',
+    },
+    ua: {
+      banner: 'Кабінет уже відкритий. Повний доступ зʼявиться після пробного уроку, вибору тарифу або підтвердження адміністратором.',
+      cta: 'Обрати наступний крок',
+      title: 'Особистий кабінет готовий',
+      desc: 'Поки уроки, домашні завдання, інтерактиви, оцінки й матеріали закриті. Тут можна записатися на пробний урок, обрати тариф або написати нам у Telegram.',
+      trial: 'Пробний урок',
+      pricing: 'Обрати тариф',
+      telegram: 'Написати в Telegram',
+      nowTitle: 'Доступно зараз',
+      nowDesc: 'Профіль, статус акаунта, Telegram для батьків і вибір наступного кроку.',
+      lockedTitle: 'Відкриється після активації',
+      lockedDesc: 'Уроки, домашки, інтерактиви, оцінки, словник, аудіо й рейтинг.',
+    },
+  }[lang];
 
   const tabs: { id: Tab; label: string; emoji: string }[] = [
     { id: 'overview', label: t(lang, 'dash_overview'), emoji: '🏠' },
@@ -772,6 +910,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
     { id: 'grades', label: t(lang, 'dash_grades'), emoji: '🏆' },
     { id: 'shop', label: t(lang, 'shop_tab'), emoji: '🛍️' },
   ];
+  const visibleTabs = isLimitedAccess ? tabs.filter(tab => tab.id === 'overview') : tabs;
 
   const equippedAvatar = findAvatar(starProfile.avatarId);
 
@@ -834,7 +973,8 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
               <Link to="/admin" className="text-xs bg-purple-100 text-purple-600 px-3 py-1.5 rounded-xl font-body font-600 hover:bg-purple-200 transition-colors">← Admin</Link>
             )}
             {/* Stars balance widget */}
-            <button onClick={() => setActiveTab('shop')}
+            <button onClick={() => { if (!isLimitedAccess) setActiveTab('shop'); }}
+              disabled={isLimitedAccess}
               className="hidden sm:flex items-center gap-1.5 bg-gradient-to-r from-yellow-100 to-amber-100 border border-yellow-300 rounded-full px-3 py-1.5 hover:scale-105 transition-transform"
               title={t(lang, 'shop_balance')}>
               <span className="text-base">⭐</span>
@@ -877,10 +1017,17 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                 {isPreview ? `👁️ Preview` : `${user.name}`}
               </h1>
               <p className="font-body text-white/80 mt-1 text-sm">
-                {user.hasAccess ? t(lang, 'dash_keep_up') : t(lang, 'dash_locked_desc')}
+                {isLimitedAccess ? limitedCopy.banner : user.hasAccess ? t(lang, 'dash_keep_up') : t(lang, 'dash_locked_desc')}
               </p>
             </div>
-            {!user.hasAccess && !isPreview && (
+            {isLimitedAccess ? (
+              <Link
+                to="/trial-booking"
+                className="bg-white text-purple-600 font-display font-bold px-6 py-3 rounded-2xl hover:scale-105 transition-transform shadow-lg text-sm flex-shrink-0"
+              >
+                {limitedCopy.cta}
+              </Link>
+            ) : !user.hasAccess && !isPreview && (
               <a href="https://t.me/vetoschool_bot" target="_blank" rel="noopener noreferrer"
                 className="bg-white text-purple-600 font-display font-bold px-6 py-3 rounded-2xl hover:scale-105 transition-transform shadow-lg text-sm flex-shrink-0">
                 {t(lang, 'dash_activate')}
@@ -891,7 +1038,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
         {/* Tabs */}
         <div className="flex gap-2 overflow-x-auto pb-2 mb-6" style={{ scrollbarWidth: 'none' }}>
-          {tabs.map(tab => (
+          {visibleTabs.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-body font-600 text-sm whitespace-nowrap transition-all duration-300 flex-shrink-0 ${
                 activeTab === tab.id
@@ -911,6 +1058,46 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
             {/* OVERVIEW */}
             {activeTab === 'overview' && (
               <div className="space-y-6">
+                {isLimitedAccess && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-3xl border border-pink-100 bg-white/85 p-6 shadow-xl shadow-pink-100/40"
+                  >
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div className="max-w-3xl">
+                        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-pink-100 bg-pink-50 px-3 py-1 font-body text-xs font-800 text-pink-500">
+                          <span>⏳</span>
+                          <span>{t(lang, 'dash_pending')}</span>
+                        </div>
+                        <h2 className="font-display text-2xl font-black text-purple-700">{limitedCopy.title}</h2>
+                        <p className="mt-2 font-body text-sm font-600 leading-relaxed text-purple-400">{limitedCopy.desc}</p>
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
+                        <Link to="/trial-booking" className="btn-magic inline-flex min-h-11 items-center justify-center px-5 py-2 text-sm font-bold text-white">
+                          {limitedCopy.trial}
+                        </Link>
+                        <Link to="/pricing" className="inline-flex min-h-11 items-center justify-center rounded-full border border-pink-200 bg-white px-5 py-2 font-display text-sm font-bold text-pink-600 shadow-sm transition hover:bg-pink-50">
+                          {limitedCopy.pricing}
+                        </Link>
+                        <a href="https://t.me/vetoschool_bot" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center rounded-full border border-purple-200 bg-white px-5 py-2 font-display text-sm font-bold text-purple-600 shadow-sm transition hover:bg-purple-50">
+                          {limitedCopy.telegram}
+                        </a>
+                      </div>
+                    </div>
+                    <div className="mt-5 grid gap-3 md:grid-cols-2">
+                      <div className="rounded-2xl border border-green-100 bg-green-50/70 p-4">
+                        <p className="font-display text-base font-black text-green-600">✅ {limitedCopy.nowTitle}</p>
+                        <p className="mt-1 font-body text-xs font-600 leading-relaxed text-green-600/75">{limitedCopy.nowDesc}</p>
+                      </div>
+                      <div className="rounded-2xl border border-purple-100 bg-purple-50/70 p-4">
+                        <p className="font-display text-base font-black text-purple-600">🔒 {limitedCopy.lockedTitle}</p>
+                        <p className="mt-1 font-body text-xs font-600 leading-relaxed text-purple-500/75">{limitedCopy.lockedDesc}</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
                     { label: t(lang, 'dash_lessons_done'), value: `${completedLessons}/${lessons.length}`, emoji: '📚', color: 'from-pink-100 to-rose-100', border: 'border-pink-200' },
@@ -932,7 +1119,12 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                     <div>
                       <p className="font-body text-xs font-800 uppercase tracking-[0.12em] text-purple-300">{tariffLabel}</p>
                       <h3 className="mt-1 font-display text-2xl font-black text-purple-700">{billingPlanName}</h3>
-                      <p className={`mt-1 font-body text-sm font-700 ${billingStatusClass}`}>{billingStatus}</p>
+                      <p className={`mt-1 inline-flex rounded-2xl border px-3 py-1 font-body text-xs font-800 ${billingStatusClass(billingKind)}`}>{billingStatus}</p>
+                      {billingKind === 'manual_access' && billing?.manual_access_override_at && (
+                        <p className={`mt-2 font-body text-xs font-700 ${billingStatusTextClass}`}>
+                          {lang === 'en' ? 'Manual access' : lang === 'ua' ? 'Ручний доступ' : 'Ручной доступ'}: {new Date(billing.manual_access_override_at).toLocaleString(locale)}
+                        </p>
+                      )}
                       {hasPaymentProblem && billing?.payment_failed_at && (
                         <p className="mt-1 font-body text-xs font-700 text-purple-400">
                           {paymentFailedLabel}: {new Date(billing.payment_failed_at).toLocaleDateString(locale)}
@@ -963,7 +1155,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                       </div>
                     </div>
                   </div>
-                  {(hasPaymentProblem || hasStripeCustomer) && (
+                  {(hasPaymentProblem || hasStripeCustomer || !isPreview) && (
                     <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
                       {hasStripeCustomer && (
                         <button
@@ -974,6 +1166,14 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                         >
                           {portalLoading ? '...' : manageSubscriptionLabel}
                         </button>
+                      )}
+                      {!isPreview && (
+                        <Link
+                          to="/pricing"
+                          className="inline-flex min-h-11 items-center justify-center rounded-full border border-pink-200 bg-white/75 px-5 py-2 font-display text-sm font-bold text-pink-600 shadow-sm transition hover:bg-pink-50"
+                        >
+                          {changeTariffLabel}
+                        </Link>
                       )}
                       {hasPaymentProblem && !hasStripeCustomer && (
                         <button

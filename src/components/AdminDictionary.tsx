@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, Trash2, Upload, Users, Volume2, X } from 'lucide-react';
+import { CheckCircle2, Loader2, RefreshCw, Trash2, Upload, Users, Volume2, Wand2, X } from 'lucide-react';
 import { Lang, t } from '../lib/i18n';
 import { addDictWords, deleteDictWord, DictWord, loadDictionary } from '../lib/dictionary';
 import { signedUrlFor, uploadWorkbookAsset } from '../lib/workbooks';
 import type { User } from '../lib/auth';
+import { DEFAULT_ELEVENLABS_MODEL_ID, DEFAULT_ELEVENLABS_VOICE_ID, generateDictionaryWordAudio, deleteDictionaryWordAudio } from '../lib/cardAudio';
 
 const labels = {
   ru: {
@@ -18,6 +19,10 @@ const labels = {
     removeAudio: 'Убрать аудио',
     uploadError: 'Не удалось загрузить аудио',
     saved: 'Слово добавлено',
+    generateAudio: 'Сгенерировать',
+    regenerateAudio: 'Перегенерировать',
+    deleteGeneratedAudio: 'Удалить аудио',
+    generated: 'Аудио сгенерировано',
     selectedCount: (count: number) => `${count} ученик(а)`,
   },
   en: {
@@ -31,6 +36,10 @@ const labels = {
     removeAudio: 'Remove audio',
     uploadError: 'Could not upload audio',
     saved: 'Word added',
+    generateAudio: 'Generate',
+    regenerateAudio: 'Regenerate',
+    deleteGeneratedAudio: 'Delete audio',
+    generated: 'Audio generated',
     selectedCount: (count: number) => `${count} student(s)`,
   },
   ua: {
@@ -44,6 +53,10 @@ const labels = {
     removeAudio: 'Прибрати аудіо',
     uploadError: 'Не вдалося завантажити аудіо',
     saved: 'Слово додано',
+    generateAudio: 'Згенерувати',
+    regenerateAudio: 'Перегенерувати',
+    deleteGeneratedAudio: 'Видалити аудіо',
+    generated: 'Аудіо згенеровано',
     selectedCount: (count: number) => `${count} учень/учні`,
   },
 } as const;
@@ -67,6 +80,7 @@ export default function AdminDictionary({ userId, lang, users = [] }: { userId: 
   const [selectedIds, setSelectedIds] = useState<string[]>([userId]);
   const [saving, setSaving] = useState(false);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [audioBusyId, setAudioBusyId] = useState<string | null>(null);
 
   const studentOptions = users.length > 0 ? users.filter(user => user.role !== 'admin') : [];
   const refresh = () => loadDictionary(userId).then(setWords);
@@ -117,6 +131,30 @@ export default function AdminDictionary({ userId, lang, users = [] }: { userId: 
     await deleteDictWord(id);
     setConfirmDel(null);
     refresh();
+  };
+  const handleGenerateAudio = async (item: DictWord) => {
+    setAudioBusyId(item.id);
+    try {
+      await generateDictionaryWordAudio({
+        dictionary_word_id: item.id,
+        text: item.word,
+        voice_id: DEFAULT_ELEVENLABS_VOICE_ID,
+        model_id: DEFAULT_ELEVENLABS_MODEL_ID,
+      });
+      await refresh();
+    } finally {
+      setAudioBusyId(null);
+    }
+  };
+
+  const handleDeleteGeneratedAudio = async (id: string) => {
+    setAudioBusyId(id);
+    try {
+      await deleteDictionaryWordAudio(id);
+      await refresh();
+    } finally {
+      setAudioBusyId(null);
+    }
   };
 
   return (
@@ -220,6 +258,17 @@ export default function AdminDictionary({ userId, lang, users = [] }: { userId: 
                 {w.audioUrl && (
                   <button onClick={() => playStoredAudio(w.audioUrl)} className="rounded-xl bg-purple-50 p-2 text-purple-500 transition hover:bg-purple-100 dark:bg-purple-900 dark:text-purple-100">
                     <Volume2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <button onClick={() => handleGenerateAudio(w)} disabled={audioBusyId === w.id}
+                  className="inline-flex items-center gap-1 rounded-xl bg-pink-50 px-2.5 py-1.5 font-body text-xs font-700 text-pink-600 transition hover:bg-pink-100 disabled:opacity-60">
+                  {audioBusyId === w.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : w.audioUrl ? <RefreshCw className="h-3.5 w-3.5" /> : <Wand2 className="h-3.5 w-3.5" />}
+                  {w.audioUrl ? copy.regenerateAudio : copy.generateAudio}
+                </button>
+                {w.audioUrl && (
+                  <button onClick={() => handleDeleteGeneratedAudio(w.id)} disabled={audioBusyId === w.id}
+                    className="rounded-xl border border-red-100 bg-white px-2.5 py-1.5 font-body text-xs font-700 text-red-400 hover:bg-red-50 disabled:opacity-60">
+                    {copy.deleteGeneratedAudio}
                   </button>
                 )}
                 <button onClick={() => handleDelete(w.id)}

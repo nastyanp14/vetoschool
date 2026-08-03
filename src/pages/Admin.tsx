@@ -1,13 +1,12 @@
 import { useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { getCurrentUser, getUsers, grantAccess, revokeAccess, deleteUser, logout, loadAllUsers, setAccess, setAccessStatus, friendlyActionError, User, AccessStatus, PaymentStatus } from '../lib/auth';
+import { getCurrentUser, getUsers, grantAccess, revokeAccess, deleteUser, logout, loadAllUsers, friendlyActionError, User, AccessStatus, PaymentStatus } from '../lib/auth';
 import { getStudentSchedule, saveStudentSchedule, loadStudentSchedule, setSlotConducted, deleteScheduleSlot, ScheduleSlot, isActiveScheduleSlot, scheduleSlotTimeValue } from '../lib/schedule';
 import { ensureStudentContent, saveStudentContent, loadStudentContent, ContentItem, ContentType, getStudentRating, fileToDataUrl, uploadContentFile, deleteContentItem, deleteModule, isGradedContentType } from '../lib/content';
 import { Lang, t } from '../lib/i18n';
-import { Switch } from '@/components/ui/switch';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { BarChart3, BookOpen, CalendarPlus, CheckCircle2, Search, Trash2 } from 'lucide-react';
+import { BarChart3, BookOpen, CalendarPlus, CheckCircle2, Loader2, RefreshCw, Search, Trash2, Wand2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribe } from '../lib/storage';
 import ThemeToggle from '../components/ThemeToggle';
@@ -18,6 +17,7 @@ import TrialLessonsAdmin from '../components/TrialLessonsAdmin';
 import TeachersAdmin from '../components/TeachersAdmin';
 import ConfirmActionModal from '../components/ConfirmActionModal';
 import { giftStars, loadStarProfile, awardStars, findAvatar } from '../lib/stars';
+import { DEFAULT_ELEVENLABS_MODEL_ID, DEFAULT_ELEVENLABS_VOICE_ID, deleteListeningTaskAudio, generateListeningTaskAudio } from '../lib/cardAudio';
 import {
   LessonStatus,
   LessonType,
@@ -39,6 +39,7 @@ import {
   validateLessonAdjustmentInput,
   type SubscriptionFilters,
 } from '../lib/adminSubscriptions';
+import { activeSubscriptionStatus, billingStatusClass, billingStatusLabel, hasConfirmedStripePayment } from '../lib/subscriptionStatus';
 
 // Small inline avatar that shows the equipped emoji avatar or the name initial
 function UserAvatar({ user, size = 'md' }: { user: { name: string; avatarId?: string | null }; size?: 'sm' | 'md' | 'lg' }) {
@@ -174,14 +175,6 @@ function StudentProfileModal({ user, users, lang, onClose, onCredentialsSaved, o
   const unlockedCount = content.filter(i => i.unlocked).length;
   const gradedItems = content.filter(h => isGradedContentType(h.type) && h.starRating && h.starRating > 0);
 
-  // Access toggle
-  const [accessSaving, setAccessSaving] = useState(false);
-  const handleToggleAccess = async (next: boolean) => {
-    setAccessSaving(true);
-    try { await setAccess(user.id, next); onCredentialsSaved(next ? `✅ Доступ выдан: ${user.name}` : `🔒 Доступ закрыт: ${user.name}`); }
-    finally { setAccessSaving(false); }
-  };
-
   const typeColor: Record<string, string> = {
     lesson: 'bg-pink-100 text-pink-600', homework: 'bg-purple-100 text-purple-600',
     practice: 'bg-blue-100 text-blue-600', grammar: 'bg-yellow-100 text-yellow-600', listening: 'bg-green-100 text-green-600',
@@ -298,19 +291,21 @@ function StudentProfileModal({ user, users, lang, onClose, onCredentialsSaved, o
             </div>
           )}
 
-          {/* ---- ACCESS TOGGLE ---- */}
+          {/* ---- ACCESS STATUS ---- */}
           <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border border-purple-100 p-5 flex items-center justify-between gap-4">
             <div>
               <div className="font-display font-bold text-purple-700 flex items-center gap-2">
                 {user.hasAccess ? '🟢' : '🟡'} {lang === 'en' ? 'Access' : lang === 'ua' ? 'Доступ' : 'Доступ'}
               </div>
               <p className="font-body text-xs text-purple-400 mt-0.5">
-                {lang === 'en' ? 'Toggle to grant or revoke access for this student.' :
-                 lang === 'ua' ? 'Перемкніть, щоб надати або забрати доступ.' :
-                 'Переключите, чтобы выдать или забрать доступ.'}
+                {lang === 'en' ? 'Read-only status. Stripe and audited manual overrides control access.' :
+                 lang === 'ua' ? 'Статус тільки для читання. Доступ керується Stripe або аудитованим ручним доступом.' :
+                 'Статус только для чтения. Доступом управляет Stripe или ручной доступ с аудитом.'}
               </p>
             </div>
-            <Switch checked={user.hasAccess} disabled={accessSaving} onCheckedChange={handleToggleAccess} />
+            <span className={`rounded-2xl border px-3 py-2 font-body text-xs font-800 ${user.hasAccess ? 'border-green-200 bg-green-50 text-green-700' : 'border-yellow-200 bg-yellow-50 text-yellow-700'}`}>
+              {user.hasAccess ? lbl.active : lbl.pending}
+            </span>
           </div>
 
           {/* ---- GIFT BONUS STARS ---- */}
@@ -1218,7 +1213,6 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [profileTarget, setProfileTarget] = useState<User | null>(null);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
-  const [bulkSaving, setBulkSaving] = useState(false);
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [subscriptionFilters, setSubscriptionFilters] = useState<SubscriptionFilters>({
     query: '',
@@ -1250,6 +1244,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   // Content
   const [contentUserId, setContentUserId] = useState('');
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
+  const [listeningAudioBusyId, setListeningAudioBusyId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editEmoji, setEditEmoji] = useState('');
@@ -1444,6 +1439,35 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
     const updated = contentItems.map(i => i.id === itemId ? { ...i, unlocked: !cur } : i);
     setContentItems(updated); await saveStudentContent(contentUserId, updated);
     showToast(cur ? '🔒 Закрыто' : '✅ Открыто!');
+  };
+  const generateListeningAudio = async (item: ContentItem) => {
+    setListeningAudioBusyId(item.id);
+    try {
+      await generateListeningTaskAudio({
+        content_item_id: item.id,
+        text: item.title,
+        voice_id: DEFAULT_ELEVENLABS_VOICE_ID,
+        model_id: DEFAULT_ELEVENLABS_MODEL_ID,
+      });
+      await refreshCurrentContent();
+      showToast(lang === 'en' ? 'Listening audio generated' : lang === 'ua' ? 'Аудіо аудіювання згенеровано' : 'Аудио аудирования сгенерировано');
+    } catch (error) {
+      showToast(friendlyActionError(error), 'error');
+    } finally {
+      setListeningAudioBusyId(null);
+    }
+  };
+  const deleteListeningAudio = async (item: ContentItem) => {
+    setListeningAudioBusyId(item.id);
+    try {
+      await deleteListeningTaskAudio(item.id);
+      await refreshCurrentContent();
+      showToast(lang === 'en' ? 'Listening audio deleted' : lang === 'ua' ? 'Аудіо аудіювання видалено' : 'Аудио аудирования удалено');
+    } catch (error) {
+      showToast(friendlyActionError(error), 'error');
+    } finally {
+      setListeningAudioBusyId(null);
+    }
   };
   const startEdit = (item: ContentItem) => {
     setEditingId(item.id); setEditTitle(item.title); setEditEmoji(item.emoji);
@@ -1768,9 +1792,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const linkPlaceholder = lang === 'en' ? 'https://example.com' : 'https://...';
   const paymentHeader = lang === 'en' ? 'Payment' : lang === 'ua' ? 'Оплата' : 'Оплата';
   const accessHeader = lang === 'en' ? 'Access' : lang === 'ua' ? 'Доступ' : 'Доступ';
-  const statusUpdatedText = lang === 'en' ? 'Status updated' : lang === 'ua' ? 'Статус оновлено' : 'Статус обновлён';
   const deleteFailedText = lang === 'en' ? 'Could not delete student' : lang === 'ua' ? 'Не вдалося видалити учня' : 'Не удалось удалить ученика';
-  const grantAllDoneText = lang === 'en' ? 'Access opened for all pending students' : lang === 'ua' ? 'Доступ відкрито всім очікуючим' : 'Всем ожидающим открыт доступ!';
   const accessLabels: Record<AccessStatus, string> = {
     pending: lang === 'en' ? '🟡 Pending' : lang === 'ua' ? '🟡 Очікує' : '🟡 Ожидает',
     active: lang === 'en' ? '🟢 Active' : lang === 'ua' ? '🟢 Активний' : '🟢 Активен',
@@ -1801,19 +1823,26 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const updatePaymentMethodLabel = lang === 'en' ? 'Update payment method' : lang === 'ua' ? 'Оновити спосіб оплати' : 'Обновить способ оплаты';
   const paidPeriodEndLabel = lang === 'en' ? 'Paid period ends' : lang === 'ua' ? 'Оплачений період до' : 'Оплаченный период до';
   const hasSubscriptionPaymentProblem = (student: User) => (
-    student.paymentStatus === 'failed'
-    || student.subscriptionStatus === 'past_due'
-    || student.subscriptionStatus === 'unpaid'
-    || student.subscriptionStatus === 'incomplete_expired'
+    activeSubscriptionStatus({
+      paymentStatus: student.paymentStatus,
+      subscriptionStatus: student.subscriptionStatus,
+      stripeCustomerId: student.stripeCustomerId,
+      stripeSubscriptionId: student.stripeSubscriptionId,
+      cancelAtPeriodEnd: student.cancelAtPeriodEnd,
+      manualAccessOverride: student.manualAccessOverride,
+      accessStatus: student.accessStatus,
+    }) === 'payment_failed'
   );
   const subscriptionStatusLabel = (student: User) => {
-    if (hasSubscriptionPaymentProblem(student)) return paymentLabels.failed;
-    if (student.subscriptionStatus === 'canceled') return lang === 'en' ? 'Canceled' : lang === 'ua' ? 'Скасована' : 'Отменена';
-    if (student.cancelAtPeriodEnd) return lang === 'en' ? 'Ends at paid period end' : lang === 'ua' ? 'Скасується в кінці оплаченого періоду' : 'Отменится в конце оплаченного периода';
-    if (student.subscriptionStatus === 'active' || student.subscriptionStatus === 'trialing' || student.paymentStatus === 'paid') {
-      return lang === 'en' ? 'Active' : lang === 'ua' ? 'Активна' : 'Активна';
-    }
-    return '';
+    return billingStatusLabel(activeSubscriptionStatus({
+      paymentStatus: student.paymentStatus,
+      subscriptionStatus: student.subscriptionStatus,
+      stripeCustomerId: student.stripeCustomerId,
+      stripeSubscriptionId: student.stripeSubscriptionId,
+      cancelAtPeriodEnd: student.cancelAtPeriodEnd,
+      manualAccessOverride: student.manualAccessOverride,
+      accessStatus: student.accessStatus,
+    }), lang);
   };
   const formatBillingLine = (student: User) => {
     const planId = student.planId && student.planId in pricingPlanNameKeys ? student.planId as PricingPlanId : null;
@@ -1829,7 +1858,16 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
     const next = student.nextPaymentDate
       ? new Date(student.nextPaymentDate).toLocaleDateString(lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU')
       : '';
-    const status = subscriptionStatusLabel(student);
+    const billingKind = activeSubscriptionStatus({
+      paymentStatus: student.paymentStatus,
+      subscriptionStatus: student.subscriptionStatus,
+      stripeCustomerId: student.stripeCustomerId,
+      stripeSubscriptionId: student.stripeSubscriptionId,
+      cancelAtPeriodEnd: student.cancelAtPeriodEnd,
+      manualAccessOverride: student.manualAccessOverride,
+      accessStatus: student.accessStatus,
+    });
+    const status = billingKind === 'manual_access' ? '' : billingStatusLabel(billingKind, lang);
     const periodEnd = (student.cancelAtPeriodEnd || student.subscriptionStatus === 'canceled') && student.currentPeriodEnd
       ? `${paidPeriodEndLabel}: ${new Date(student.currentPeriodEnd).toLocaleDateString(lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU')}`
       : '';
@@ -1841,9 +1879,6 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
       : ''
   );
   const statusPillBase = 'inline-flex min-h-9 min-w-[156px] items-center justify-center rounded-2xl border px-3 py-2 font-body text-xs font-700 shadow-sm';
-  const handleStatusChange = (uid: string, accessStatus: AccessStatus, paymentStatus?: PaymentStatus) => {
-    runStudentAction(uid, () => setAccessStatus(uid, accessStatus, paymentStatus), statusUpdatedText);
-  };
   const formatDate = (value?: string | null) => value
     ? new Date(value).toLocaleDateString(lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU')
     : '—';
@@ -1997,6 +2032,10 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const openStripeSubscription = (subscriptionId?: string | null) => {
     if (!subscriptionId) return;
     window.open(`https://dashboard.stripe.com/test/subscriptions/${encodeURIComponent(subscriptionId)}`, '_blank', 'noopener,noreferrer');
+  };
+  const openStripeCustomer = (customerId?: string | null) => {
+    if (!customerId) return;
+    window.open(`https://dashboard.stripe.com/test/customers/${encodeURIComponent(customerId)}`, '_blank', 'noopener,noreferrer');
   };
   const openLessonAdjustment = (student: User) => {
     setAdjustmentTarget(student);
@@ -2373,20 +2412,9 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                   </div>
                                 </td>
                                 <td className="px-4 md:px-6 py-4 min-w-[190px]">
-                                  <Select disabled={savingUserId === user.id} value={user.accessStatus} onValueChange={v => handleStatusChange(user.id, v as AccessStatus)}>
-                                    <SelectTrigger className={`${statusPillBase} ${accessClasses[user.accessStatus]} hover:scale-[1.02] transition-transform focus:ring-pink-200`}>
-                                      <span>{savingUserId === user.id ? '...' : accessLabels[user.accessStatus]}</span>
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-3xl border-2 border-purple-100 bg-white/95 p-2 text-purple-700 shadow-2xl backdrop-blur">
-                                      {(['pending', 'active', 'suspended', 'cancelled'] as AccessStatus[]).map(status => (
-                                        <SelectItem key={status} value={status} className="rounded-2xl py-1.5 pl-8 pr-2 font-body text-xs font-700 text-purple-700 focus:bg-pink-50 focus:text-purple-700">
-                                          <span className={`${statusPillBase} ${accessClasses[status]} min-w-full justify-start shadow-none`}>
-                                            {accessLabels[status]}
-                                          </span>
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+                                  <span className={`${statusPillBase} ${accessClasses[user.accessStatus]}`}>
+                                    {savingUserId === user.id ? '...' : accessLabels[user.accessStatus]}
+                                  </span>
                                   {formatBillingLine(user) && (
                                     <div className="mt-2 max-w-[210px] rounded-2xl border border-purple-100 bg-white/55 px-3 py-2 font-body text-[11px] font-700 leading-snug text-purple-400">
                                       {formatBillingLine(user)}
@@ -2394,20 +2422,9 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                   )}
                                 </td>
                                 <td className="px-4 md:px-6 py-4 min-w-[190px]">
-                                  <Select disabled={savingUserId === user.id} value={user.paymentStatus} onValueChange={v => handleStatusChange(user.id, user.accessStatus, v as PaymentStatus)}>
-                                    <SelectTrigger className={`${statusPillBase} ${paymentClasses[user.paymentStatus]} hover:scale-[1.02] transition-transform focus:ring-pink-200`}>
-                                      <span>{savingUserId === user.id ? '...' : paymentLabels[user.paymentStatus]}</span>
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-3xl border-2 border-purple-100 bg-white/95 p-2 text-purple-700 shadow-2xl backdrop-blur">
-                                      {(['unpaid', 'pending_review', 'paid', 'failed', 'refunded'] as PaymentStatus[]).map(status => (
-                                        <SelectItem key={status} value={status} className="rounded-2xl py-1.5 pl-8 pr-2 font-body text-xs font-700 text-purple-700 focus:bg-pink-50 focus:text-purple-700">
-                                          <span className={`${statusPillBase} ${paymentClasses[status]} min-w-full justify-start shadow-none`}>
-                                            {paymentLabels[status]}
-                                          </span>
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+                                  <span className={`${statusPillBase} ${paymentClasses[user.paymentStatus]}`}>
+                                    {savingUserId === user.id ? '...' : paymentLabels[user.paymentStatus]}
+                                  </span>
                                   {hasSubscriptionPaymentProblem(user) && (
                                     <div className="mt-2 max-w-[210px] rounded-2xl border border-red-100 bg-red-50/70 px-3 py-2 font-body text-[11px] font-700 leading-snug text-red-500">
                                       {formatPaymentFailedLine(user) || paymentLabels.failed}
@@ -2425,7 +2442,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                   <div className="flex items-center gap-2">
                                     {user.hasAccess
                                       ? <button disabled={savingUserId === user.id} onClick={() => handleRevoke(user.id, user.name)} className="text-xs bg-red-100 text-red-500 hover:bg-red-200 px-3 py-2 rounded-2xl font-body font-700 transition-colors whitespace-nowrap disabled:opacity-60">{savingUserId === user.id ? '...' : t(lang,'admin_take')}</button>
-                                      : <button disabled={savingUserId === user.id} onClick={() => handleGrant(user.id, user.name)} className="text-xs bg-green-100 text-green-600 hover:bg-green-200 px-3 py-2 rounded-2xl font-body font-700 transition-colors disabled:opacity-60">{savingUserId === user.id ? '...' : t(lang,'admin_give')}</button>
+                                      : <button disabled={savingUserId === user.id} onClick={() => handleGrant(user.id, user.name)} className="text-xs bg-green-100 text-green-600 hover:bg-green-200 px-3 py-2 rounded-2xl font-body font-700 transition-colors whitespace-nowrap disabled:opacity-60">{savingUserId === user.id ? '...' : t(lang,'admin_give')}</button>
                                     }
                                     <button onClick={() => setDeleteTarget(user)}
                                       disabled={savingUserId === user.id || deleteSaving}
@@ -2444,29 +2461,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                 )}
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="glass rounded-3xl p-6">
-                  <h3 className="font-display font-bold text-lg text-purple-700 mb-3">{t(lang,'admin_quick_actions')}</h3>
-                  <button
-                    onClick={async () => {
-                      setBulkSaving(true);
-                      try {
-                        await Promise.all(users.filter(u => !u.hasAccess).map(u => grantAccess(u.id)));
-                        await refreshUsersFromServer();
-                        showToast(`✅ ${grantAllDoneText}`);
-                      } catch (error) {
-                        console.error(error);
-                        showToast(friendlyActionError(error), 'error');
-                      } finally {
-                        setBulkSaving(false);
-                      }
-                    }}
-                    disabled={bulkSaving || users.every(u => u.hasAccess)}
-                    className="w-full text-left px-4 py-3 bg-green-50 hover:bg-green-100 border border-green-200 rounded-2xl font-body text-sm text-green-700 font-700 transition-colors disabled:opacity-60"
-                  >
-                    {bulkSaving ? '...' : t(lang,'admin_grant_all_btn')}
-                  </button>
-                </div>
+              <div className="grid gap-4">
                 <div className="glass rounded-3xl p-6">
                   <h3 className="font-display font-bold text-lg text-purple-700 mb-3">{t(lang,'admin_overview')}</h3>
                   <div className="space-y-3">
@@ -2584,10 +2579,16 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                 <div>{formatLessonFormatLabel(student.lessonFormat)}</div>
                               </td>
                               <td className="min-w-[190px] px-4 py-4">
-                                <div className={`inline-flex rounded-2xl border px-3 py-1.5 font-body text-xs font-800 ${hasSubscriptionPaymentProblem(student) ? paymentClasses.failed : student.subscriptionStatus === 'canceled' ? 'border-gray-200 bg-gray-100 text-gray-500' : student.cancelAtPeriodEnd ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-green-200 bg-green-50 text-green-700'}`}>
-                                  {subscriptionStatusLabel(student) || (lang === 'en' ? 'No subscription' : lang === 'ua' ? 'Немає підписки' : 'Нет подписки')}
+                                <div className={`inline-flex rounded-2xl border px-3 py-1.5 font-body text-xs font-800 ${billingStatusClass(activeSubscriptionStatus({ paymentStatus: student.paymentStatus, subscriptionStatus: student.subscriptionStatus, stripeCustomerId: student.stripeCustomerId, stripeSubscriptionId: student.stripeSubscriptionId, cancelAtPeriodEnd: student.cancelAtPeriodEnd, manualAccessOverride: student.manualAccessOverride, accessStatus: student.accessStatus }))}`}>
+                                  {subscriptionStatusLabel(student)}
                                 </div>
-                                <div className="mt-2 font-body text-xs font-700 text-purple-400">{paymentLabels[student.paymentStatus]}</div>
+                                <div className="mt-2 font-body text-xs font-700 text-purple-400">
+                                  {hasConfirmedStripePayment({ paymentStatus: student.paymentStatus, stripeCustomerId: student.stripeCustomerId, stripeSubscriptionId: student.stripeSubscriptionId })
+                                    ? paymentLabels.paid
+                                    : student.paymentStatus === 'failed'
+                                      ? paymentLabels.failed
+                                      : lang === 'en' ? 'No confirmed Stripe payment' : lang === 'ua' ? 'Немає підтвердженої Stripe-оплати' : 'Нет подтверждённой Stripe-оплаты'}
+                                </div>
                                 <div className="mt-1 font-body text-[11px] font-700 text-purple-300">
                                   {lang === 'en' ? 'Ends at period end' : lang === 'ua' ? 'Скасується в кінці періоду' : 'Отменится в конце периода'}: {student.cancelAtPeriodEnd ? (lang === 'en' ? 'yes' : lang === 'ua' ? 'так' : 'да') : (lang === 'en' ? 'no' : lang === 'ua' ? 'ні' : 'нет')}
                                 </div>
@@ -2660,8 +2661,11 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                       <button onClick={() => setProfileTarget(selectedSubscriptionRow.user)} className="rounded-2xl bg-white/70 px-3 py-2 font-body text-xs font-800 text-purple-600 hover:bg-pink-50">
                         {lang === 'en' ? 'Open profile' : lang === 'ua' ? 'Відкрити профіль' : 'Открыть профиль'}
                       </button>
+                      <button disabled={!selectedSubscriptionRow.user.stripeCustomerId} onClick={() => openStripeCustomer(selectedSubscriptionRow.user.stripeCustomerId)} className="rounded-2xl bg-purple-100 px-3 py-2 font-body text-xs font-800 text-purple-700 hover:bg-purple-200 disabled:opacity-50">
+                        Open Stripe customer
+                      </button>
                       <button disabled={!selectedSubscriptionRow.user.stripeSubscriptionId} onClick={() => openStripeSubscription(selectedSubscriptionRow.user.stripeSubscriptionId)} className="rounded-2xl bg-purple-100 px-3 py-2 font-body text-xs font-800 text-purple-700 hover:bg-purple-200 disabled:opacity-50">
-                        Stripe Dashboard
+                        Stripe subscription
                       </button>
                     </div>
                   </section>
@@ -2834,6 +2838,21 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                         {item.fileName && <p className="font-body text-xs text-purple-400 truncate mt-0.5">📎 {item.fileName}</p>}
                                         {item.dueDate && <p className="font-body text-xs text-purple-400 mt-0.5">📅 {t(lang,'dash_due')} {new Date(item.dueDate).toLocaleDateString(lang==='en'?'en-GB':lang==='ua'?'uk-UA':'ru-RU')}</p>}
                                         {item.scheduledDate && <p className="font-body text-xs text-blue-400 mt-0.5">🗓 {item.scheduledDate} {item.scheduledTime}</p>}
+                                        {item.type === 'listening' && (
+                                          <div className="mt-2 flex flex-wrap gap-2">
+                                            <button onClick={() => generateListeningAudio(item)} disabled={listeningAudioBusyId === item.id}
+                                              className="inline-flex items-center gap-1.5 rounded-xl bg-pink-50 px-3 py-1.5 font-body text-xs font-800 text-pink-600 transition hover:bg-pink-100 disabled:opacity-60">
+                                              {listeningAudioBusyId === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : item.fileUrl ? <RefreshCw className="h-3.5 w-3.5" /> : <Wand2 className="h-3.5 w-3.5" />}
+                                              {item.fileUrl ? (lang === 'en' ? 'Regenerate audio' : lang === 'ua' ? 'Перегенерувати аудіо' : 'Перегенерировать аудио') : (lang === 'en' ? 'Generate audio' : lang === 'ua' ? 'Згенерувати аудіо' : 'Сгенерировать аудио')}
+                                            </button>
+                                            {item.fileUrl && (
+                                              <button onClick={() => deleteListeningAudio(item)} disabled={listeningAudioBusyId === item.id}
+                                                className="rounded-xl border border-red-100 bg-white px-3 py-1.5 font-body text-xs font-800 text-red-400 transition hover:bg-red-50 disabled:opacity-60">
+                                                {lang === 'en' ? 'Delete audio' : lang === 'ua' ? 'Видалити аудіо' : 'Удалить аудио'}
+                                              </button>
+                                            )}
+                                          </div>
+                                        )}
                                         {item.starRating && item.starRating > 0 && (
                                           <div className="flex gap-0.5 mt-1">{[1,2,3,4,5].map(s => <span key={s} className={`text-sm ${s<=item.starRating!?'text-yellow-400':'text-gray-200'}`}>★</span>)}</div>
                                         )}

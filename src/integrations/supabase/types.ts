@@ -1116,6 +1116,9 @@ export type Database = {
           lesson_format: string | null
           lessons_remaining: number
           lessons_total: number
+          manual_access_override: boolean
+          manual_access_override_at: string | null
+          manual_access_override_by: string | null
           name: string
           next_payment_date: string | null
           payment_failed_at: string | null
@@ -1144,6 +1147,9 @@ export type Database = {
           lesson_format?: string | null
           lessons_remaining?: number
           lessons_total?: number
+          manual_access_override?: boolean
+          manual_access_override_at?: string | null
+          manual_access_override_by?: string | null
           name?: string
           next_payment_date?: string | null
           payment_failed_at?: string | null
@@ -1172,6 +1178,9 @@ export type Database = {
           lesson_format?: string | null
           lessons_remaining?: number
           lessons_total?: number
+          manual_access_override?: boolean
+          manual_access_override_at?: string | null
+          manual_access_override_by?: string | null
           name?: string
           next_payment_date?: string | null
           payment_failed_at?: string | null

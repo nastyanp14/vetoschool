@@ -51,6 +51,9 @@ export interface TheoryAudioBlock {
   title: string;
   description: string;
   audio: string;
+  audio_url?: string;
+  audio_voice_id?: string;
+  audio_model_id?: string;
 }
 
 export interface TheoryRuleBlock {
