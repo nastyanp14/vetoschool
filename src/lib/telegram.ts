@@ -51,7 +51,7 @@ export async function createTelegramLink(studentId: string) {
   if (!token) throw new Error('Telegram link token was not created');
   return {
     token,
-    url: `https://t.me/${botUsername}?start=${encodeURIComponent(token)}`,
+    url: (data.url as string | null) || `https://t.me/${(data.botUsername as string | undefined)?.replace(/^@/, '') || botUsername}?start=${encodeURIComponent(token)}`,
     expiresAt: data.expiresAt as string,
   };
 }

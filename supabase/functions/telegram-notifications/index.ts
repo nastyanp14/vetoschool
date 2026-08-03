@@ -8,7 +8,6 @@ const corsHeaders = {
 type Lang = 'ru' | 'ua' | 'en';
 type ParentRow = {
   id: string;
-  sendpulse_contact_id: string | null;
   telegram_chat_id: string | null;
   telegram_user_id: string | null;
   telegram_username: string | null;
@@ -142,20 +141,6 @@ function notificationMessage(parent: ParentRow, notification: any) {
   return { text: text || title, buttons };
 }
 
-async function getSendPulseToken() {
-  const clientId = Deno.env.get('SENDPULSE_CLIENT_ID');
-  const clientSecret = Deno.env.get('SENDPULSE_CLIENT_SECRET');
-  if (!clientId || !clientSecret) throw new Error('SENDPULSE_CLIENT_ID and SENDPULSE_CLIENT_SECRET are required');
-  const response = await fetch('https://api.sendpulse.com/oauth/access_token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ grant_type: 'client_credentials', client_id: clientId, client_secret: clientSecret }),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data.access_token) throw new Error(data.message || data.error_description || 'Could not authorize SendPulse API');
-  return data.access_token as string;
-}
-
 async function sendDirectTelegram(chatId: string, text: string, buttons: any[]) {
   const token = Deno.env.get('TELEGRAM_BOT_TOKEN');
   if (!token) return false;
@@ -173,42 +158,30 @@ async function sendDirectTelegram(chatId: string, text: string, buttons: any[]) 
   return true;
 }
 
-async function sendViaSendPulse(parent: ParentRow, text: string, buttons: any[]) {
-  if (parent.telegram_chat_id && await sendDirectTelegram(parent.telegram_chat_id, text, buttons)) return;
-
-  const contactId = parent.sendpulse_contact_id || parent.telegram_user_id || parent.telegram_chat_id;
-  if (!contactId) throw new Error('Parent does not have SendPulse contact id or Telegram chat id');
-
-  const token = await getSendPulseToken();
-  const botId = Deno.env.get('SENDPULSE_BOT_ID') || '';
-  const customTemplate = Deno.env.get('SENDPULSE_SEND_ENDPOINT_TEMPLATE');
-  const urls = customTemplate
-    ? [customTemplate.replace('{contactId}', encodeURIComponent(contactId)).replace('{botId}', encodeURIComponent(botId))]
-    : [
-        `https://api.sendpulse.com/telegram/contacts/${encodeURIComponent(contactId)}/messages`,
-        `https://api.sendpulse.com/chatbots/telegram/contacts/${encodeURIComponent(contactId)}/send`,
-        `https://api.sendpulse.com/messengers/telegram/contacts/${encodeURIComponent(contactId)}/messages`,
-        botId ? `https://api.sendpulse.com/bots/${encodeURIComponent(botId)}/contacts/${encodeURIComponent(contactId)}/send` : '',
-      ].filter(Boolean);
-
-  const payloads = [
-    { message: { type: 'text', text, buttons }, contact_id: contactId, bot_id: botId || undefined },
-    { text, buttons, contact_id: contactId, bot_id: botId || undefined },
-  ];
-
-  let lastError = '';
-  for (const url of urls) {
-    for (const payload of payloads) {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (response.ok) return;
-      lastError = `${response.status} ${await response.text().catch(() => '')}`;
-    }
+let cachedBotUsername: string | null = null;
+async function telegramBotUsername() {
+  if (cachedBotUsername) return cachedBotUsername;
+  const envName = (Deno.env.get('TELEGRAM_BOT_USERNAME') || '').replace(/^@/, '');
+  if (envName) {
+    cachedBotUsername = envName;
+    return cachedBotUsername;
   }
-  throw new Error(`SendPulse message failed: ${lastError || 'no endpoint accepted request'}`);
+  const token = Deno.env.get('TELEGRAM_BOT_TOKEN');
+  if (!token) return '';
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+    const data = await response.json().catch(() => ({}));
+    cachedBotUsername = data?.result?.username || '';
+    return cachedBotUsername;
+  } catch {
+    return '';
+  }
+}
+
+async function sendToParent(parent: ParentRow, text: string, buttons: any[]) {
+  if (!Deno.env.get('TELEGRAM_BOT_TOKEN')) throw new Error('TELEGRAM_BOT_TOKEN is not configured');
+  if (!parent.telegram_chat_id) throw new Error('Parent is not connected to the Telegram bot');
+  await sendDirectTelegram(parent.telegram_chat_id, text, buttons);
 }
 
 async function currentUser(req: Request, anonKey: string) {
@@ -236,9 +209,12 @@ async function parentsFor(admin: any, studentId: string): Promise<ParentRow[]> {
   const { data, error } = await admin
     .from('student_parent_links')
     .select('telegram_parent_accounts(*)')
-    .eq('student_id', studentId);
+    .eq('student_id', studentId)
+    .eq('active', true);
   if (error) throw error;
-  return (data || []).map((row: any) => row.telegram_parent_accounts).filter(Boolean);
+  return (data || [])
+    .map((row: any) => row.telegram_parent_accounts)
+    .filter((parent: any) => parent && parent.telegram_chat_id);
 }
 
 async function enqueue(admin: any, row: any) {
@@ -408,7 +384,7 @@ async function processDue(admin: any, limit = 25) {
     }
     try {
       const message = notificationMessage(parent, notification);
-      await sendViaSendPulse(parent, message.text, message.buttons);
+      await sendToParent(parent, message.text, message.buttons);
       await admin.from('telegram_notifications').update({ status: 'sent', sent_at: new Date().toISOString(), attempts: notification.attempts + 1, error: null }).eq('id', notification.id);
       sent++;
     } catch (error) {
@@ -453,7 +429,23 @@ Deno.serve(async (req) => {
         expires_at: expiresAt,
       });
       if (error) throw error;
-      return json({ token, expiresAt });
+
+      // Any previous unused invitation for this student becomes invalid.
+      await admin
+        .from('telegram_link_tokens')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('student_id', studentId)
+        .neq('token_hash', tokenHash)
+        .is('used_at', null)
+        .is('revoked_at', null);
+
+      const botUsername = await telegramBotUsername();
+      return json({
+        token,
+        expiresAt,
+        botUsername,
+        url: botUsername ? `https://t.me/${botUsername}?start=${encodeURIComponent(token)}` : null,
+      });
     }
 
     if (!adminUser && action !== 'process_due') return json({ error: 'Forbidden' }, 403);

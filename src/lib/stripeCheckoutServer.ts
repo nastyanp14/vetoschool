@@ -3,6 +3,28 @@ import type { PricingPlanId } from './pricingCurrency';
 
 export const DEFAULT_STRIPE_SUCCESS_URL = 'http://127.0.0.1:8080/payment/success';
 export const DEFAULT_STRIPE_CANCEL_URL = 'http://127.0.0.1:8080/payment/cancel';
+function planIdFromMetadataValue(value: unknown): PricingPlanId | null {
+  return typeof value === 'string' && isPricingPlanId(value) ? value as PricingPlanId : null;
+}
+
+function invoiceSubscriptionId(invoice: unknown): string {
+  const raw = invoice as Record<string, any> | undefined;
+  return normalizeStripeId(raw?.subscription)
+    || normalizeStripeId(raw?.parent?.subscription_details?.subscription)
+    || normalizeStripeId(raw?.lines?.data?.[0]?.subscription)
+    || normalizeStripeId(raw?.lines?.data?.[0]?.parent?.subscription_item_details?.subscription)
+    || '';
+}
+
+function stripeMetadataPlanId(...sources: Array<unknown>): PricingPlanId | null {
+  for (const source of sources) {
+    const metadata = (source as Record<string, any> | undefined)?.metadata;
+    const planId = planIdFromMetadataValue(metadata?.plan_id);
+    if (planId) return planId;
+  }
+  return null;
+}
+
 export const DEFAULT_STRIPE_PORTAL_RETURN_PATH = '/dashboard';
 
 type StripeCheckoutEnv = {
@@ -144,6 +166,11 @@ type StripeInvoice = {
 
 type StripePaymentIntent = {
   id?: string;
+  last_payment_error?: {
+    code?: string | null;
+    decline_code?: string | null;
+    message?: string | null;
+  } | null;
   latest_charge?: string | StripeCharge | null;
   charges?: {
     data?: StripeCharge[];
@@ -168,7 +195,7 @@ type StripeRefund = {
 };
 
 type SupabaseAuthUser = {
-  id?: string;
+  id: string;
   email?: string | null;
 };
 
@@ -743,6 +770,30 @@ async function loadProfileByStripeSubscription(customerId: string, subscriptionI
 
   const rows = await response.json() as VetoschoolProfile[];
   return rows[0] || null;
+}
+
+async function loadProfileByStripeCustomer(customerId: string, env: StripeCheckoutEnv): Promise<VetoschoolProfile | null> {
+  if (!customerId) return null;
+  const supabaseUrl = requireSupabaseUrl(env);
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/profiles?stripe_customer_id=eq.${encodeURIComponent(customerId)}&select=id,email,name,stripe_customer_id,stripe_subscription_id&limit=1`,
+    { headers: supabaseHeaders(env) },
+  );
+  if (!response.ok) throw new Error(`profile_stripe_customer_lookup_failed_${response.status}`);
+  const rows = await response.json() as VetoschoolProfile[];
+  return rows[0] || null;
+}
+
+async function loadProfileFromStripeMetadata(...args: Array<unknown>): Promise<VetoschoolProfile | null> {
+  const env = args[args.length - 1] as StripeCheckoutEnv;
+  for (const source of args.slice(0, -1)) {
+    const userId = (source as Record<string, any> | undefined)?.metadata?.user_id;
+    if (typeof userId === 'string' && userId) {
+      const profile = await loadProfileById(userId, env);
+      if (profile) return profile;
+    }
+  }
+  return null;
 }
 
 async function stripeApiGet<T>(path: string, env: StripeCheckoutEnv): Promise<T> {
@@ -1630,7 +1681,8 @@ async function processCheckoutSessionCompleted(event: StripeWebhookLogEvent, env
     || subscription.items?.data?.[0]?.price?.id
     || session.line_items?.data?.[0]?.price?.id
     || '';
-  const planId = planIdFromStripePriceId(stripePriceId);
+  const planId = planIdFromStripePriceId(stripePriceId)
+    || stripeMetadataPlanId(session, subscription);
   if (!planId) throw new Error('checkout_unknown_price_id');
 
   const planConfig = stripePlanConfig[planId];
@@ -1707,7 +1759,7 @@ async function processInvoicePaid(event: StripeWebhookLogEvent, env: StripeCheck
 
   const stripeInvoiceId = invoice.id;
   const customerId = normalizeStripeId(invoice.customer);
-  const subscriptionId = normalizeStripeId(invoice.subscription);
+  const subscriptionId = invoiceSubscriptionId(invoice);
   if (!customerId || !subscriptionId) throw new Error('invoice_incomplete');
 
   const subscription = await loadStripeSubscription(subscriptionId, env);
@@ -1717,10 +1769,13 @@ async function processInvoicePaid(event: StripeWebhookLogEvent, env: StripeCheck
   const stripePriceId = subscription.items?.data?.[0]?.price?.id
     || invoice.lines?.data?.[0]?.price?.id
     || '';
-  const planId = planIdFromStripePriceId(stripePriceId);
+  const planId = planIdFromStripePriceId(stripePriceId)
+    || stripeMetadataPlanId(subscription, invoice);
   if (!planId) throw new Error('invoice_unknown_price_id');
 
-  const profile = await loadProfileByStripeSubscription(customerId, subscriptionId, env);
+  const profile = await loadProfileByStripeSubscription(customerId, subscriptionId, env)
+    || await loadProfileByStripeCustomer(customerId, env)
+    || await loadProfileFromStripeMetadata(subscription, invoice, env);
   if (!profile) throw new Error('invoice_profile_not_found');
 
   const planConfig = stripePlanConfig[planId];
@@ -1803,14 +1858,16 @@ async function processInvoicePaymentFailed(event: StripeWebhookLogEvent, env: St
 
   const stripeInvoiceId = invoice.id;
   const customerId = normalizeStripeId(invoice.customer);
-  const subscriptionId = normalizeStripeId(invoice.subscription);
+  const subscriptionId = invoiceSubscriptionId(invoice);
   if (!customerId || !subscriptionId) throw new Error('invoice_incomplete');
 
   const subscription = await loadStripeSubscription(subscriptionId, env);
   const subscriptionCustomerId = normalizeStripeId(subscription.customer);
   if (subscriptionCustomerId && subscriptionCustomerId !== customerId) throw new Error('invoice_subscription_customer_mismatch');
 
-  const profile = await loadProfileByStripeSubscription(customerId, subscriptionId, env);
+  const profile = await loadProfileByStripeSubscription(customerId, subscriptionId, env)
+    || await loadProfileByStripeCustomer(customerId, env)
+    || await loadProfileFromStripeMetadata(subscription, invoice, env);
   if (!profile) throw new Error('invoice_profile_not_found');
 
   const failedAt = stripeCreatedAt(event);
@@ -1892,7 +1949,9 @@ async function applySubscriptionWebhookState(
   const customerId = normalizeStripeId(subscription.customer);
   if (!customerId) throw new Error('subscription_customer_missing');
 
-  const profile = await loadProfileByStripeSubscription(customerId, subscriptionId, env);
+  const profile = await loadProfileByStripeSubscription(customerId, subscriptionId, env)
+    || await loadProfileByStripeCustomer(customerId, env)
+    || await loadProfileFromStripeMetadata(subscription, env);
   if (!profile) throw new Error('subscription_profile_not_found');
 
   const currentPeriodStart = stripeTimestampToIso(subscriptionPeriodStart(subscription));
@@ -1906,9 +1965,9 @@ async function applySubscriptionWebhookState(
   let lessonFormat: string | null = null;
 
   if (!options.deleted) {
-    stripePriceId = subscriptionPriceId(subscription);
-    planId = planIdFromStripePriceId(stripePriceId);
-    if (!stripePriceId || !planId) throw new Error('subscription_unknown_price_id');
+    stripePriceId = subscriptionPriceId(subscription) || null;
+    planId = planIdFromStripePriceId(stripePriceId) || stripeMetadataPlanId(subscription);
+    if (!planId) throw new Error('subscription_unknown_price_id');
     lessonFormat = stripePlanConfig[planId].lessonFormat;
   }
 
@@ -2112,7 +2171,7 @@ export async function handleCreateStripeCheckoutSession(request: Request, env: S
     body: stripeBody,
   });
 
-  const stripePayload = await stripeResponse.json() as { id?: string; url?: string; error?: { message?: string } };
+  const stripePayload = await stripeResponse.json() as { id?: string; url?: string; error?: { message?: string; type?: string; code?: string } };
   console.log('[Stripe Checkout debug]', {
     stage: 'stripe_checkout_session',
     status: stripeResponse.status,
@@ -2252,7 +2311,7 @@ export async function handleCreateStripeRefund(request: Request, env: StripeChec
       return jsonResponse({ error: 'This payment has already been fully refunded.' }, 409);
     }
 
-    const refundAmount = refundType === 'full' ? source.availableAmount : body.amount;
+    const refundAmount = refundType === 'full' ? source.availableAmount : (body.amount ?? 0);
     if (!Number.isInteger(refundAmount) || refundAmount <= 0) {
       return jsonResponse({ error: 'Enter a valid refund amount.' }, 400);
     }

@@ -548,6 +548,6 @@ export async function handleCreateRefund(request: Request, env: RuntimeEnv = run
   }
 }
 
-if (typeof Deno !== 'undefined' && import.meta.main) {
+if (typeof Deno !== 'undefined' && (import.meta as unknown as { main?: boolean }).main) {
   Deno.serve(request => handleCreateRefund(request, Deno.env));
 }
