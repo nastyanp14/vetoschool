@@ -14,275 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      avatar_purchases: {
-        Row: {
-          avatar_id: string
-          created_at: string
-          id: string
-          user_id: string
-        }
-        Insert: {
-          avatar_id: string
-          created_at?: string
-          id?: string
-          user_id: string
-        }
-        Update: {
-          avatar_id?: string
-          created_at?: string
-          id?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      content_items: {
-        Row: {
-          created_at: string
-          due_date: string | null
-          emoji: string
-          external_link: string | null
-          file_name: string | null
-          file_url: string | null
-          id: string
-          module_id: string
-          scheduled_date: string | null
-          scheduled_time: string | null
-          star_rating: number | null
-          title: string
-          type: Database["public"]["Enums"]["content_type"]
-          unlocked: boolean
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          due_date?: string | null
-          emoji?: string
-          external_link?: string | null
-          file_name?: string | null
-          file_url?: string | null
-          id?: string
-          module_id: string
-          scheduled_date?: string | null
-          scheduled_time?: string | null
-          star_rating?: number | null
-          title: string
-          type: Database["public"]["Enums"]["content_type"]
-          unlocked?: boolean
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          due_date?: string | null
-          emoji?: string
-          external_link?: string | null
-          file_name?: string | null
-          file_url?: string | null
-          id?: string
-          module_id?: string
-          scheduled_date?: string | null
-          scheduled_time?: string | null
-          star_rating?: number | null
-          title?: string
-          type?: Database["public"]["Enums"]["content_type"]
-          unlocked?: boolean
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      dictionary_words: {
-        Row: {
-          category: string
-          created_at: string
-          emoji: string
-          id: string
-          lesson: string
-          audio_url: string | null
-          translation: string
-          user_id: string
-          word: string
-        }
-        Insert: {
-          audio_url?: string | null
-          category?: string
-          created_at?: string
-          emoji?: string
-          id?: string
-          lesson?: string
-          translation: string
-          user_id: string
-          word: string
-        }
-        Update: {
-          audio_url?: string | null
-          category?: string
-          created_at?: string
-          emoji?: string
-          id?: string
-          lesson?: string
-          translation?: string
-          user_id?: string
-          word?: string
-        }
-        Relationships: []
-      }
-      grades: {
-        Row: {
-          category: string
-          comment: string | null
-          content_id: string | null
-          created_at: string
-          id: string
-          max_score: number
-          score: number
-          user_id: string
-        }
-        Insert: {
-          category: string
-          comment?: string | null
-          content_id?: string | null
-          created_at?: string
-          id?: string
-          max_score?: number
-          score: number
-          user_id: string
-        }
-        Update: {
-          category?: string
-          comment?: string | null
-          content_id?: string | null
-          created_at?: string
-          id?: string
-          max_score?: number
-          score?: number
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "grades_content_id_fkey"
-            columns: ["content_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      interactive_tasks: {
-        Row: {
-          created_at: string
-          id: string
-          lesson_id: string
-          mechanic_type: string
-          order: number
-          payload_json: Json
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          lesson_id: string
-          mechanic_type: string
-          order?: number
-          payload_json?: Json
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          lesson_id?: string
-          mechanic_type?: string
-          order?: number
-          payload_json?: Json
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "interactive_tasks_lesson_id_fkey"
-            columns: ["lesson_id"]
-            isOneToOne: false
-            referencedRelation: "lessons"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      lesson_progress: {
-        Row: {
-          completed_at: string
-          id: string
-          lesson_id: string
-          stars_awarded: number
-          user_id: string
-        }
-        Insert: {
-          completed_at?: string
-          id?: string
-          lesson_id: string
-          stars_awarded?: number
-          user_id: string
-        }
-        Update: {
-          completed_at?: string
-          id?: string
-          lesson_id?: string
-          stars_awarded?: number
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lesson_progress_lesson_id_fkey"
-            columns: ["lesson_id"]
-            isOneToOne: false
-            referencedRelation: "lessons"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      lessons: {
-        Row: {
-          created_at: string
-          id: string
-          lesson_number: number
-          order: number
-          stars_reward: number
-          title: string
-          type: Database["public"]["Enums"]["lesson_kind"]
-          unit_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          lesson_number?: number
-          order?: number
-          stars_reward?: number
-          title: string
-          type?: Database["public"]["Enums"]["lesson_kind"]
-          unit_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          lesson_number?: number
-          order?: number
-          stars_reward?: number
-          title?: string
-          type?: Database["public"]["Enums"]["lesson_kind"]
-          unit_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lessons_unit_id_fkey"
-            columns: ["unit_id"]
-            isOneToOne: false
-            referencedRelation: "units"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       admin_lesson_adjustments: {
         Row: {
           admin_user_id: string
@@ -333,6 +64,186 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      avatar_purchases: {
+        Row: {
+          avatar_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          avatar_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          avatar_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      content_items: {
+        Row: {
+          checked_at: string | null
+          created_at: string
+          due_date: string | null
+          emoji: string
+          errors_count: number | null
+          external_link: string | null
+          file_name: string | null
+          file_url: string | null
+          homework_status: string
+          id: string
+          interactive_attempts: number
+          interactive_completed_at: string | null
+          interactive_lesson_id: string | null
+          interactive_score_percent: number | null
+          material_mode: string
+          module_id: string
+          result_percent: number | null
+          review_comment: string | null
+          reviewed_by_teacher_id: string | null
+          rewarded_stars: number
+          scheduled_date: string | null
+          scheduled_time: string | null
+          star_rating: number | null
+          student_result: string | null
+          submitted_at: string | null
+          submitted_attachment_name: string | null
+          submitted_attachment_url: string | null
+          teacher_comment: string | null
+          title: string
+          type: Database["public"]["Enums"]["content_type"]
+          unlocked: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          checked_at?: string | null
+          created_at?: string
+          due_date?: string | null
+          emoji?: string
+          errors_count?: number | null
+          external_link?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          homework_status?: string
+          id?: string
+          interactive_attempts?: number
+          interactive_completed_at?: string | null
+          interactive_lesson_id?: string | null
+          interactive_score_percent?: number | null
+          material_mode?: string
+          module_id: string
+          result_percent?: number | null
+          review_comment?: string | null
+          reviewed_by_teacher_id?: string | null
+          rewarded_stars?: number
+          scheduled_date?: string | null
+          scheduled_time?: string | null
+          star_rating?: number | null
+          student_result?: string | null
+          submitted_at?: string | null
+          submitted_attachment_name?: string | null
+          submitted_attachment_url?: string | null
+          teacher_comment?: string | null
+          title: string
+          type: Database["public"]["Enums"]["content_type"]
+          unlocked?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          checked_at?: string | null
+          created_at?: string
+          due_date?: string | null
+          emoji?: string
+          errors_count?: number | null
+          external_link?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          homework_status?: string
+          id?: string
+          interactive_attempts?: number
+          interactive_completed_at?: string | null
+          interactive_lesson_id?: string | null
+          interactive_score_percent?: number | null
+          material_mode?: string
+          module_id?: string
+          result_percent?: number | null
+          review_comment?: string | null
+          reviewed_by_teacher_id?: string | null
+          rewarded_stars?: number
+          scheduled_date?: string | null
+          scheduled_time?: string | null
+          star_rating?: number | null
+          student_result?: string | null
+          submitted_at?: string | null
+          submitted_attachment_name?: string | null
+          submitted_attachment_url?: string | null
+          teacher_comment?: string | null
+          title?: string
+          type?: Database["public"]["Enums"]["content_type"]
+          unlocked?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_items_interactive_lesson_id_fkey"
+            columns: ["interactive_lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_items_reviewed_by_teacher_id_fkey"
+            columns: ["reviewed_by_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dictionary_words: {
+        Row: {
+          audio_url: string | null
+          category: string
+          created_at: string
+          emoji: string
+          id: string
+          lesson: string
+          translation: string
+          user_id: string
+          word: string
+        }
+        Insert: {
+          audio_url?: string | null
+          category?: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          lesson?: string
+          translation: string
+          user_id: string
+          word: string
+        }
+        Update: {
+          audio_url?: string | null
+          category?: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          lesson?: string
+          translation?: string
+          user_id?: string
+          word?: string
+        }
+        Relationships: []
       }
       email_notifications: {
         Row: {
@@ -419,187 +330,922 @@ export type Database = {
           },
         ]
       }
+      grades: {
+        Row: {
+          category: string
+          comment: string | null
+          content_id: string | null
+          created_at: string
+          feedback: string | null
+          grade_type: string
+          group_id: string | null
+          id: string
+          improvements: string | null
+          lesson_id: string | null
+          max_score: number
+          numeric_score: number | null
+          score: number | null
+          star_rating: number | null
+          strengths: string | null
+          teacher_id: string | null
+          updated_at: string
+          user_id: string
+          visible_to_parent: boolean
+        }
+        Insert: {
+          category: string
+          comment?: string | null
+          content_id?: string | null
+          created_at?: string
+          feedback?: string | null
+          grade_type?: string
+          group_id?: string | null
+          id?: string
+          improvements?: string | null
+          lesson_id?: string | null
+          max_score?: number
+          numeric_score?: number | null
+          score?: number | null
+          star_rating?: number | null
+          strengths?: string | null
+          teacher_id?: string | null
+          updated_at?: string
+          user_id: string
+          visible_to_parent?: boolean
+        }
+        Update: {
+          category?: string
+          comment?: string | null
+          content_id?: string | null
+          created_at?: string
+          feedback?: string | null
+          grade_type?: string
+          group_id?: string | null
+          id?: string
+          improvements?: string | null
+          lesson_id?: string | null
+          max_score?: number
+          numeric_score?: number | null
+          score?: number | null
+          star_rating?: number | null
+          strengths?: string | null
+          teacher_id?: string | null
+          updated_at?: string
+          user_id?: string
+          visible_to_parent?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grades_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grades_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "student_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grades_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grades_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interactive_tasks: {
+        Row: {
+          created_at: string
+          id: string
+          lesson_id: string
+          mechanic_type: string
+          order: number
+          payload_json: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lesson_id: string
+          mechanic_type: string
+          order?: number
+          payload_json?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lesson_id?: string
+          mechanic_type?: string
+          order?: number
+          payload_json?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interactive_tasks_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_assignments: {
+        Row: {
+          created_at: string
+          id: string
+          lesson_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lesson_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lesson_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_assignments_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_assignments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_attendance: {
+        Row: {
+          created_at: string
+          id: string
+          lesson_id: string
+          note: string | null
+          status: string
+          student_id: string
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lesson_id: string
+          note?: string | null
+          status: string
+          student_id: string
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lesson_id?: string
+          note?: string | null
+          status?: string
+          student_id?: string
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_attendance_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_attendance_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_attendance_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_change_requests: {
+        Row: {
+          admin_comment: string | null
+          change_type: string
+          comment: string
+          created_at: string
+          desired_date: string | null
+          desired_time: string | null
+          id: string
+          lesson_id: string
+          new_start_at: string | null
+          old_start_at: string | null
+          reason: string | null
+          request_type: string
+          requested_by: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          admin_comment?: string | null
+          change_type: string
+          comment?: string
+          created_at?: string
+          desired_date?: string | null
+          desired_time?: string | null
+          id?: string
+          lesson_id: string
+          new_start_at?: string | null
+          old_start_at?: string | null
+          reason?: string | null
+          request_type?: string
+          requested_by: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          admin_comment?: string | null
+          change_type?: string
+          comment?: string
+          created_at?: string
+          desired_date?: string | null
+          desired_time?: string | null
+          id?: string
+          lesson_id?: string
+          new_start_at?: string | null
+          old_start_at?: string | null
+          reason?: string | null
+          request_type?: string
+          requested_by?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_change_requests_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_change_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_change_requests_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_change_requests_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_live_events: {
+        Row: {
+          actor_role: string
+          actor_user_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          lesson_id: string
+          payload_json: Json
+          session_id: string
+          student_id: string
+          task_id: string | null
+        }
+        Insert: {
+          actor_role?: string
+          actor_user_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          lesson_id: string
+          payload_json?: Json
+          session_id: string
+          student_id: string
+          task_id?: string | null
+        }
+        Update: {
+          actor_role?: string
+          actor_user_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          lesson_id?: string
+          payload_json?: Json
+          session_id?: string
+          student_id?: string
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_live_events_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_live_events_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_live_events_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_live_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_live_events_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_live_events_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "interactive_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_live_sessions: {
+        Row: {
+          completed_at: string | null
+          current_task_id: string | null
+          current_task_index: number
+          id: string
+          last_seen_at: string
+          lesson_id: string
+          started_at: string
+          status: string
+          student_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          current_task_id?: string | null
+          current_task_index?: number
+          id?: string
+          last_seen_at?: string
+          lesson_id: string
+          started_at?: string
+          status?: string
+          student_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          current_task_id?: string | null
+          current_task_index?: number
+          id?: string
+          last_seen_at?: string
+          lesson_id?: string
+          started_at?: string
+          status?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_live_sessions_current_task_id_fkey"
+            columns: ["current_task_id"]
+            isOneToOne: false
+            referencedRelation: "interactive_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_live_sessions_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_live_sessions_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_materials: {
+        Row: {
+          category: string | null
+          course: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          duration_seconds: number | null
+          external_url: string | null
+          file_url: string | null
+          id: string
+          is_published: boolean
+          lesson_id: string | null
+          level: string | null
+          material_type: string
+          tags: string[]
+          thumbnail_url: string | null
+          title: string
+          unit_title: string | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          course?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duration_seconds?: number | null
+          external_url?: string | null
+          file_url?: string | null
+          id?: string
+          is_published?: boolean
+          lesson_id?: string | null
+          level?: string | null
+          material_type: string
+          tags?: string[]
+          thumbnail_url?: string | null
+          title: string
+          unit_title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          course?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duration_seconds?: number | null
+          external_url?: string | null
+          file_url?: string | null
+          id?: string
+          is_published?: boolean
+          lesson_id?: string | null
+          level?: string | null
+          material_type?: string
+          tags?: string[]
+          thumbnail_url?: string | null
+          title?: string
+          unit_title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_materials_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_materials_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_plan_blocks: {
+        Row: {
+          admin_note: string
+          block_kind: string
+          created_at: string
+          id: string
+          material_mode: string
+          material_title: string
+          material_url: string | null
+          position: number
+          schedule_id: string
+          source_lesson_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          admin_note?: string
+          block_kind: string
+          created_at?: string
+          id?: string
+          material_mode?: string
+          material_title?: string
+          material_url?: string | null
+          position?: number
+          schedule_id: string
+          source_lesson_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          admin_note?: string
+          block_kind?: string
+          created_at?: string
+          id?: string
+          material_mode?: string
+          material_title?: string
+          material_url?: string | null
+          position?: number
+          schedule_id?: string
+          source_lesson_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_plan_blocks_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_plan_blocks_source_lesson_id_fkey"
+            columns: ["source_lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_progress: {
+        Row: {
+          completed_at: string
+          id: string
+          lesson_id: string
+          stars_awarded: number
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          id?: string
+          lesson_id: string
+          stars_awarded?: number
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          id?: string
+          lesson_id?: string
+          stars_awarded?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_progress_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_results: {
+        Row: {
+          admin_note: string
+          carry_over_to_next_lesson: string
+          created_at: string
+          homework_brief: string
+          id: string
+          lesson_id: string
+          payload: Json
+          summary: string
+          teacher_comment: string
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          admin_note?: string
+          carry_over_to_next_lesson?: string
+          created_at?: string
+          homework_brief?: string
+          id?: string
+          lesson_id: string
+          payload?: Json
+          summary?: string
+          teacher_comment?: string
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          admin_note?: string
+          carry_over_to_next_lesson?: string
+          created_at?: string
+          homework_brief?: string
+          id?: string
+          lesson_id?: string
+          payload?: Json
+          summary?: string
+          teacher_comment?: string
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_results_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: true
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_results_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lessons: {
+        Row: {
+          created_at: string
+          id: string
+          is_global: boolean
+          lesson_number: number
+          order: number
+          stars_reward: number
+          title: string
+          type: Database["public"]["Enums"]["lesson_kind"]
+          unit_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_global?: boolean
+          lesson_number?: number
+          order?: number
+          stars_reward?: number
+          title: string
+          type?: Database["public"]["Enums"]["lesson_kind"]
+          unit_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_global?: boolean
+          lesson_number?: number
+          order?: number
+          stars_reward?: number
+          title?: string
+          type?: Database["public"]["Enums"]["lesson_kind"]
+          unit_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lessons_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           access_status: Database["public"]["Enums"]["access_status"]
-          age: string | null
           avatar_id: string | null
-          course: string | null
+          cancel_at_period_end: boolean
+          canceled_at: string | null
           created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
           email: string
           has_access: boolean
           id: string
-          level: string | null
-          name: string
-          payment_status: Database["public"]["Enums"]["payment_status"]
-          payment_failed_at: string | null
-          cancel_at_period_end: boolean
-          canceled_at: string | null
-          pending_celebration: number
-          current_period_end: string | null
-          current_period_start: string | null
           lesson_format: string | null
           lessons_remaining: number
           lessons_total: number
+          name: string
           next_payment_date: string | null
+          payment_failed_at: string | null
+          payment_status: Database["public"]["Enums"]["payment_status"]
+          pending_celebration: number
           plan_id: string | null
           star_balance: number
           stripe_customer_id: string | null
           stripe_price_id: string | null
           stripe_subscription_id: string | null
-          student_status: string
           subscription_status: string | null
           total_stars_earned: number
           updated_at: string
         }
         Insert: {
           access_status?: Database["public"]["Enums"]["access_status"]
-          age?: string | null
           avatar_id?: string | null
-          course?: string | null
+          cancel_at_period_end?: boolean
+          canceled_at?: string | null
           created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
           email: string
           has_access?: boolean
           id: string
-          level?: string | null
-          name?: string
-          payment_status?: Database["public"]["Enums"]["payment_status"]
-          payment_failed_at?: string | null
-          cancel_at_period_end?: boolean
-          canceled_at?: string | null
-          pending_celebration?: number
-          current_period_end?: string | null
-          current_period_start?: string | null
           lesson_format?: string | null
           lessons_remaining?: number
           lessons_total?: number
+          name?: string
           next_payment_date?: string | null
+          payment_failed_at?: string | null
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          pending_celebration?: number
           plan_id?: string | null
           star_balance?: number
           stripe_customer_id?: string | null
           stripe_price_id?: string | null
           stripe_subscription_id?: string | null
-          student_status?: string
           subscription_status?: string | null
           total_stars_earned?: number
           updated_at?: string
         }
         Update: {
           access_status?: Database["public"]["Enums"]["access_status"]
-          age?: string | null
           avatar_id?: string | null
-          course?: string | null
+          cancel_at_period_end?: boolean
+          canceled_at?: string | null
           created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
           email?: string
           has_access?: boolean
           id?: string
-          level?: string | null
-          name?: string
-          payment_status?: Database["public"]["Enums"]["payment_status"]
-          payment_failed_at?: string | null
-          cancel_at_period_end?: boolean
-          canceled_at?: string | null
-          pending_celebration?: number
-          current_period_end?: string | null
-          current_period_start?: string | null
           lesson_format?: string | null
           lessons_remaining?: number
           lessons_total?: number
+          name?: string
           next_payment_date?: string | null
+          payment_failed_at?: string | null
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          pending_celebration?: number
           plan_id?: string | null
           star_balance?: number
           stripe_customer_id?: string | null
           stripe_price_id?: string | null
           stripe_subscription_id?: string | null
-          student_status?: string
           subscription_status?: string | null
           total_stars_earned?: number
           updated_at?: string
         }
         Relationships: []
       }
-      stripe_payments: {
+      schedules: {
         Row: {
-          amount_total: number | null
-          checkout_session_id: string | null
+          carry_over_to_next_lesson: string | null
+          comment: string | null
+          completed_at: string | null
+          completed_by_teacher_id: string | null
           created_at: string
-          currency: string | null
-          current_period_end: string | null
-          current_period_start: string | null
-          customer_email: string | null
-          event_type: string
+          day: string
+          duration_minutes: number | null
+          group_id: string | null
+          homework_brief: string | null
           id: string
-          lesson_format: string
-          lessons_total: number
-          next_payment_date: string | null
-          paid_at: string
-          plan_id: string
-          stripe_customer_id: string
-          stripe_event_id: string
-          stripe_charge_id: string | null
-          stripe_invoice_id: string | null
-          stripe_payment_intent_id: string | null
-          stripe_price_id: string
-          stripe_subscription_id: string
-          subscription_status: string
+          is_conducted: boolean
+          lesson_status: string
+          lesson_type: string
+          online_url: string | null
+          position: number
+          rescheduled_from: string | null
+          room: string | null
+          scheduled_date: string | null
+          source_lesson_id: string | null
+          started_at: string | null
+          teacher_id: string | null
+          time: string
+          topic: string
+          updated_at: string
           user_id: string
         }
         Insert: {
-          amount_total?: number | null
-          checkout_session_id?: string | null
+          carry_over_to_next_lesson?: string | null
+          comment?: string | null
+          completed_at?: string | null
+          completed_by_teacher_id?: string | null
           created_at?: string
-          currency?: string | null
-          current_period_end?: string | null
-          current_period_start?: string | null
-          customer_email?: string | null
-          event_type?: string
+          day: string
+          duration_minutes?: number | null
+          group_id?: string | null
+          homework_brief?: string | null
           id?: string
-          lesson_format: string
-          lessons_total: number
-          next_payment_date?: string | null
-          paid_at?: string
-          plan_id: string
-          stripe_customer_id: string
-          stripe_event_id: string
-          stripe_charge_id?: string | null
-          stripe_invoice_id?: string | null
-          stripe_payment_intent_id?: string | null
-          stripe_price_id: string
-          stripe_subscription_id: string
-          subscription_status: string
+          is_conducted?: boolean
+          lesson_status?: string
+          lesson_type?: string
+          online_url?: string | null
+          position?: number
+          rescheduled_from?: string | null
+          room?: string | null
+          scheduled_date?: string | null
+          source_lesson_id?: string | null
+          started_at?: string | null
+          teacher_id?: string | null
+          time: string
+          topic?: string
+          updated_at?: string
           user_id: string
         }
         Update: {
-          amount_total?: number | null
-          checkout_session_id?: string | null
+          carry_over_to_next_lesson?: string | null
+          comment?: string | null
+          completed_at?: string | null
+          completed_by_teacher_id?: string | null
           created_at?: string
-          currency?: string | null
-          current_period_end?: string | null
-          current_period_start?: string | null
-          customer_email?: string | null
-          event_type?: string
+          day?: string
+          duration_minutes?: number | null
+          group_id?: string | null
+          homework_brief?: string | null
           id?: string
-          lesson_format?: string
-          lessons_total?: number
-          next_payment_date?: string | null
-          paid_at?: string
-          plan_id?: string
-          stripe_customer_id?: string
-          stripe_event_id?: string
-          stripe_charge_id?: string | null
-          stripe_invoice_id?: string | null
-          stripe_payment_intent_id?: string | null
-          stripe_price_id?: string
-          stripe_subscription_id?: string
-          subscription_status?: string
+          is_conducted?: boolean
+          lesson_status?: string
+          lesson_type?: string
+          online_url?: string | null
+          position?: number
+          rescheduled_from?: string | null
+          room?: string | null
+          scheduled_date?: string | null
+          source_lesson_id?: string | null
+          started_at?: string | null
+          teacher_id?: string | null
+          time?: string
+          topic?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "stripe_payments_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "schedules_completed_by_teacher_id_fkey"
+            columns: ["completed_by_teacher_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedules_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "student_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedules_source_lesson_id_fkey"
+            columns: ["source_lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedules_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
             referencedColumns: ["id"]
           },
         ]
@@ -647,6 +1293,92 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "stripe_payment_failures_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stripe_payments: {
+        Row: {
+          amount_total: number | null
+          checkout_session_id: string | null
+          created_at: string
+          currency: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          customer_email: string | null
+          event_type: string
+          id: string
+          lesson_format: string
+          lessons_total: number
+          next_payment_date: string | null
+          paid_at: string
+          plan_id: string
+          stripe_charge_id: string | null
+          stripe_customer_id: string
+          stripe_event_id: string
+          stripe_invoice_id: string | null
+          stripe_payment_intent_id: string | null
+          stripe_price_id: string
+          stripe_subscription_id: string
+          subscription_status: string
+          user_id: string
+        }
+        Insert: {
+          amount_total?: number | null
+          checkout_session_id?: string | null
+          created_at?: string
+          currency?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          customer_email?: string | null
+          event_type?: string
+          id?: string
+          lesson_format: string
+          lessons_total: number
+          next_payment_date?: string | null
+          paid_at?: string
+          plan_id: string
+          stripe_charge_id?: string | null
+          stripe_customer_id: string
+          stripe_event_id: string
+          stripe_invoice_id?: string | null
+          stripe_payment_intent_id?: string | null
+          stripe_price_id: string
+          stripe_subscription_id: string
+          subscription_status: string
+          user_id: string
+        }
+        Update: {
+          amount_total?: number | null
+          checkout_session_id?: string | null
+          created_at?: string
+          currency?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          customer_email?: string | null
+          event_type?: string
+          id?: string
+          lesson_format?: string
+          lessons_total?: number
+          next_payment_date?: string | null
+          paid_at?: string
+          plan_id?: string
+          stripe_charge_id?: string | null
+          stripe_customer_id?: string
+          stripe_event_id?: string
+          stripe_invoice_id?: string | null
+          stripe_payment_intent_id?: string | null
+          stripe_price_id?: string
+          stripe_subscription_id?: string
+          subscription_status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stripe_payments_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -775,108 +1507,6 @@ export type Database = {
         }
         Relationships: []
       }
-      schedules: {
-        Row: {
-          comment: string | null
-          created_at: string
-          day: string
-          duration_minutes: number | null
-          group_id: string | null
-          id: string
-          is_conducted: boolean
-          lesson_number: string | null
-          lesson_status: string
-          lesson_type: string
-          online_url: string | null
-          position: number
-          rescheduled_from: string | null
-          room: string | null
-          scheduled_date: string | null
-          teacher_id: string | null
-          time: string
-          topic: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          comment?: string | null
-          created_at?: string
-          day: string
-          duration_minutes?: number | null
-          group_id?: string | null
-          id?: string
-          is_conducted?: boolean
-          lesson_number?: string | null
-          lesson_status?: string
-          lesson_type?: string
-          online_url?: string | null
-          position?: number
-          rescheduled_from?: string | null
-          room?: string | null
-          scheduled_date?: string | null
-          teacher_id?: string | null
-          time: string
-          topic?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          comment?: string | null
-          created_at?: string
-          day?: string
-          duration_minutes?: number | null
-          group_id?: string | null
-          id?: string
-          is_conducted?: boolean
-          lesson_number?: string | null
-          lesson_status?: string
-          lesson_type?: string
-          online_url?: string | null
-          position?: number
-          rescheduled_from?: string | null
-          room?: string | null
-          scheduled_date?: string | null
-          teacher_id?: string | null
-          time?: string
-          topic?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      lesson_attendance: {
-        Row: {
-          created_at: string
-          id: string
-          lesson_id: string
-          note: string | null
-          status: string
-          student_id: string
-          teacher_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          lesson_id: string
-          note?: string | null
-          status: string
-          student_id: string
-          teacher_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          lesson_id?: string
-          note?: string | null
-          status?: string
-          student_id?: string
-          teacher_id?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       student_group_members: {
         Row: {
           created_at: string
@@ -896,11 +1526,25 @@ export type Database = {
           id?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "student_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "student_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_group_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       student_groups: {
         Row: {
-          age_range: string | null
           course: string | null
           created_at: string
           current_lesson: string | null
@@ -909,7 +1553,6 @@ export type Database = {
           id: string
           lesson_duration_minutes: number | null
           level: string | null
-          max_seats: number | null
           name: string
           progress: number
           start_date: string | null
@@ -919,7 +1562,6 @@ export type Database = {
           weekly_frequency: number | null
         }
         Insert: {
-          age_range?: string | null
           course?: string | null
           created_at?: string
           current_lesson?: string | null
@@ -928,7 +1570,6 @@ export type Database = {
           id?: string
           lesson_duration_minutes?: number | null
           level?: string | null
-          max_seats?: number | null
           name: string
           progress?: number
           start_date?: string | null
@@ -938,7 +1579,6 @@ export type Database = {
           weekly_frequency?: number | null
         }
         Update: {
-          age_range?: string | null
           course?: string | null
           created_at?: string
           current_lesson?: string | null
@@ -947,7 +1587,6 @@ export type Database = {
           id?: string
           lesson_duration_minutes?: number | null
           level?: string | null
-          max_seats?: number | null
           name?: string
           progress?: number
           start_date?: string | null
@@ -956,7 +1595,545 @@ export type Database = {
           updated_at?: string
           weekly_frequency?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "student_groups_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_parent_links: {
+        Row: {
+          created_at: string
+          id: string
+          parent_id: string
+          relationship: string | null
+          student_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          parent_id: string
+          relationship?: string | null
+          student_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          parent_id?: string
+          relationship?: string | null
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_parent_links_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "telegram_parent_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_parent_links_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teacher_material_favorites: {
+        Row: {
+          created_at: string
+          id: string
+          material_id: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          material_id: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          material_id?: string
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_material_favorites_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_material_favorites_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teacher_material_recents: {
+        Row: {
+          id: string
+          material_id: string
+          teacher_id: string
+          view_count: number
+          viewed_at: string
+        }
+        Insert: {
+          id?: string
+          material_id: string
+          teacher_id: string
+          view_count?: number
+          viewed_at?: string
+        }
+        Update: {
+          id?: string
+          material_id?: string
+          teacher_id?: string
+          view_count?: number
+          viewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_material_recents_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_material_recents_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teacher_message_threads: {
+        Row: {
+          admin_unread_count: number
+          created_at: string
+          group_id: string | null
+          id: string
+          last_message_at: string | null
+          last_message_preview: string | null
+          participant_role: string
+          participant_user_id: string | null
+          status: string
+          student_id: string | null
+          subject: string | null
+          teacher_id: string
+          teacher_unread_count: number
+          updated_at: string
+        }
+        Insert: {
+          admin_unread_count?: number
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          last_message_at?: string | null
+          last_message_preview?: string | null
+          participant_role: string
+          participant_user_id?: string | null
+          status?: string
+          student_id?: string | null
+          subject?: string | null
+          teacher_id: string
+          teacher_unread_count?: number
+          updated_at?: string
+        }
+        Update: {
+          admin_unread_count?: number
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          last_message_at?: string | null
+          last_message_preview?: string | null
+          participant_role?: string
+          participant_user_id?: string | null
+          status?: string
+          student_id?: string | null
+          subject?: string | null
+          teacher_id?: string
+          teacher_unread_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_message_threads_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "student_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_message_threads_participant_user_id_fkey"
+            columns: ["participant_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_message_threads_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_message_threads_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teacher_messages: {
+        Row: {
+          attachments: Json
+          body: string
+          created_at: string
+          id: string
+          read_at: string | null
+          sender_role: string
+          sender_user_id: string
+          thread_id: string
+        }
+        Insert: {
+          attachments?: Json
+          body: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_role: string
+          sender_user_id: string
+          thread_id: string
+        }
+        Update: {
+          attachments?: Json
+          body?: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_role?: string
+          sender_user_id?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_messages_sender_user_id_fkey"
+            columns: ["sender_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "teacher_message_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teacher_notes: {
+        Row: {
+          attachment_label: string | null
+          attachment_url: string | null
+          author_id: string
+          created_at: string
+          group_id: string | null
+          id: string
+          lesson_id: string | null
+          note_type: string
+          pinned: boolean
+          student_id: string | null
+          teacher_id: string
+          text: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          attachment_label?: string | null
+          attachment_url?: string | null
+          author_id: string
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          lesson_id?: string | null
+          note_type?: string
+          pinned?: boolean
+          student_id?: string | null
+          teacher_id: string
+          text: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attachment_label?: string | null
+          attachment_url?: string | null
+          author_id?: string
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          lesson_id?: string | null
+          note_type?: string
+          pinned?: boolean
+          student_id?: string | null
+          teacher_id?: string
+          text?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_notes_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_notes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "student_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_notes_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_notes_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_notes_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teacher_notifications: {
+        Row: {
+          action_url: string | null
+          body: string | null
+          created_at: string
+          group_id: string | null
+          homework_id: string | null
+          id: string
+          lesson_id: string | null
+          opened_at: string | null
+          payload: Json
+          read_at: string | null
+          student_id: string | null
+          teacher_id: string
+          title: string
+          type: string
+        }
+        Insert: {
+          action_url?: string | null
+          body?: string | null
+          created_at?: string
+          group_id?: string | null
+          homework_id?: string | null
+          id?: string
+          lesson_id?: string | null
+          opened_at?: string | null
+          payload?: Json
+          read_at?: string | null
+          student_id?: string | null
+          teacher_id: string
+          title: string
+          type: string
+        }
+        Update: {
+          action_url?: string | null
+          body?: string | null
+          created_at?: string
+          group_id?: string | null
+          homework_id?: string | null
+          id?: string
+          lesson_id?: string | null
+          opened_at?: string | null
+          payload?: Json
+          read_at?: string | null
+          student_id?: string | null
+          teacher_id?: string
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_notifications_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "student_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_notifications_homework_id_fkey"
+            columns: ["homework_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_notifications_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_notifications_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_notifications_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teacher_preferences: {
+        Row: {
+          app_language: string
+          appearance: string
+          calendar_preferences: Json
+          created_at: string
+          dashboard_preferences: Json
+          id: string
+          notification_preferences: Json
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          app_language?: string
+          appearance?: string
+          calendar_preferences?: Json
+          created_at?: string
+          dashboard_preferences?: Json
+          id?: string
+          notification_preferences?: Json
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          app_language?: string
+          appearance?: string
+          calendar_preferences?: Json
+          created_at?: string
+          dashboard_preferences?: Json
+          id?: string
+          notification_preferences?: Json
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_preferences_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: true
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teacher_student_notes: {
+        Row: {
+          attachment_label: string
+          author_id: string
+          created_at: string
+          id: string
+          note_type: string
+          pinned: boolean
+          student_id: string | null
+          target_id: string | null
+          target_type: string
+          teacher_id: string
+          text: string
+          updated_at: string
+          visible_to_admin: boolean
+        }
+        Insert: {
+          attachment_label?: string
+          author_id: string
+          created_at?: string
+          id?: string
+          note_type?: string
+          pinned?: boolean
+          student_id?: string | null
+          target_id?: string | null
+          target_type?: string
+          teacher_id: string
+          text: string
+          updated_at?: string
+          visible_to_admin?: boolean
+        }
+        Update: {
+          attachment_label?: string
+          author_id?: string
+          created_at?: string
+          id?: string
+          note_type?: string
+          pinned?: boolean
+          student_id?: string | null
+          target_id?: string | null
+          target_type?: string
+          teacher_id?: string
+          text?: string
+          updated_at?: string
+          visible_to_admin?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_student_notes_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_student_notes_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_student_notes_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       teacher_students: {
         Row: {
@@ -980,7 +2157,22 @@ export type Database = {
           teacher_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "teacher_students_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_students_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       teachers: {
         Row: {
@@ -1035,6 +2227,300 @@ export type Database = {
           status?: string
           teacher_user_id?: string | null
           teaching_languages?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teachers_teacher_user_id_fkey"
+            columns: ["teacher_user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      telegram_link_tokens: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          student_id: string
+          token_hash: string
+          used_at: string | null
+          used_by_parent_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          id?: string
+          student_id: string
+          token_hash: string
+          used_at?: string | null
+          used_by_parent_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          student_id?: string
+          token_hash?: string
+          used_at?: string | null
+          used_by_parent_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telegram_link_tokens_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "telegram_link_tokens_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "telegram_link_tokens_used_by_parent_id_fkey"
+            columns: ["used_by_parent_id"]
+            isOneToOne: false
+            referencedRelation: "telegram_parent_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      telegram_notifications: {
+        Row: {
+          attempts: number
+          canceled_at: string | null
+          created_at: string
+          error: string | null
+          event_key: string
+          id: string
+          notification_type: string
+          parent_id: string | null
+          payload: Json
+          provider: string
+          recipient_label: string | null
+          recipient_type: string
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          canceled_at?: string | null
+          created_at?: string
+          error?: string | null
+          event_key: string
+          id?: string
+          notification_type: string
+          parent_id?: string | null
+          payload?: Json
+          provider?: string
+          recipient_label?: string | null
+          recipient_type?: string
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          canceled_at?: string | null
+          created_at?: string
+          error?: string | null
+          event_key?: string
+          id?: string
+          notification_type?: string
+          parent_id?: string | null
+          payload?: Json
+          provider?: string
+          recipient_label?: string | null
+          recipient_type?: string
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telegram_notifications_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "telegram_parent_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "telegram_notifications_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      telegram_parent_accounts: {
+        Row: {
+          created_at: string
+          id: string
+          language: string
+          notify_grades: boolean
+          notify_homework: boolean
+          notify_lesson_reminders: boolean
+          notify_schedule_changes: boolean
+          parent_name: string | null
+          sendpulse_contact_id: string | null
+          telegram_chat_id: string | null
+          telegram_user_id: string | null
+          telegram_username: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          language?: string
+          notify_grades?: boolean
+          notify_homework?: boolean
+          notify_lesson_reminders?: boolean
+          notify_schedule_changes?: boolean
+          parent_name?: string | null
+          sendpulse_contact_id?: string | null
+          telegram_chat_id?: string | null
+          telegram_user_id?: string | null
+          telegram_username?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          language?: string
+          notify_grades?: boolean
+          notify_homework?: boolean
+          notify_lesson_reminders?: boolean
+          notify_schedule_changes?: boolean
+          parent_name?: string | null
+          sendpulse_contact_id?: string | null
+          telegram_chat_id?: string | null
+          telegram_user_id?: string | null
+          telegram_username?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      trial_booking_rate_limits: {
+        Row: {
+          attempts: number
+          created_at: string
+          ip_hash: string
+          updated_at: string
+          window_start: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          ip_hash: string
+          updated_at?: string
+          window_start: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          ip_hash?: string
+          updated_at?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      trial_bookings: {
+        Row: {
+          assessment_score: number
+          child_age: number
+          child_name: string
+          created_at: string
+          english_experience: string
+          guardian_confirmed_at: string
+          id: string
+          idempotency_key: string | null
+          internal_notes: string | null
+          marketing_consent_at: string | null
+          parent_email: string
+          parent_name: string
+          parent_notes: string | null
+          parent_phone: string | null
+          preferred_language: string
+          preliminary_recommendation: string
+          privacy_accepted_at: string
+          school_grade: string
+          selected_date: string
+          selected_time: string
+          status: Database["public"]["Enums"]["trial_booking_status"]
+          teacher_confirmed_direction: string | null
+          teacher_confirmed_level: string | null
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          assessment_score: number
+          child_age: number
+          child_name: string
+          created_at?: string
+          english_experience: string
+          guardian_confirmed_at: string
+          id?: string
+          idempotency_key?: string | null
+          internal_notes?: string | null
+          marketing_consent_at?: string | null
+          parent_email: string
+          parent_name: string
+          parent_notes?: string | null
+          parent_phone?: string | null
+          preferred_language: string
+          preliminary_recommendation: string
+          privacy_accepted_at: string
+          school_grade: string
+          selected_date: string
+          selected_time: string
+          status?: Database["public"]["Enums"]["trial_booking_status"]
+          teacher_confirmed_direction?: string | null
+          teacher_confirmed_level?: string | null
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          assessment_score?: number
+          child_age?: number
+          child_name?: string
+          created_at?: string
+          english_experience?: string
+          guardian_confirmed_at?: string
+          id?: string
+          idempotency_key?: string | null
+          internal_notes?: string | null
+          marketing_consent_at?: string | null
+          parent_email?: string
+          parent_name?: string
+          parent_notes?: string | null
+          parent_phone?: string | null
+          preferred_language?: string
+          preliminary_recommendation?: string
+          privacy_accepted_at?: string
+          school_grade?: string
+          selected_date?: string
+          selected_time?: string
+          status?: Database["public"]["Enums"]["trial_booking_status"]
+          teacher_confirmed_direction?: string | null
+          teacher_confirmed_level?: string | null
+          timezone?: string
           updated_at?: string
         }
         Relationships: []
@@ -1092,6 +2578,55 @@ export type Database = {
         }
         Relationships: []
       }
+      workbook_assignments: {
+        Row: {
+          assignee_type: string
+          created_at: string
+          group_id: string | null
+          id: string
+          user_id: string | null
+          workbook_id: string
+        }
+        Insert: {
+          assignee_type: string
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          user_id?: string | null
+          workbook_id: string
+        }
+        Update: {
+          assignee_type?: string
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          user_id?: string | null
+          workbook_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workbook_assignments_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "student_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workbook_assignments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workbook_assignments_workbook_id_fkey"
+            columns: ["workbook_id"]
+            isOneToOne: false
+            referencedRelation: "workbooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workbooks: {
         Row: {
           created_at: string
@@ -1124,7 +2659,38 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      teacher_student_progress: {
+        Row: {
+          attendance_rate: number | null
+          attendance_records: number | null
+          attended_lessons: number | null
+          completed_lessons: number | null
+          course_progress: number | null
+          homework_completion_rate: number | null
+          homework_submitted: number | null
+          homework_total: number | null
+          student_email: string | null
+          student_id: string | null
+          student_name: string | null
+          teacher_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_students_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_students_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       adjust_subscription_lessons_remaining: {
@@ -1142,12 +2708,36 @@ export type Database = {
           previous_lessons_remaining: number
         }[]
       }
+      apply_stripe_checkout_completed: {
+        Args: {
+          p_amount_total: number
+          p_checkout_session_id: string
+          p_currency: string
+          p_current_period_end: string
+          p_current_period_start: string
+          p_customer_email: string
+          p_lesson_format: string
+          p_lessons_total: number
+          p_next_payment_date: string
+          p_plan_id: string
+          p_stripe_customer_id: string
+          p_stripe_event_id: string
+          p_stripe_price_id: string
+          p_stripe_subscription_id: string
+          p_subscription_status: string
+          p_user_id: string
+        }
+        Returns: {
+          lessons_remaining: number
+          payment_inserted: boolean
+        }[]
+      }
       apply_stripe_invoice_payment_failed: {
         Args: {
-          p_amount_due: number | null
-          p_currency: string | null
-          p_failure_reason: string | null
-          p_next_payment_date: string | null
+          p_amount_due: number
+          p_currency: string
+          p_failure_reason: string
+          p_next_payment_date: string
           p_payment_failed_at: string
           p_stripe_customer_id: string
           p_stripe_event_id: string
@@ -1161,46 +2751,22 @@ export type Database = {
           lessons_remaining: number
         }[]
       }
-      apply_stripe_checkout_completed: {
-        Args: {
-          p_amount_total: number | null
-          p_checkout_session_id: string
-          p_currency: string | null
-          p_current_period_end: string | null
-          p_current_period_start: string | null
-          p_customer_email: string | null
-          p_lesson_format: string
-          p_lessons_total: number
-          p_next_payment_date: string | null
-          p_plan_id: string
-          p_stripe_customer_id: string
-          p_stripe_event_id: string
-          p_stripe_price_id: string
-          p_stripe_subscription_id: string
-          p_subscription_status: string
-          p_user_id: string
-        }
-        Returns: {
-          lessons_remaining: number
-          payment_inserted: boolean
-        }[]
-      }
       apply_stripe_subscription_payment: {
         Args: {
-          p_amount_total: number | null
-          p_checkout_session_id: string | null
-          p_currency: string | null
-          p_current_period_end: string | null
-          p_current_period_start: string | null
-          p_customer_email: string | null
+          p_amount_total: number
+          p_checkout_session_id: string
+          p_currency: string
+          p_current_period_end: string
+          p_current_period_start: string
+          p_customer_email: string
           p_event_type: string
           p_lesson_format: string
           p_lessons_total: number
-          p_next_payment_date: string | null
+          p_next_payment_date: string
           p_plan_id: string
           p_stripe_customer_id: string
           p_stripe_event_id: string
-          p_stripe_invoice_id: string | null
+          p_stripe_invoice_id: string
           p_stripe_price_id: string
           p_stripe_subscription_id: string
           p_subscription_status: string
@@ -1214,20 +2780,113 @@ export type Database = {
       apply_stripe_subscription_state: {
         Args: {
           p_cancel_at_period_end: boolean
-          p_canceled_at: string | null
-          p_current_period_end: string | null
-          p_current_period_start: string | null
-          p_lesson_format: string | null
-          p_next_payment_date: string | null
-          p_plan_id: string | null
+          p_canceled_at: string
+          p_current_period_end: string
+          p_current_period_start: string
+          p_lesson_format: string
+          p_next_payment_date: string
+          p_plan_id: string
           p_stripe_customer_id: string
-          p_stripe_price_id: string | null
+          p_stripe_price_id: string
           p_stripe_subscription_id: string
           p_subscription_status: string
           p_user_id: string
         }
         Returns: {
           lessons_remaining: number
+        }[]
+      }
+      cleanup_lesson_block_content_items: { Args: never; Returns: undefined }
+      complete_assigned_interactive_content: {
+        Args: {
+          _content_item_id: string
+          _errors_count?: number
+          _lesson_id: string
+          _score_percent?: number
+          _star_rating?: number
+        }
+        Returns: {
+          already_completed: boolean
+          stars_awarded: number
+        }[]
+      }
+      get_interactive_tasks_for_lesson: {
+        Args: { _lesson_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          lesson_id: string
+          mechanic_type: string
+          order: number
+          payload_json: Json
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "interactive_tasks"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      get_student_content_items: {
+        Args: { _user_id: string }
+        Returns: {
+          checked_at: string | null
+          created_at: string
+          due_date: string | null
+          emoji: string
+          errors_count: number | null
+          external_link: string | null
+          file_name: string | null
+          file_url: string | null
+          homework_status: string
+          id: string
+          interactive_attempts: number
+          interactive_completed_at: string | null
+          interactive_lesson_id: string | null
+          interactive_score_percent: number | null
+          material_mode: string
+          module_id: string
+          result_percent: number | null
+          review_comment: string | null
+          reviewed_by_teacher_id: string | null
+          rewarded_stars: number
+          scheduled_date: string | null
+          scheduled_time: string | null
+          star_rating: number | null
+          student_result: string | null
+          submitted_at: string | null
+          submitted_attachment_name: string | null
+          submitted_attachment_url: string | null
+          teacher_comment: string | null
+          title: string
+          type: Database["public"]["Enums"]["content_type"]
+          unlocked: boolean
+          updated_at: string
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "content_items"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      get_visible_live_sessions: {
+        Args: never
+        Returns: {
+          completed_at: string
+          current_task_id: string
+          current_task_index: number
+          id: string
+          last_seen_at: string
+          lesson_id: string
+          lesson_title: string
+          started_at: string
+          status: string
+          student_email: string
+          student_id: string
+          student_name: string
         }[]
       }
       has_role: {
@@ -1237,10 +2896,45 @@ export type Database = {
         }
         Returns: boolean
       }
+      link_current_teacher_by_email: { Args: never; Returns: string }
+      repair_student_interactive_completion: {
+        Args: { _user_id: string }
+        Returns: undefined
+      }
+      submit_student_homework: {
+        Args: {
+          _attachment_name: string
+          _attachment_url: string
+          _content_item_id: string
+        }
+        Returns: undefined
+      }
+      teacher_global_search: {
+        Args: { _query: string }
+        Returns: {
+          category: string
+          metadata: Json
+          result_id: string
+          subtitle: string
+          title: string
+        }[]
+      }
+      teacher_review_homework: {
+        Args: {
+          _homework_id: string
+          _result_percent: number
+          _star_rating: number
+          _status: string
+          _teacher_comment: string
+          _teacher_id: string
+        }
+        Returns: undefined
+      }
+      teacher_start_lesson: { Args: { _lesson_id: string }; Returns: undefined }
     }
     Enums: {
       access_status: "pending" | "active" | "suspended" | "cancelled"
-      app_role: "admin" | "teacher" | "student"
+      app_role: "admin" | "student" | "teacher"
       content_type:
         | "lesson"
         | "homework"
@@ -1254,7 +2948,19 @@ export type Database = {
         | "homework"
         | "practice"
         | "checkpoint"
-      payment_status: "unpaid" | "pending_review" | "paid" | "refunded" | "failed"
+      payment_status:
+        | "unpaid"
+        | "pending_review"
+        | "paid"
+        | "refunded"
+        | "failed"
+      trial_booking_status:
+        | "submitted"
+        | "confirmed"
+        | "completed"
+        | "cancelled"
+        | "no_show"
+        | "converted"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1382,7 +3088,8 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "student"],
+      access_status: ["pending", "active", "suspended", "cancelled"],
+      app_role: ["admin", "student", "teacher"],
       content_type: [
         "lesson",
         "homework",
@@ -1397,6 +3104,21 @@ export const Constants = {
         "homework",
         "practice",
         "checkpoint",
+      ],
+      payment_status: [
+        "unpaid",
+        "pending_review",
+        "paid",
+        "refunded",
+        "failed",
+      ],
+      trial_booking_status: [
+        "submitted",
+        "confirmed",
+        "completed",
+        "cancelled",
+        "no_show",
+        "converted",
       ],
     },
   },
