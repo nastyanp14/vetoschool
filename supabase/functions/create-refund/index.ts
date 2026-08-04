@@ -337,26 +337,44 @@ function firstChargeFromPaymentIntent(paymentIntent: StripePaymentIntent | null)
   return asStripeCharge(paymentIntent?.latest_charge) || paymentIntent?.charges?.data?.[0] || null;
 }
 
+async function stripeApiGetWithFallback<T>(expandedPath: string, plainPath: string, env: RuntimeEnv): Promise<T> {
+  try {
+    return await stripeApiGet<T>(expandedPath, env, STRIPE_LEGACY_API_VERSION);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    // Unsupported expand on the account's API version -> retry without expands.
+    if (!message.includes('stripe_api_get_failed_400')) throw error;
+    return await stripeApiGet<T>(plainPath, env, STRIPE_LEGACY_API_VERSION);
+  }
+}
+
 async function loadStripePaymentIntent(paymentIntentId: string, env: RuntimeEnv) {
-  return stripeApiGet<StripePaymentIntent>(
-    `/payment_intents/${encodeURIComponent(paymentIntentId)}?expand[]=latest_charge`,
+  const id = encodeURIComponent(paymentIntentId);
+  return stripeApiGetWithFallback<StripePaymentIntent>(
+    `/payment_intents/${id}?expand[]=latest_charge`,
+    `/payment_intents/${id}`,
     env,
   );
 }
 
 async function loadStripeInvoiceWithPaymentSource(invoiceId: string, env: RuntimeEnv) {
-  return stripeApiGet<StripeInvoice>(
-    `/invoices/${encodeURIComponent(invoiceId)}?expand[]=payment_intent.latest_charge&expand[]=charge`,
+  const id = encodeURIComponent(invoiceId);
+  return stripeApiGetWithFallback<StripeInvoice>(
+    `/invoices/${id}?expand[]=payment_intent.latest_charge&expand[]=charge`,
+    `/invoices/${id}`,
     env,
   );
 }
 
 async function loadStripeCheckoutSessionWithPaymentSource(sessionId: string, env: RuntimeEnv) {
-  return stripeApiGet<StripeCheckoutSession>(
-    `/checkout/sessions/${encodeURIComponent(sessionId)}?expand[]=invoice.payment_intent.latest_charge&expand[]=payment_intent.latest_charge`,
+  const id = encodeURIComponent(sessionId);
+  return stripeApiGetWithFallback<StripeCheckoutSession>(
+    `/checkout/sessions/${id}?expand[]=invoice.payment_intent.latest_charge&expand[]=payment_intent.latest_charge`,
+    `/checkout/sessions/${id}`,
     env,
   );
 }
+
 
 async function resolveStripeRefundPaymentSource(payment: VetoschoolStripePayment, env: RuntimeEnv) {
   let paymentIntentId = payment.stripe_payment_intent_id || '';
