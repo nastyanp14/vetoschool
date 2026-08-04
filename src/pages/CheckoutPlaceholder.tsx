@@ -25,7 +25,7 @@ import {
   supportedCurrencies,
   type PricingPlanId,
 } from '../lib/pricingCurrency';
-import { redirectToStripeCheckout } from '../lib/stripeCheckout';
+import { redirectToStripeCheckout, redirectToStripeCustomerPortal, StripeCheckoutError } from '../lib/stripeCheckout';
 
 interface CheckoutPlaceholderProps {
   lang: Lang;
