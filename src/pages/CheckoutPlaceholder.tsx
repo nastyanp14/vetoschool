@@ -92,23 +92,36 @@ const checkoutAmountLabels: Record<Lang, { currency: string; total: string }> = 
   ua: { currency: 'Валюта', total: 'Разом до оплати' },
 };
 
-const checkoutStripeLabels: Record<Lang, { redirecting: string; error: string; authRequired: string }> = {
+const checkoutStripeLabels: Record<Lang, {
+  redirecting: string;
+  error: string;
+  authRequired: string;
+  activeSubscription: string;
+  manageSubscription: string;
+}> = {
   ru: {
     redirecting: 'Переходим к защищённой оплате Stripe...',
     error: 'Не удалось открыть Stripe Checkout. Попробуйте ещё раз или напишите администратору Vetoschool.',
     authRequired: 'Войдите в аккаунт перед оплатой, чтобы мы привязали подписку к вашему профилю Vetoschool.',
+    activeSubscription: 'У вас уже есть активная подписка. Управляйте ею через раздел «Управление подпиской».',
+    manageSubscription: 'Управление подпиской',
   },
   en: {
     redirecting: 'Opening secure Stripe Checkout...',
     error: 'Could not open Stripe Checkout. Try again or message the Vetoschool administrator.',
     authRequired: 'Log in before paying so we can attach the subscription to your Vetoschool account.',
+    activeSubscription: 'You already have an active subscription. Manage it in “Manage subscription”.',
+    manageSubscription: 'Manage subscription',
   },
   ua: {
     redirecting: 'Переходимо до захищеної оплати Stripe...',
     error: 'Не вдалося відкрити Stripe Checkout. Спробуйте ще раз або напишіть адміністратору Vetoschool.',
     authRequired: 'Увійдіть в акаунт перед оплатою, щоб ми прив’язали підписку до вашого профілю Vetoschool.',
+    activeSubscription: 'У вас вже є активна підписка. Керуйте нею в розділі «Керування підпискою».',
+    manageSubscription: 'Керування підпискою',
   },
 };
+
 
 function getPlanId(planId: string | undefined): PricingPlanId {
   if (planId && planId in pricingPlanPrices) return planId as PricingPlanId;
