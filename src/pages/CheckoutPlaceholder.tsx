@@ -428,6 +428,19 @@ export default function CheckoutPlaceholder({ lang }: CheckoutPlaceholderProps) 
                   )}
                 </AnimatePresence>
 
+                {hasActiveSubscription && (
+                  <button
+                    type="button"
+                    onClick={handleOpenPortal}
+                    disabled={portalLoading}
+                    className="pricing-button pricing-button-soft mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full px-6 py-3 font-display text-sm font-bold disabled:cursor-wait disabled:opacity-70"
+                  >
+                    <span>{stripeLabels.manageSubscription}</span>
+                  </button>
+                )}
+
+
+
                 <button
                   type="button"
                   onClick={() => navigate('/pricing')}
