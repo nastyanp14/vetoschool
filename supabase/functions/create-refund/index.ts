@@ -281,17 +281,28 @@ async function loadStripeRefundByIdempotencyKey(idempotencyKey: string, env: Run
   return rows[0] || null;
 }
 
-async function stripeApiGet<T>(path: string, env: RuntimeEnv): Promise<T> {
+// Invoice.payment_intent / Invoice.charge were removed from the Stripe API in
+// 2025-xx versions. Pin the retrieval calls to a version that still exposes
+// them so `in_...` identifiers can be traced to a refundable charge.
+const STRIPE_LEGACY_API_VERSION = '2024-06-20';
+
+async function stripeApiGet<T>(path: string, env: RuntimeEnv, apiVersion?: string): Promise<T> {
   const secretKey = requireEnv(env, ['STRIPE_SECRET_KEY'], 'stripe_secret_key_missing');
   const response = await fetch(`https://api.stripe.com/v1${path}`, {
     headers: {
       authorization: `Bearer ${secretKey}`,
+      ...(apiVersion ? { 'stripe-version': apiVersion } : {}),
     },
   });
 
-  if (!response.ok) throw new Error(`stripe_api_get_failed_${response.status}`);
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    console.warn('[create-refund]', { stage: 'stripe_api_get', path, status: response.status, body: body.slice(0, 500) });
+    throw new Error(`stripe_api_get_failed_${response.status}`);
+  }
   return await response.json() as T;
 }
+
 
 async function stripeApiPostForm<T>(path: string, body: URLSearchParams, env: RuntimeEnv, idempotencyKey?: string): Promise<T> {
   const secretKey = requireEnv(env, ['STRIPE_SECRET_KEY'], 'stripe_secret_key_missing');
@@ -326,26 +337,44 @@ function firstChargeFromPaymentIntent(paymentIntent: StripePaymentIntent | null)
   return asStripeCharge(paymentIntent?.latest_charge) || paymentIntent?.charges?.data?.[0] || null;
 }
 
+async function stripeApiGetWithFallback<T>(expandedPath: string, plainPath: string, env: RuntimeEnv): Promise<T> {
+  try {
+    return await stripeApiGet<T>(expandedPath, env, STRIPE_LEGACY_API_VERSION);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    // Unsupported expand on the account's API version -> retry without expands.
+    if (!message.includes('stripe_api_get_failed_400')) throw error;
+    return await stripeApiGet<T>(plainPath, env, STRIPE_LEGACY_API_VERSION);
+  }
+}
+
 async function loadStripePaymentIntent(paymentIntentId: string, env: RuntimeEnv) {
-  return stripeApiGet<StripePaymentIntent>(
-    `/payment_intents/${encodeURIComponent(paymentIntentId)}?expand[]=latest_charge`,
+  const id = encodeURIComponent(paymentIntentId);
+  return stripeApiGetWithFallback<StripePaymentIntent>(
+    `/payment_intents/${id}?expand[]=latest_charge`,
+    `/payment_intents/${id}`,
     env,
   );
 }
 
 async function loadStripeInvoiceWithPaymentSource(invoiceId: string, env: RuntimeEnv) {
-  return stripeApiGet<StripeInvoice>(
-    `/invoices/${encodeURIComponent(invoiceId)}?expand[]=payment_intent.latest_charge&expand[]=charge`,
+  const id = encodeURIComponent(invoiceId);
+  return stripeApiGetWithFallback<StripeInvoice>(
+    `/invoices/${id}?expand[]=payment_intent.latest_charge&expand[]=charge`,
+    `/invoices/${id}`,
     env,
   );
 }
 
 async function loadStripeCheckoutSessionWithPaymentSource(sessionId: string, env: RuntimeEnv) {
-  return stripeApiGet<StripeCheckoutSession>(
-    `/checkout/sessions/${encodeURIComponent(sessionId)}?expand[]=invoice.payment_intent.latest_charge&expand[]=payment_intent.latest_charge`,
+  const id = encodeURIComponent(sessionId);
+  return stripeApiGetWithFallback<StripeCheckoutSession>(
+    `/checkout/sessions/${id}?expand[]=invoice.payment_intent.latest_charge&expand[]=payment_intent.latest_charge`,
+    `/checkout/sessions/${id}`,
     env,
   );
 }
+
 
 async function resolveStripeRefundPaymentSource(payment: VetoschoolStripePayment, env: RuntimeEnv) {
   let paymentIntentId = payment.stripe_payment_intent_id || '';

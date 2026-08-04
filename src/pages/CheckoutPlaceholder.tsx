@@ -25,7 +25,7 @@ import {
   supportedCurrencies,
   type PricingPlanId,
 } from '../lib/pricingCurrency';
-import { redirectToStripeCheckout } from '../lib/stripeCheckout';
+import { redirectToStripeCheckout, redirectToStripeCustomerPortal, StripeCheckoutError } from '../lib/stripeCheckout';
 
 interface CheckoutPlaceholderProps {
   lang: Lang;
@@ -92,23 +92,36 @@ const checkoutAmountLabels: Record<Lang, { currency: string; total: string }> = 
   ua: { currency: 'Валюта', total: 'Разом до оплати' },
 };
 
-const checkoutStripeLabels: Record<Lang, { redirecting: string; error: string; authRequired: string }> = {
+const checkoutStripeLabels: Record<Lang, {
+  redirecting: string;
+  error: string;
+  authRequired: string;
+  activeSubscription: string;
+  manageSubscription: string;
+}> = {
   ru: {
     redirecting: 'Переходим к защищённой оплате Stripe...',
     error: 'Не удалось открыть Stripe Checkout. Попробуйте ещё раз или напишите администратору Vetoschool.',
     authRequired: 'Войдите в аккаунт перед оплатой, чтобы мы привязали подписку к вашему профилю Vetoschool.',
+    activeSubscription: 'У вас уже есть активная подписка. Управляйте ею через раздел «Управление подпиской».',
+    manageSubscription: 'Управление подпиской',
   },
   en: {
     redirecting: 'Opening secure Stripe Checkout...',
     error: 'Could not open Stripe Checkout. Try again or message the Vetoschool administrator.',
     authRequired: 'Log in before paying so we can attach the subscription to your Vetoschool account.',
+    activeSubscription: 'You already have an active subscription. Manage it in “Manage subscription”.',
+    manageSubscription: 'Manage subscription',
   },
   ua: {
     redirecting: 'Переходимо до захищеної оплати Stripe...',
     error: 'Не вдалося відкрити Stripe Checkout. Спробуйте ще раз або напишіть адміністратору Vetoschool.',
     authRequired: 'Увійдіть в акаунт перед оплатою, щоб ми прив’язали підписку до вашого профілю Vetoschool.',
+    activeSubscription: 'У вас вже є активна підписка. Керуйте нею в розділі «Керування підпискою».',
+    manageSubscription: 'Керування підпискою',
   },
 };
+
 
 function getPlanId(planId: string | undefined): PricingPlanId {
   if (planId && planId in pricingPlanPrices) return planId as PricingPlanId;
@@ -156,6 +169,8 @@ export default function CheckoutPlaceholder({ lang }: CheckoutPlaceholderProps) 
   const navigate = useNavigate();
   const [isRedirectingToStripe, setIsRedirectingToStripe] = useState(false);
   const [paymentError, setPaymentError] = useState('');
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
   const selectedPlanId = getPlanId(planId);
   const selectedCurrency = normalizeCurrency(searchParams.get('currency'));
   const selectedPrice = pricingPlanPrices[selectedPlanId];
@@ -171,19 +186,41 @@ export default function CheckoutPlaceholder({ lang }: CheckoutPlaceholderProps) 
     setSearchParams(nextParams, { replace: true });
   };
 
+  const handleOpenPortal = async () => {
+    setPortalLoading(true);
+    try {
+      await redirectToStripeCustomerPortal();
+    } catch (error) {
+      console.error('Stripe portal redirect failed', error);
+      setPortalLoading(false);
+      navigate('/dashboard');
+    }
+  };
+
   const handlePaySecurely = async () => {
     setPaymentError('');
+    setHasActiveSubscription(false);
     setIsRedirectingToStripe(true);
 
     try {
       await redirectToStripeCheckout(selectedPlanId, selectedCurrency);
     } catch (error) {
       console.error('Stripe Checkout redirect failed', error);
+      const code = error instanceof StripeCheckoutError ? error.code : '';
       const message = error instanceof Error ? error.message : '';
-      setPaymentError(message.includes('Log in before paying') ? stripeLabels.authRequired : message || stripeLabels.error);
+
+      if (code === 'active_subscription_exists') {
+        setHasActiveSubscription(true);
+        setPaymentError(stripeLabels.activeSubscription);
+      } else if (code === 'authentication_required' || message.includes('Log in before paying')) {
+        setPaymentError(stripeLabels.authRequired);
+      } else {
+        setPaymentError(message || stripeLabels.error);
+      }
       setIsRedirectingToStripe(false);
     }
   };
+
 
   return (
     <main className="pricing-page min-h-screen overflow-x-hidden bg-[#fff8ff] dark:bg-[#0a0613]">
@@ -390,6 +427,19 @@ export default function CheckoutPlaceholder({ lang }: CheckoutPlaceholderProps) 
                     </motion.p>
                   )}
                 </AnimatePresence>
+
+                {hasActiveSubscription && (
+                  <button
+                    type="button"
+                    onClick={handleOpenPortal}
+                    disabled={portalLoading}
+                    className="pricing-button pricing-button-soft mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full px-6 py-3 font-display text-sm font-bold disabled:cursor-wait disabled:opacity-70"
+                  >
+                    <span>{stripeLabels.manageSubscription}</span>
+                  </button>
+                )}
+
+
 
                 <button
                   type="button"

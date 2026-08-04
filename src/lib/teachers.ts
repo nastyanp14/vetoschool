@@ -100,6 +100,7 @@ export interface TeacherLesson {
   id: string;
   studentId: string;
   groupId: string | null;
+  teacherId: string | null;
   sourceLessonId: string | null;
   day: string;
   date: string | null;
@@ -384,6 +385,7 @@ function rowToLesson(row: any): TeacherLesson {
     carryOverToNextLesson: row.carry_over_to_next_lesson ?? null,
     structure: [],
     result: null,
+    teacherId: row.teacher_id ?? null,
   };
 }
 

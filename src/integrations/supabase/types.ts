@@ -1101,6 +1101,48 @@ export type Database = {
           },
         ]
       }
+      manual_access_overrides: {
+        Row: {
+          action: string
+          admin_id: string | null
+          created_at: string
+          id: string
+          reason: string
+          student_id: string
+        }
+        Insert: {
+          action: string
+          admin_id?: string | null
+          created_at?: string
+          id?: string
+          reason: string
+          student_id: string
+        }
+        Update: {
+          action?: string
+          admin_id?: string | null
+          created_at?: string
+          id?: string
+          reason?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manual_access_overrides_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manual_access_overrides_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           access_status: Database["public"]["Enums"]["access_status"]
@@ -1116,6 +1158,10 @@ export type Database = {
           lesson_format: string | null
           lessons_remaining: number
           lessons_total: number
+          manual_access_override: boolean
+          manual_access_override_at: string | null
+          manual_access_override_by: string | null
+          manual_access_override_reason: string | null
           name: string
           next_payment_date: string | null
           payment_failed_at: string | null
@@ -1144,6 +1190,10 @@ export type Database = {
           lesson_format?: string | null
           lessons_remaining?: number
           lessons_total?: number
+          manual_access_override?: boolean
+          manual_access_override_at?: string | null
+          manual_access_override_by?: string | null
+          manual_access_override_reason?: string | null
           name?: string
           next_payment_date?: string | null
           payment_failed_at?: string | null
@@ -1172,6 +1222,10 @@ export type Database = {
           lesson_format?: string | null
           lessons_remaining?: number
           lessons_total?: number
+          manual_access_override?: boolean
+          manual_access_override_at?: string | null
+          manual_access_override_by?: string | null
+          manual_access_override_reason?: string | null
           name?: string
           next_payment_date?: string | null
           payment_failed_at?: string | null
@@ -1186,7 +1240,15 @@ export type Database = {
           total_stars_earned?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_manual_access_override_by_fkey"
+            columns: ["manual_access_override_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       schedules: {
         Row: {
