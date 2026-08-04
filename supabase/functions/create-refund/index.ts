@@ -281,17 +281,28 @@ async function loadStripeRefundByIdempotencyKey(idempotencyKey: string, env: Run
   return rows[0] || null;
 }
 
-async function stripeApiGet<T>(path: string, env: RuntimeEnv): Promise<T> {
+// Invoice.payment_intent / Invoice.charge were removed from the Stripe API in
+// 2025-xx versions. Pin the retrieval calls to a version that still exposes
+// them so `in_...` identifiers can be traced to a refundable charge.
+const STRIPE_LEGACY_API_VERSION = '2024-06-20';
+
+async function stripeApiGet<T>(path: string, env: RuntimeEnv, apiVersion?: string): Promise<T> {
   const secretKey = requireEnv(env, ['STRIPE_SECRET_KEY'], 'stripe_secret_key_missing');
   const response = await fetch(`https://api.stripe.com/v1${path}`, {
     headers: {
       authorization: `Bearer ${secretKey}`,
+      ...(apiVersion ? { 'stripe-version': apiVersion } : {}),
     },
   });
 
-  if (!response.ok) throw new Error(`stripe_api_get_failed_${response.status}`);
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    console.warn('[create-refund]', { stage: 'stripe_api_get', path, status: response.status, body: body.slice(0, 500) });
+    throw new Error(`stripe_api_get_failed_${response.status}`);
+  }
   return await response.json() as T;
 }
+
 
 async function stripeApiPostForm<T>(path: string, body: URLSearchParams, env: RuntimeEnv, idempotencyKey?: string): Promise<T> {
   const secretKey = requireEnv(env, ['STRIPE_SECRET_KEY'], 'stripe_secret_key_missing');
