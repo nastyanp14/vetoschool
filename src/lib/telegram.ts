@@ -201,7 +201,7 @@ export async function notifyContentChanges(studentId: string, before: ContentIte
     const scheduleChanged = prev && item.type === 'lesson' && item.unlocked && lessonAt && (
       prev.scheduledDate !== item.scheduledDate || prev.scheduledTime !== item.scheduledTime
     );
-    const becameGraded = item.unlocked && !!item.starRating && item.starRating > 0 && (
+    const becameGraded = !!item.starRating && item.starRating > 0 && (
       !prev?.starRating || prev.starRating !== item.starRating
     );
 
@@ -220,7 +220,7 @@ export async function notifyContentChanges(studentId: string, before: ContentIte
       events.push({ type: 'homework_published', item });
     }
     if (becameGraded && item.type !== 'lesson') {
-      events.push({ type: 'grade_published', item });
+      events.push({ type: 'grade_published', item, gradeEventId: item.updatedAt || item.id });
     }
   }
 

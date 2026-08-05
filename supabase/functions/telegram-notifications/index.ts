@@ -376,9 +376,10 @@ async function handleContentEvent(admin: any, body: any) {
   }
 
   if (type === 'grade_published') {
+    const gradeEventId = String(body.gradeEventId || item.updatedAt || item.updated_at || item.id);
     for (const parent of parents.filter(parent => parent.notify_grades)) {
       await enqueue(admin, {
-        event_key: `content:${item.id}:${parent.id}:grade:${item.starRating}`,
+        event_key: `content:${item.id}:${parent.id}:grade:${item.starRating}:${gradeEventId}`,
         notification_type: 'grade_published',
         student_id: studentId,
         parent_id: parent.id,
