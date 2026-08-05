@@ -38,7 +38,7 @@ function upsertCanonical(href: string) {
 }
 
 function upsertJsonLd(schema?: Record<string, unknown>) {
-  const id = 'seo-jsonld';
+  const id = 'seo-jsonld-route';
   let element = document.getElementById(id) as HTMLScriptElement | null;
 
   if (!schema) {
