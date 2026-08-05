@@ -985,6 +985,25 @@ async function handleTrialEvent(admin: any, body: any) {
   }
 
   const keepsSlot = type === 'trial_confirmed' || type === 'trial_rescheduled';
+
+  // Преподаватель получает письмо со ссылкой на подтверждённый пробный урок.
+  if (keepsSlot) {
+    const teacherEmail = String(body.teacherEmail || '').trim();
+    if (teacherEmail) {
+      await deliverEmail(admin, {
+        event: registryEvent(type),
+        entityType: 'trial_booking',
+        entityId: bookingId,
+        studentId,
+        recipientEmail: teacherEmail,
+        recipientRole: 'teacher',
+        lang: body.teacherLang || 'ru',
+        vars: templateVars({ ...payload, teacherName: body.teacherName || '' }, pickLangCode(body.teacherLang || 'ru')) as any,
+        eventVersion,
+      });
+    }
+  }
+
   if (keepsSlot && currentAt) {
     for (const reminder of REMINDER_STEPS) {
       const scheduledFor = minutesBefore(currentAt, reminder.minutes);
