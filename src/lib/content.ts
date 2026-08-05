@@ -34,6 +34,7 @@ export interface ContentItem {
   interactiveCompletedAt?: string | null;
   interactiveScorePercent?: number | null;
   materialMode?: 'file_link' | 'interactive' | null;
+  updatedAt?: string | null;
 }
 
 export const fileToDataUrl = _fileToDataUrl;
@@ -88,6 +89,7 @@ function rowToItem(r: any): ContentItem {
     interactiveCompletedAt: r.interactive_completed_at ?? null,
     interactiveScorePercent: r.interactive_score_percent ?? null,
     materialMode: r.material_mode ?? null,
+    updatedAt: r.updated_at ?? null,
   };
 }
 
@@ -296,6 +298,7 @@ export async function saveStudentContent(userId: string, items: ContentItem[]): 
   const cachedBefore = ensureStudentContent(userId);
   const before = cachedBefore.length ? cachedBefore : await loadStudentContent(userId);
   const isUuid = (s?: string) => !!s && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+  const savedAt = new Date().toISOString();
   const rows = items.map(i => ({
     id: isUuid(i.id) ? i.id : crypto.randomUUID(),
     user_id: userId,
@@ -313,6 +316,7 @@ export async function saveStudentContent(userId: string, items: ContentItem[]): 
     scheduled_time: i.scheduledTime || null,
     unlocked: !!i.unlocked,
     star_rating: i.starRating ?? null,
+    updated_at: savedAt,
   }));
   if (rows.length) {
     const { error } = await (supabase as any).from('content_items').upsert(rows);
