@@ -1242,6 +1242,7 @@ export type Database = {
           email: string
           has_access: boolean
           id: string
+          lang: string
           lesson_format: string | null
           lessons_remaining: number
           lessons_total: number
@@ -1274,6 +1275,7 @@ export type Database = {
           email: string
           has_access?: boolean
           id: string
+          lang?: string
           lesson_format?: string | null
           lessons_remaining?: number
           lessons_total?: number
@@ -1306,6 +1308,7 @@ export type Database = {
           email?: string
           has_access?: boolean
           id?: string
+          lang?: string
           lesson_format?: string | null
           lessons_remaining?: number
           lessons_total?: number
