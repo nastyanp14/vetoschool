@@ -16,6 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   loadTrialBookings,
   updateTrialBooking,
+  confirmTrialLesson,
+  isValidLessonUrl,
   type TrialBookingRecord,
   type TrialBookingStatus,
   type TrialBookingUpdate,
@@ -73,6 +75,10 @@ const copy = {
     teacherLevel: 'Уровень после урока',
     teacherDirection: 'Направление после урока',
     internalNotes: 'Внутренние заметки',
+    lessonUrlLabel: 'Ссылка на урок (Google Meet)',
+    lessonUrlHint: 'Обязательно для подтверждения. Будет отправлена родителю и преподавателю.',
+    confirmSend: 'Подтвердить и отправить',
+    lessonUrlInvalid: 'Укажите корректную https:// ссылку на урок',
     timezone: 'Часовой пояс',
     privacy: 'Privacy Policy',
     guardian: 'Подтверждение родителя',
@@ -135,6 +141,10 @@ const copy = {
     teacherLevel: 'Teacher-confirmed level',
     teacherDirection: 'Teacher-confirmed direction',
     internalNotes: 'Internal notes',
+    lessonUrlLabel: 'Lesson link (Google Meet)',
+    lessonUrlHint: 'Required to confirm. It will be sent to the parent and the teacher.',
+    confirmSend: 'Confirm and send',
+    lessonUrlInvalid: 'Enter a valid https:// lesson link',
     timezone: 'Timezone',
     privacy: 'Privacy Policy',
     guardian: 'Guardian confirmation',
@@ -197,6 +207,10 @@ const copy = {
     teacherLevel: 'Рівень після уроку',
     teacherDirection: 'Напрям після уроку',
     internalNotes: 'Внутрішні нотатки',
+    lessonUrlLabel: 'Посилання на урок (Google Meet)',
+    lessonUrlHint: 'Обовʼязкове для підтвердження. Буде надіслане батькам і викладачу.',
+    confirmSend: 'Підтвердити і надіслати',
+    lessonUrlInvalid: 'Вкажіть коректне https:// посилання на урок',
     timezone: 'Часовий пояс',
     privacy: 'Privacy Policy',
     guardian: 'Підтвердження батьків',
@@ -335,6 +349,7 @@ export default function TrialLessonsAdmin({ lang }: { lang: Lang }) {
       selected_time: timeLabel(selected.selected_time),
       teacher_confirmed_level: selected.teacher_confirmed_level || '',
       teacher_confirmed_direction: selected.teacher_confirmed_direction || '',
+      lesson_url: selected.lesson_url || '',
       internal_notes: selected.internal_notes || '',
     });
   }, [selected]);
@@ -388,7 +403,29 @@ export default function TrialLessonsAdmin({ lang }: { lang: Lang }) {
       teacher_confirmed_level: draft.teacher_confirmed_level || null,
       teacher_confirmed_direction: draft.teacher_confirmed_direction || null,
       internal_notes: draft.internal_notes || null,
+      ...(draft.lesson_url ? { lesson_url: draft.lesson_url } : {}),
     });
+  };
+
+  const confirmWithLink = async () => {
+    if (!selected) return;
+    if (!isValidLessonUrl(String(draft.lesson_url || ''))) {
+      setError(labels.lessonUrlInvalid);
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      const updated = await confirmTrialLesson(selected.id, String(draft.lesson_url), {
+        selected_date: draft.selected_date,
+        selected_time: draft.selected_time,
+      });
+      replaceBooking(updated);
+    } catch {
+      setError(labels.error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -536,6 +573,26 @@ export default function TrialLessonsAdmin({ lang }: { lang: Lang }) {
                 <input type="date" value={draft.selected_date || ''} onChange={event => setDraft(current => ({ ...current, selected_date: event.target.value }))} className="rounded-2xl border border-purple-100 bg-white/80 px-3 py-2 font-body text-sm font-semibold text-purple-700 outline-none focus:border-pink-300 focus:ring-4 focus:ring-pink-100 dark:border-purple-700 dark:bg-[#1b0c2f] dark:text-purple-100" aria-label={labels.date} />
                 <input type="time" value={draft.selected_time || ''} onChange={event => setDraft(current => ({ ...current, selected_time: event.target.value }))} className="rounded-2xl border border-purple-100 bg-white/80 px-3 py-2 font-body text-sm font-semibold text-purple-700 outline-none focus:border-pink-300 focus:ring-4 focus:ring-pink-100 dark:border-purple-700 dark:bg-[#1b0c2f] dark:text-purple-100" aria-label={labels.time} />
                 <DetailRow label={labels.timezone} value={selected.timezone} />
+                <label className="font-body text-xs font-black uppercase tracking-wide text-purple-500 dark:text-purple-200" htmlFor="trial-lesson-url">{labels.lessonUrlLabel}</label>
+                <input
+                  id="trial-lesson-url"
+                  type="url"
+                  required
+                  value={draft.lesson_url || ''}
+                  onChange={event => setDraft(current => ({ ...current, lesson_url: event.target.value }))}
+                  placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                  className="rounded-2xl border border-purple-100 bg-white/80 px-3 py-2 font-body text-sm font-semibold text-purple-700 outline-none focus:border-pink-300 focus:ring-4 focus:ring-pink-100 dark:border-purple-700 dark:bg-[#1b0c2f] dark:text-purple-100"
+                />
+                <p className="font-body text-xs font-semibold text-purple-400 dark:text-purple-300">{labels.lessonUrlHint}</p>
+                <button
+                  type="button"
+                  onClick={() => void confirmWithLink()}
+                  disabled={saving || !isValidLessonUrl(String(draft.lesson_url || '')) || selected.status === 'cancelled' || selected.status === 'completed'}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-400 to-green-500 px-4 py-3 font-display text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                >
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
+                  {labels.confirmSend}
+                </button>
               </section>
 
               <section className="grid gap-3 rounded-3xl bg-yellow-50/80 p-4 dark:bg-white/10">
@@ -552,8 +609,8 @@ export default function TrialLessonsAdmin({ lang }: { lang: Lang }) {
                     <button
                       key={status}
                       type="button"
-                      onClick={() => void savePatch({ status })}
-                      disabled={saving || selected.status === status}
+                      onClick={() => status === 'confirmed' ? void confirmWithLink() : void savePatch({ status })}
+                      disabled={saving || selected.status === status || (status === 'confirmed' && !isValidLessonUrl(String(draft.lesson_url || '')))}
                       className={`rounded-2xl px-3 py-2 font-body text-xs font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pink-100 disabled:cursor-not-allowed disabled:opacity-60 ${selected.status === status ? 'bg-gradient-to-r from-pink-400 to-purple-400 text-white' : 'bg-purple-50 text-purple-600 hover:bg-pink-50 dark:bg-white/10 dark:text-purple-100'}`}
                     >
                       {labels.statuses[status]}

@@ -205,7 +205,7 @@ export function templateVars(payload: any, lang: NotifyLang, now = new Date()) {
     teacher_weekly_comment: payload.teacherWeeklyComment || '',
     submitted_at: payload.submittedAt ? formatDate(payload.submittedAt, lang) : '',
     // контекстные ссылки: без валидного https кнопка просто не показывается
-    schedule_url: url, lesson_url: payload.lessonUrl || url, homework_url: url, result_url: url,
+    schedule_url: url, lesson_url: payload.lessonUrl || '', homework_url: url, result_url: url,
     request_url: payload.requestUrl || url, billing_url: payload.billingUrl || url,
     dashboard_url: url, progress_url: url, contact_url: payload.contactUrl || url,
     reschedule_url: payload.rescheduleUrl || url, pricing_url: payload.pricingUrl || url,
@@ -700,6 +700,36 @@ async function emailStudentEvent(admin: any, studentId: string, notificationType
   });
 }
 
+/** Ссылка на урок валидна только как https и только для активного урока. */
+function validLessonUrl(value: unknown): string {
+  const url = String(value ?? '').trim();
+  return /^https:\/\/[^\s]+\.[^\s]+/i.test(url) ? url : '';
+}
+
+const CLOSED_LESSON_STATUSES = ['cancelled', 'canceled', 'completed'];
+
+/** Актуальный URL урока из расписания; для отменённых/проведённых — пусто. */
+async function scheduleLessonUrl(admin: any, slotId?: string | null): Promise<string> {
+  if (!slotId || !/^[0-9a-f-]{36}$/i.test(String(slotId))) return '';
+  const { data } = await admin
+    .from('schedules')
+    .select('online_url,is_conducted,lesson_status')
+    .eq('id', slotId)
+    .maybeSingle();
+  if (!data) return '';
+  if (data.is_conducted) return '';
+  if (CLOSED_LESSON_STATUSES.includes(String(data.lesson_status || ''))) return '';
+  return validLessonUrl(data.online_url);
+}
+
+const TRIAL_LINK_STATUSES = ['submitted', 'confirmed'];
+
+/** Ссылку на пробный урок отправляем только пока он актуален. */
+function trialLessonUrl(booking: any): string {
+  if (!booking || !TRIAL_LINK_STATUSES.includes(String(booking.status))) return '';
+  return validLessonUrl(booking.lesson_url);
+}
+
 async function handleScheduleEvent(admin: any, body: any) {
   const studentId = body.studentId;
   const type = body.type as string;
@@ -711,6 +741,10 @@ async function handleScheduleEvent(admin: any, body: any) {
   const lessonRef = `schedule:${slot.id || `${slot.day}-${slot.time}-${slot.topic}`}`;
   const url = `${dashboardUrl(studentId)}&tab=schedule`;
   const lessonAt = slotLessonAt(slot);
+  // Для отменённого/проведённого урока ссылку не отправляем вовсе.
+  const lessonUrl = ['lesson_canceled', 'lesson_conducted', 'lesson_no_show'].includes(type)
+    ? ''
+    : (await scheduleLessonUrl(admin, slot.id)) || validLessonUrl(slot.onlineUrl || slot.online_url);
 
   if (type === 'lesson_conducted') {
     for (const parent of parents.filter(parent => parent.notify_lesson_reminders)) {
@@ -758,7 +792,7 @@ async function handleScheduleEvent(admin: any, body: any) {
             student_id: studentId,
             parent_id: parent.id,
             scheduled_for: scheduledFor,
-            payload: { studentName: name, topic: slot.topic, lessonAt, lessonRef, url },
+            payload: { studentName: name, topic: slot.topic, lessonAt, lessonRef, url, lessonUrl },
           });
         }
       }
@@ -770,7 +804,7 @@ async function handleScheduleEvent(admin: any, body: any) {
         student_id: studentId,
         parent_id: parent.id,
         scheduled_for: now,
-        payload: { studentName: name, topic: slot.topic, oldSlotLabel: slotLabel(oldSlot), slotLabel: slotLabel(slot), lessonRef, url },
+        payload: { studentName: name, topic: slot.topic, oldSlotLabel: slotLabel(oldSlot), slotLabel: slotLabel(slot), lessonRef, url, lessonUrl },
       });
     }
     if (type !== 'lesson_scheduled') {
@@ -916,6 +950,7 @@ async function handleTrialEvent(admin: any, body: any) {
     pricingUrl: base ? `${base}/pricing` : '',
     recommendationUrl: base ? `${base}/trial` : '',
     contactUrl: base ? `${base}/contacts` : '',
+    lessonUrl: trialLessonUrl(booking),
   };
 
   // Ставшие неактуальными напоминания снимаем перед постановкой новых.
@@ -950,6 +985,25 @@ async function handleTrialEvent(admin: any, body: any) {
   }
 
   const keepsSlot = type === 'trial_confirmed' || type === 'trial_rescheduled';
+
+  // Преподаватель получает письмо со ссылкой на подтверждённый пробный урок.
+  if (keepsSlot) {
+    const teacherEmail = String(body.teacherEmail || '').trim();
+    if (teacherEmail) {
+      await deliverEmail(admin, {
+        event: registryEvent(type),
+        entityType: 'trial_booking',
+        entityId: bookingId,
+        studentId,
+        recipientEmail: teacherEmail,
+        recipientRole: 'teacher',
+        lang: body.teacherLang || 'ru',
+        vars: templateVars({ ...payload, teacherName: body.teacherName || '' }, pickLangCode(body.teacherLang || 'ru')) as any,
+        eventVersion,
+      });
+    }
+  }
+
   if (keepsSlot && currentAt) {
     for (const reminder of REMINDER_STEPS) {
       const scheduledFor = minutesBefore(currentAt, reminder.minutes);
@@ -1034,30 +1088,30 @@ async function handleWeeklySummary(admin: any, body: any) {
 }
 
 /** Проверка актуального статуса урока прямо перед отправкой напоминания. */
-async function reminderStillValid(admin: any, notification: any): Promise<{ ok: boolean; reason?: string }> {
+async function reminderStillValid(admin: any, notification: any): Promise<{ ok: boolean; reason?: string; lessonUrl?: string }> {
   const lessonRef = String(notification.payload?.lessonRef || '');
   const lessonAt = notification.payload?.lessonAt || null;
 
   if (notification.trial_booking_id || lessonRef.startsWith('trial:')) {
     const bookingId = notification.trial_booking_id || lessonRef.split(':')[1];
-    const { data } = await admin.from('trial_bookings').select('status,selected_date,selected_time').eq('id', bookingId).maybeSingle();
+    const { data } = await admin.from('trial_bookings').select('status,selected_date,selected_time,lesson_url').eq('id', bookingId).maybeSingle();
     if (!data) return { ok: false, reason: 'trial_removed' };
     if (!['submitted', 'confirmed'].includes(String(data.status))) return { ok: false, reason: `trial_${data.status}` };
     const actualAt = naiveLocalToIso(`${data.selected_date}T${data.selected_time}`);
     if (lessonAt && actualAt && actualAt !== lessonAt) return { ok: false, reason: 'trial_time_changed' };
-    return { ok: true };
+    return { ok: true, lessonUrl: trialLessonUrl(data) };
   }
 
   if (lessonRef.startsWith('schedule:')) {
     const scheduleId = lessonRef.split(':')[1];
     if (!scheduleId || !/^[0-9a-f-]{36}$/i.test(scheduleId)) return { ok: true };
-    const { data } = await admin.from('schedules').select('date,scheduled_date,day,time,is_conducted,lesson_status').eq('id', scheduleId).maybeSingle();
+    const { data } = await admin.from('schedules').select('date,scheduled_date,day,time,is_conducted,lesson_status,online_url').eq('id', scheduleId).maybeSingle();
     if (!data) return { ok: false, reason: 'lesson_removed' };
     if (data.is_conducted) return { ok: false, reason: 'lesson_already_conducted' };
     if (['cancelled', 'canceled'].includes(String(data.lesson_status || ''))) return { ok: false, reason: 'lesson_cancelled' };
     const actualAt = slotLessonAt(data);
     if (lessonAt && actualAt && actualAt !== lessonAt) return { ok: false, reason: 'lesson_time_changed' };
-    return { ok: true };
+    return { ok: true, lessonUrl: validLessonUrl(data.online_url) };
   }
 
   if (lessonRef.startsWith('content:')) {
@@ -1125,6 +1179,8 @@ async function processDue(admin: any, limit = 25) {
         await skip(`stale: ${freshness.reason}`);
         continue;
       }
+      // Напоминание всегда уходит с актуальной ссылкой, даже если её меняли после постановки в очередь.
+      notification.payload = { ...(notification.payload || {}), lessonUrl: freshness.lessonUrl || '' };
     } else if (Date.now() - new Date(notification.scheduled_for).getTime() > MAX_NOTIFICATION_AGE_MS) {
       await skip('stale: notification expired');
       continue;

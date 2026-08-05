@@ -1369,6 +1369,16 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                             {done ? `✅ ${t(lang, 'sched_conducted_label')}` : t(lang, 'dash_lesson_type')}
                           </span>
                         </div>
+                        {!done && /^https:\/\//i.test(String(slot.onlineUrl || '')) && (
+                          <a
+                            href={slot.onlineUrl as string}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-400 px-4 py-2.5 font-display text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5"
+                          >
+                            🎥 {t(lang, 'sched_join')}
+                          </a>
+                        )}
                       </motion.div>
                     );
                     return (
