@@ -1,0 +1,16 @@
+# Vetoschool
+
+> Vetoschool is an online English school for children ages 5–12, with live lessons, interactive workbooks, homework, practice and progress tracking.
+
+Lessons are taught online by qualified teachers in small groups or one-to-one. Students learn through interactive tasks (matching, word building, letter filling, anagrams), a dictionary trainer, homework with grades, and a stars reward system. Parents can receive progress notifications via Telegram.
+
+## Pages
+
+- [Home](/): What Vetoschool is, how lessons work, and how to start.
+- [Pricing](/pricing): Group and individual English learning plans with full platform access.
+- [Book a free trial lesson](/trial-booking): Reserve a free trial lesson and get a preliminary English level recommendation for your child.
+
+## Optional
+
+- [Privacy Policy](/privacy-policy): How Vetoschool collects, uses and protects personal data.
+- [Cookie Policy](/cookie-policy): How Vetoschool uses cookies and similar technologies.
