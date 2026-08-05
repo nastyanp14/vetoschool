@@ -48,13 +48,51 @@ function dashboardUrl(studentId: string, path = 'dashboard') {
   return base ? `${base}/${path}?preview=${encodeURIComponent(studentId)}` : `https://t.me/${(Deno.env.get('TELEGRAM_BOT_USERNAME') || 'vetoschool_bot').replace(/^@/, '')}`;
 }
 
+const APP_TZ = 'Europe/Prague';
+
+// Offset (ms) between UTC and the app timezone at the given instant.
+function tzOffsetMs(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(date).reduce<Record<string, string>>((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value;
+    return acc;
+  }, {});
+  const asUtc = Date.UTC(
+    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+    Number(parts.hour) % 24, Number(parts.minute), Number(parts.second),
+  );
+  return asUtc - date.getTime();
+}
+
+// "2026-08-05T03:57" entered by an admin means 03:57 in Europe/Prague.
+// The edge runtime is UTC, so a naive Date() parse would shift it by 1-2 hours.
+export function naiveLocalToIso(value?: string | null) {
+  if (!value) return null;
+  const normalized = value.trim().replace(' ', 'T');
+  if (/(z|[+-]\d{2}:?\d{2})$/i.test(normalized)) {
+    const absolute = new Date(normalized);
+    return Number.isNaN(absolute.getTime()) ? null : absolute.toISOString();
+  }
+  const withSeconds = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(normalized) ? `${normalized}:00` : normalized;
+  const guess = new Date(`${withSeconds}Z`);
+  if (Number.isNaN(guess.getTime())) return null;
+  let ts = guess.getTime() - tzOffsetMs(guess, APP_TZ);
+  ts = guess.getTime() - tzOffsetMs(new Date(ts), APP_TZ);
+  return new Date(ts).toISOString();
+}
+
 function dateTimeLabel(value?: string | null, lang: Lang = 'ru') {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
-  return date.toLocaleString(locale, { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleString(locale, { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: APP_TZ });
 }
+
 
 function t(lang: Lang, key: string, p: Record<string, string | number | undefined> = {}) {
   const dict: Record<Lang, Record<string, string>> = {
