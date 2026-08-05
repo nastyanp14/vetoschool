@@ -105,7 +105,7 @@ describe('stripe-webhook Edge Function', () => {
       }
 
       if (url === 'https://api.stripe.com/v1/checkout/sessions/cs_edge_1/line_items?limit=1&expand[]=data.price') {
-        return json({ data: [{ price: { id: 'price_1TxbAFLCIsxnginY7Mlaf63r' } }] });
+        return json({ data: [{ price: { id: 'price_1U0xKDLixIIR8RHzQan57liX' } }] });
       }
 
       if (url === 'https://api.stripe.com/v1/subscriptions/sub_edge_1?expand[]=items.data.price&expand[]=latest_invoice') {
@@ -119,7 +119,7 @@ describe('stripe-webhook Edge Function', () => {
             data: [{
               current_period_start: 1785347000,
               current_period_end: 1787939000,
-              price: { id: 'price_1TxbAFLCIsxnginY7Mlaf63r' },
+              price: { id: 'price_1U0xKDLixIIR8RHzQan57liX' },
             }],
           },
         });

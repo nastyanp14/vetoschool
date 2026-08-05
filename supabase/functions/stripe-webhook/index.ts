@@ -13,12 +13,12 @@ declare const Deno: {
   serve(handler: (request: Request) => Response | Promise<Response>): void;
 } | undefined;
 
-const STRIPE_PRICE_GROUP_LITE = 'price_1Txb9HLCIsxnginYf4mX2Uwg';
-const STRIPE_PRICE_GROUP_PROGRESS = 'price_1TxbAFLCIsxnginY7Mlaf63r';
-const STRIPE_PRICE_GROUP_INTENSIVE = 'price_1TxbAnLCIsxnginYE3at3vOH';
-const STRIPE_PRICE_INDIVIDUAL_LITE = 'price_1TxbBMLCIsxnginYHI1sficF';
-const STRIPE_PRICE_INDIVIDUAL_PROGRESS = 'price_1TxbBqLCIsxnginYkBwPHgg8';
-const STRIPE_PRICE_INDIVIDUAL_INTENSIVE = 'price_1TxbCJLCIsxnginYq2t7tAIs';
+const STRIPE_PRICE_GROUP_LITE = 'price_1U0xKHLixIIR8RHzzShRy0jk';
+const STRIPE_PRICE_GROUP_PROGRESS = 'price_1U0xKDLixIIR8RHzQan57liX';
+const STRIPE_PRICE_GROUP_INTENSIVE = 'price_1U0xKGLixIIR8RHzG2Rkqf6B';
+const STRIPE_PRICE_INDIVIDUAL_LITE = 'price_1U0xKALixIIR8RHz4FwKr6Br';
+const STRIPE_PRICE_INDIVIDUAL_PROGRESS = 'price_1U0xK6LixIIR8RHzD60ZdG6u';
+const STRIPE_PRICE_INDIVIDUAL_INTENSIVE = 'price_1U0xK6LixIIR8RHzOwTW81bZ';
 
 const stripePriceIdsByPlan: Record<PricingPlanId, string> = {
   'group-lite': STRIPE_PRICE_GROUP_LITE,
@@ -42,10 +42,21 @@ const stripePlanConfig: Record<PricingPlanId, {
   'individual-intensive': { priceId: STRIPE_PRICE_INDIVIDUAL_INTENSIVE, lessonFormat: 'individual', lessonsTotal: 12 },
 };
 
+// Sandbox price ids kept only so historical (test-mode) rows still resolve to a plan.
+const legacySandboxPriceIds: Record<string, PricingPlanId> = {
+  'price_1Txb9HLCIsxnginYf4mX2Uwg': 'group-lite',
+  'price_1TxbAFLCIsxnginY7Mlaf63r': 'group-progress',
+  'price_1TxbAnLCIsxnginYE3at3vOH': 'group-intensive',
+  'price_1TxbBMLCIsxnginYHI1sficF': 'individual-lite',
+  'price_1TxbBqLCIsxnginYkBwPHgg8': 'individual-progress',
+  'price_1TxbCJLCIsxnginYq2t7tAIs': 'individual-intensive',
+};
+
 function planIdFromStripePriceId(priceId: string | null | undefined): PricingPlanId | null {
   if (!priceId) return null;
   const entry = Object.entries(stripePlanConfig).find(([, config]) => config.priceId === priceId);
-  return entry ? entry[0] as PricingPlanId : null;
+  if (entry) return entry[0] as PricingPlanId;
+  return legacySandboxPriceIds[priceId] ?? null;
 }
 
 function planIdFromMetadataValue(value: unknown): PricingPlanId | null {

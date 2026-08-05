@@ -101,12 +101,12 @@ type StripeSubscriptionListResponse = {
 };
 
 const stripePlanConfig: Record<PlanId, PlanConfig> = {
-  'group-lite': { priceId: 'price_1Txb9HLCIsxnginYf4mX2Uwg', lessonFormat: 'group', lessonsPerMonth: 4, currency: 'czk' },
-  'group-progress': { priceId: 'price_1TxbAFLCIsxnginY7Mlaf63r', lessonFormat: 'group', lessonsPerMonth: 8, currency: 'czk' },
-  'group-intensive': { priceId: 'price_1TxbAnLCIsxnginYE3at3vOH', lessonFormat: 'group', lessonsPerMonth: 12, currency: 'czk' },
-  'individual-lite': { priceId: 'price_1TxbBMLCIsxnginYHI1sficF', lessonFormat: 'individual', lessonsPerMonth: 4, currency: 'czk' },
-  'individual-progress': { priceId: 'price_1TxbBqLCIsxnginYkBwPHgg8', lessonFormat: 'individual', lessonsPerMonth: 8, currency: 'czk' },
-  'individual-intensive': { priceId: 'price_1TxbCJLCIsxnginYq2t7tAIs', lessonFormat: 'individual', lessonsPerMonth: 12, currency: 'czk' },
+  'group-lite': { priceId: 'price_1U0xKHLixIIR8RHzzShRy0jk', lessonFormat: 'group', lessonsPerMonth: 4, currency: 'czk' },
+  'group-progress': { priceId: 'price_1U0xKDLixIIR8RHzQan57liX', lessonFormat: 'group', lessonsPerMonth: 8, currency: 'czk' },
+  'group-intensive': { priceId: 'price_1U0xKGLixIIR8RHzG2Rkqf6B', lessonFormat: 'group', lessonsPerMonth: 12, currency: 'czk' },
+  'individual-lite': { priceId: 'price_1U0xKALixIIR8RHz4FwKr6Br', lessonFormat: 'individual', lessonsPerMonth: 4, currency: 'czk' },
+  'individual-progress': { priceId: 'price_1U0xK6LixIIR8RHzD60ZdG6u', lessonFormat: 'individual', lessonsPerMonth: 8, currency: 'czk' },
+  'individual-intensive': { priceId: 'price_1U0xK6LixIIR8RHzOwTW81bZ', lessonFormat: 'individual', lessonsPerMonth: 12, currency: 'czk' },
 };
 
 function isPlanId(value: unknown): value is PlanId {
