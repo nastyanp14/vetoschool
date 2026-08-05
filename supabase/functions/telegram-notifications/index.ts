@@ -411,9 +411,16 @@ async function cancelLessonReminders(admin: any, studentId: string, lessonRef: s
     .update({ status: 'canceled', canceled_at: new Date().toISOString() })
     .eq('student_id', studentId)
     .eq('status', 'pending')
-    .in('notification_type', ['lesson_reminder_24h', 'lesson_reminder_1h'])
+    .in('notification_type', ['lesson_reminder_24h', 'lesson_reminder_1h', 'lesson_reminder_10m'])
     .eq('payload->>lessonRef', lessonRef);
 }
+
+// 24 часа / 1 час / 10 минут до начала.
+const REMINDER_STEPS = [
+  { suffix: '24h', minutes: 24 * 60 },
+  { suffix: '1h', minutes: 60 },
+  { suffix: '10m', minutes: 10 },
+] as const;
 
 function minutesBefore(iso: string, minutes: number) {
   return new Date(new Date(iso).getTime() - minutes * 60_000).toISOString();
@@ -432,12 +439,12 @@ async function handleContentEvent(admin: any, body: any) {
   if ((type === 'lesson_scheduled' || type === 'lesson_rescheduled') && body.lessonAt) {
     await cancelLessonReminders(admin, studentId, lessonRef);
     for (const parent of parents.filter(parent => parent.notify_lesson_reminders)) {
-      for (const reminder of [{ suffix: '24h', minutes: 24 * 60 }, { suffix: '1h', minutes: 60 }]) {
+      for (const reminder of REMINDER_STEPS) {
         const scheduledFor = minutesBefore(body.lessonAt, reminder.minutes);
         if (new Date(scheduledFor).getTime() <= Date.now()) continue;
         await enqueue(admin, {
           event_key: `${lessonRef}:${parent.id}:reminder:${reminder.suffix}:${body.lessonAt}`,
-          notification_type: reminder.suffix === '24h' ? 'lesson_reminder_24h' : 'lesson_reminder_1h',
+          notification_type: `lesson_reminder_${reminder.suffix}`,
           student_id: studentId,
           parent_id: parent.id,
           scheduled_for: scheduledFor,
@@ -475,6 +482,7 @@ async function handleContentEvent(admin: any, body: any) {
   }
 
   if (type === 'homework_published') {
+    await emailStudentEvent(admin, studentId, type, { studentName: name, title: item.title, url }, { type: 'content', id: String(item.id) });
     for (const parent of parents.filter(parent => parent.notify_homework)) {
       await enqueue(admin, {
         event_key: `content:${item.id}:${parent.id}:homework_published`,
@@ -489,6 +497,7 @@ async function handleContentEvent(admin: any, body: any) {
 
   if (type === 'homework_updated' || type === 'homework_canceled' || type === 'lesson_result_published') {
     const eventId = String(body.eventId || item.updatedAt || item.updated_at || now);
+    await emailStudentEvent(admin, studentId, type, { studentName: name, title: item.title, comment: item.comment || '', url }, { type: 'content', id: `${item.id}:${eventId}` });
     for (const parent of parents.filter(parent => parent.notify_homework)) {
       await enqueue(admin, {
         event_key: `content:${item.id}:${parent.id}:${type}:${eventId}`,
@@ -503,6 +512,7 @@ async function handleContentEvent(admin: any, body: any) {
 
   if (type === 'grade_published') {
     const gradeEventId = String(body.gradeEventId || item.updatedAt || item.updated_at || item.id);
+    await emailStudentEvent(admin, studentId, type, { studentName: name, title: item.title, grade: `${item.starRating}/5`, comment: item.teacherComment || item.comment || '', url }, { type: 'content', id: `${item.id}:${gradeEventId}` });
     for (const parent of parents.filter(parent => parent.notify_grades)) {
       await enqueue(admin, {
         event_key: `content:${item.id}:${parent.id}:grade:${item.starRating}:${gradeEventId}`,
@@ -713,6 +723,25 @@ async function handleScheduleEvent(admin: any, body: any) {
         payload: { studentName: name, topic: slot.topic, slotLabel: slotLabel(slot), lessonRef, url },
       });
     }
+    await emailStudentEvent(admin, studentId, 'lesson_conducted', { studentName: name, topic: slot.topic, slotLabel: slotLabel(slot), summary: body.summary || '', homeworkSummary: body.homeworkSummary || '', url }, { type: 'schedule', id: `${lessonRef}:conducted` });
+    await maybeNotifyLowBalance(admin, studentId);
+    return;
+  }
+
+  if (type === 'lesson_no_show') {
+    await cancelLessonReminders(admin, studentId, lessonRef);
+    const payload = { studentName: name, topic: slot.topic, lessonAt, slotLabel: slotLabel(slot), teacherName: body.teacherName || '', lessonRef, url, contactUrl: `${siteUrl()}/contacts` };
+    for (const parent of parents) {
+      await enqueue(admin, {
+        event_key: `${lessonRef}:${parent.id}:no_show`,
+        notification_type: 'lesson_no_show',
+        student_id: studentId,
+        parent_id: parent.id,
+        scheduled_for: now,
+        payload,
+      });
+    }
+    await emailStudentEvent(admin, studentId, 'lesson_no_show', payload, { type: 'schedule', id: `${lessonRef}:no_show` });
     return;
   }
 
@@ -720,12 +749,12 @@ async function handleScheduleEvent(admin: any, body: any) {
     await cancelLessonReminders(admin, studentId, lessonRef);
     if (lessonAt && type !== 'lesson_canceled') {
       for (const parent of parents.filter(parent => parent.notify_lesson_reminders)) {
-        for (const reminder of [{ suffix: '24h', minutes: 24 * 60 }, { suffix: '1h', minutes: 60 }]) {
+        for (const reminder of REMINDER_STEPS) {
           const scheduledFor = minutesBefore(lessonAt, reminder.minutes);
           if (new Date(scheduledFor).getTime() <= Date.now()) continue;
           await enqueue(admin, {
             event_key: `${lessonRef}:${parent.id}:reminder:${reminder.suffix}:${lessonAt}`,
-            notification_type: reminder.suffix === '24h' ? 'lesson_reminder_24h' : 'lesson_reminder_1h',
+            notification_type: `lesson_reminder_${reminder.suffix}`,
             student_id: studentId,
             parent_id: parent.id,
             scheduled_for: scheduledFor,
@@ -744,7 +773,81 @@ async function handleScheduleEvent(admin: any, body: any) {
         payload: { studentName: name, topic: slot.topic, oldSlotLabel: slotLabel(oldSlot), slotLabel: slotLabel(slot), lessonRef, url },
       });
     }
+    if (type !== 'lesson_scheduled') {
+      const eventId = String(body.eventId || `${slotLabel(oldSlot)}:${slotLabel(slot)}`);
+      await emailStudentEvent(
+        admin,
+        studentId,
+        type === 'lesson_canceled' ? 'lesson_canceled' : 'lesson_rescheduled',
+        { studentName: name, topic: slot.topic, oldSlotLabel: slotLabel(oldSlot), slotLabel: slotLabel(slot), lessonAt, reason: body.reason || '', url },
+        { type: 'schedule', id: `${lessonRef}:${type}:${eventId}` },
+      );
+    }
   }
+}
+
+/* --------------------------------------------------------- биллинг */
+
+const BILLING_EVENTS = ['payment_succeeded', 'payment_failed', 'subscription_cancelled', 'subscription_ended', 'lessons_low_balance'];
+
+async function handleBillingEvent(admin: any, body: any) {
+  const studentId = String(body.studentId || body.userId || '');
+  const type = String(body.type || '');
+  if (!studentId) throw new Error('studentId is required');
+  if (!BILLING_EVENTS.includes(type)) throw new Error('unsupported_billing_event');
+
+  const name = await studentName(admin, studentId);
+  const eventId = String(body.eventId || `${type}:${studentId}:${new Date().toISOString().slice(0, 10)}`);
+  const base = siteUrl();
+  const payload = {
+    studentName: name,
+    planName: body.planName || '',
+    amount: body.amount ?? '',
+    currency: (body.currency || '').toUpperCase(),
+    lessonsAdded: body.lessonsAdded ?? '',
+    lessonsRemaining: body.lessonsRemaining ?? '',
+    nextPaymentDate: body.nextPaymentDate || '',
+    accessUntil: body.accessUntil || '',
+    invoiceNumber: body.invoiceNumber || '',
+    url: base ? `${base}/dashboard` : '',
+    billingUrl: base ? `${base}/dashboard?tab=billing` : '',
+    pricingUrl: base ? `${base}/pricing` : '',
+  };
+  const now = new Date().toISOString();
+
+  for (const parent of await parentsFor(admin, studentId)) {
+    await enqueue(admin, {
+      event_key: `billing:${eventId}:${parent.id}:${type}`,
+      notification_type: type,
+      student_id: studentId,
+      parent_id: parent.id,
+      scheduled_for: now,
+      payload,
+    });
+  }
+  await emailStudentEvent(admin, studentId, type, payload, { type: 'billing', id: eventId });
+
+  if (type === 'payment_succeeded') return;
+  if (type !== 'lessons_low_balance') await maybeNotifyLowBalance(admin, studentId);
+}
+
+/** Одно напоминание об остатке на каждое значение баланса — без спама. */
+async function maybeNotifyLowBalance(admin: any, studentId: string) {
+  const { data } = await admin
+    .from('profiles')
+    .select('lessons_remaining,next_payment_date,plan_id')
+    .eq('id', studentId)
+    .maybeSingle();
+  const remaining = Number(data?.lessons_remaining);
+  if (!Number.isFinite(remaining) || remaining < 0 || remaining > 2) return;
+  await handleBillingEvent(admin, {
+    studentId,
+    type: 'lessons_low_balance',
+    eventId: `low_balance:${studentId}:${remaining}`,
+    lessonsRemaining: remaining,
+    nextPaymentDate: data?.next_payment_date || '',
+    planName: data?.plan_id || '',
+  });
 }
 
 async function handleTrialEvent(admin: any, body: any) {
