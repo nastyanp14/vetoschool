@@ -159,6 +159,8 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
           <ThemeToggle />
           <button
             className="p-2 rounded-xl glass"
+            aria-label="Toggle menu"
+            aria-expanded={menuOpen}
             onClick={() => setMenuOpen(!menuOpen)}
           >
           <div className={`w-5 h-0.5 bg-purple-400 mb-1 transition-all duration-300 ${menuOpen ? 'rotate-45 translate-y-1.5' : ''}`} />
