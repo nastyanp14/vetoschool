@@ -1400,7 +1400,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
     setSlotDeleteSaving(true);
     setSlots(p => p.filter(s => s.id !== slotDeleteTarget.id));
     try {
-      await deleteScheduleSlot(slotDeleteTarget.id, selectedUser?.id);
+      await deleteScheduleSlot(slotDeleteTarget.id, schedUserId);
       if (schedUserId) {
         const fresh = await loadStudentSchedule(schedUserId);
         setSlots(fresh);
