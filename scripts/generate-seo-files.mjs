@@ -8,16 +8,32 @@ const rootDir = path.resolve(__dirname, '..');
 const siteUrl = (process.env.SITE_URL || 'https://vetoschool.eu').replace(/\/$/, '');
 const outDir = path.resolve(rootDir, process.env.SEO_OUT_DIR || 'dist');
 const publicDir = path.resolve(rootDir, 'public');
-const today = new Date();
-const localToday = new Date(today.getTime() - today.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
-const lastmod = process.env.SITEMAP_LASTMOD || localToday;
 
+// Only real, public, indexable routes (see src/pages/Index.tsx).
 const publicRoutes = [
-  {
-    path: '/',
-    changefreq: 'weekly',
-    priority: '1.0',
-  },
+  { path: '/', changefreq: 'weekly', priority: '1.0' },
+  { path: '/pricing', changefreq: 'weekly', priority: '0.9' },
+  { path: '/trial-booking', changefreq: 'weekly', priority: '0.9' },
+  { path: '/privacy-policy', changefreq: 'yearly', priority: '0.3' },
+  { path: '/cookie-policy', changefreq: 'yearly', priority: '0.3' },
+];
+
+// Private / non-indexable areas kept out of search results.
+const disallowedPaths = [
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/auth/',
+  '/account/',
+  '/dashboard',
+  '/admin',
+  '/teacher',
+  '/analytics/',
+  '/checkout/',
+  '/payment/',
+  '/pending-activation',
+  '/api/',
 ];
 
 function routeUrl(routePath) {
@@ -38,7 +54,6 @@ const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 ${publicRoutes
   .map(route => `  <url>
     <loc>${escapeXml(routeUrl(route.path))}</loc>
-    <lastmod>${lastmod}</lastmod>
     <changefreq>${route.changefreq}</changefreq>
     <priority>${route.priority}</priority>
   </url>`)
@@ -48,6 +63,8 @@ ${publicRoutes
 
 const robots = `User-agent: *
 Allow: /
+${disallowedPaths.map(p => `Disallow: ${p}`).join('\n')}
+
 Sitemap: ${siteUrl}/sitemap.xml
 `;
 

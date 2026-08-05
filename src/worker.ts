@@ -115,9 +115,26 @@ export default {
       return handleStripeWebhook(request, env);
     }
 
+    if (pathname === '/sitemap.xml' || pathname === '/robots.txt') {
+      const assetUrl = new URL(request.url);
+      assetUrl.search = '';
+      const assetResponse = await env.ASSETS.fetch(new Request(assetUrl, request));
+      const headers = new Headers(assetResponse.headers);
+      headers.set(
+        'content-type',
+        pathname === '/sitemap.xml' ? 'application/xml; charset=UTF-8' : 'text/plain; charset=UTF-8',
+      );
+      return new Response(assetResponse.body, {
+        status: assetResponse.status,
+        statusText: assetResponse.statusText,
+        headers,
+      });
+    }
+
     if (looksLikeStaticAsset(pathname)) {
       return env.ASSETS.fetch(request);
     }
+
 
     if (isValidSpaRoute(pathname)) {
       return serveIndex(request, env);

@@ -1,3 +1,18 @@
 User-agent: *
 Allow: /
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /auth/
+Disallow: /account/
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /teacher
+Disallow: /analytics/
+Disallow: /checkout/
+Disallow: /payment/
+Disallow: /pending-activation
+Disallow: /api/
+
 Sitemap: https://vetoschool.eu/sitemap.xml
