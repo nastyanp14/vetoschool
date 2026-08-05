@@ -1230,6 +1230,87 @@ export type Database = {
           },
         ]
       }
+      notification_log: {
+        Row: {
+          attempts: number
+          body_preview: string | null
+          channel: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          error_message: string | null
+          event_type: string
+          event_version: number
+          failed_at: string | null
+          id: string
+          idempotency_key: string
+          language: string
+          payload: Json
+          provider_message_id: string | null
+          recipient_email: string | null
+          recipient_id: string | null
+          recipient_role: string
+          sent_at: string | null
+          status: string
+          student_id: string | null
+          subject: string | null
+          telegram_chat_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          body_preview?: string | null
+          channel: string
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          error_message?: string | null
+          event_type: string
+          event_version?: number
+          failed_at?: string | null
+          id?: string
+          idempotency_key: string
+          language?: string
+          payload?: Json
+          provider_message_id?: string | null
+          recipient_email?: string | null
+          recipient_id?: string | null
+          recipient_role?: string
+          sent_at?: string | null
+          status?: string
+          student_id?: string | null
+          subject?: string | null
+          telegram_chat_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          body_preview?: string | null
+          channel?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          error_message?: string | null
+          event_type?: string
+          event_version?: number
+          failed_at?: string | null
+          id?: string
+          idempotency_key?: string
+          language?: string
+          payload?: Json
+          provider_message_id?: string | null
+          recipient_email?: string | null
+          recipient_id?: string | null
+          recipient_role?: string
+          sent_at?: string | null
+          status?: string
+          student_id?: string | null
+          subject?: string | null
+          telegram_chat_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           access_status: Database["public"]["Enums"]["access_status"]

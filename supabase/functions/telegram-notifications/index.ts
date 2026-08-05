@@ -85,140 +85,197 @@ export function naiveLocalToIso(value?: string | null) {
   return new Date(ts).toISOString();
 }
 
-function dateTimeLabel(value?: string | null, lang: Lang = 'ru') {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
-  return date.toLocaleString(locale, { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: APP_TZ });
-}
+// Все тексты живут в едином реестре шаблонов.
+import {
+  formatDate,
+  formatTime,
+  formatWhen,
+  idempotencyKey,
+  renderNotification,
+  scoreNote,
+  type NotificationEvent,
+  type NotifyLang,
+} from '../_shared/notificationTemplates.ts';
 
+/** Старые типы очереди -> события реестра. */
+const EVENT_ALIASES: Record<string, NotificationEvent> = {
+  lesson_reminder_24h: 'lesson_reminder_24h',
+  lesson_reminder_1h: 'lesson_reminder_1h',
+  lesson_reminder_10m: 'lesson_reminder_10m',
+  lesson_conducted: 'lesson_completed',
+  lesson_completed: 'lesson_completed',
+  lesson_scheduled: 'lesson_scheduled',
+  lesson_rescheduled: 'lesson_rescheduled',
+  lesson_canceled: 'lesson_cancelled',
+  lesson_cancelled: 'lesson_cancelled',
+  lesson_no_show: 'lesson_no_show',
+  homework_published: 'homework_assigned',
+  homework_assigned: 'homework_assigned',
+  homework_updated: 'homework_updated',
+  homework_canceled: 'homework_cancelled',
+  homework_cancelled: 'homework_cancelled',
+  homework_submitted: 'homework_submitted',
+  lesson_result_published: 'lesson_result_published',
+  grade_published: 'grade_published',
+  grade_updated: 'grade_updated',
+  trial_confirmed: 'trial_request_confirmed',
+  trial_request_confirmed: 'trial_request_confirmed',
+  trial_rescheduled: 'trial_request_rescheduled',
+  trial_request_rescheduled: 'trial_request_rescheduled',
+  trial_canceled: 'trial_request_cancelled',
+  trial_request_cancelled: 'trial_request_cancelled',
+  trial_reminder_24h: 'trial_reminder_24h',
+  trial_reminder_1h: 'trial_reminder_1h',
+  trial_reminder_10m: 'trial_reminder_10m',
+  payment_succeeded: 'payment_succeeded',
+  payment_failed: 'payment_failed',
+  subscription_cancelled: 'subscription_cancelled',
+  subscription_ended: 'subscription_ended',
+  lessons_low_balance: 'lessons_low_balance',
+  weekly_progress_summary: 'weekly_progress_summary',
+};
 
-function t(lang: Lang, key: string, p: Record<string, string | number | undefined> = {}) {
-  const dict: Record<Lang, Record<string, string>> = {
-    ru: {
-      reminder24: 'Напоминание: завтра у {child} урок английского языка в {time}.',
-      reminder1: 'Сегодня в {time} у {child} урок английского языка. До начала остался 1 час.',
-      conducted: 'Сегодня {child} прошёл урок английского языка. Домашнее задание и материалы можно посмотреть в личном кабинете.',
-      homework: 'Новое домашнее задание для {child}: {title}.',
-      homeworkUpdated: 'Домашнее задание для {child} обновлено: {title}.',
-      homeworkCanceled: 'Домашнее задание для {child} отменено: {title}.',
-      lessonResult: 'Опубликован результат урока для {child}: {title}.',
-      grade: '{child} получил новую оценку: {grade} за {title}.',
-      comment: 'Комментарий преподавателя: {comment}',
-      rescheduled: 'Урок английского языка у {child} перенесён. Было: {oldTime}. Новое время: {newTime}.',
-      canceled: 'Урок английского языка у {child} отменён: {oldTime}.',
-      scheduledChanged: 'Расписание урока английского языка у {child} обновлено: {newTime}.',
-      dashboard: 'Открыть кабинет',
-      homeworkButton: 'Посмотреть задание',
-      gradeButton: 'Посмотреть результат',
-      trialConfirmed: 'Пробный урок для {child} подтверждён: {newTime}.',
-      trialRescheduled: 'Пробный урок для {child} перенесён. Было: {oldTime}. Новое время: {newTime}.',
-      trialCanceled: 'Пробный урок для {child} отменён.',
-    },
-    ua: {
-      reminder24: 'Нагадування: завтра у {child} урок англійської мови о {time}.',
-      reminder1: 'Сьогодні о {time} у {child} урок англійської мови. До початку залишилась 1 година.',
-      conducted: 'Сьогодні {child} пройшов урок англійської мови. Домашнє завдання та матеріали можна переглянути в особистому кабінеті.',
-      homework: 'Нове домашнє завдання для {child}: {title}.',
-      homeworkUpdated: 'Домашнє завдання для {child} оновлено: {title}.',
-      homeworkCanceled: 'Домашнє завдання для {child} скасовано: {title}.',
-      lessonResult: 'Опубліковано результат уроку для {child}: {title}.',
-      grade: '{child} отримав нову оцінку: {grade} за {title}.',
-      comment: 'Коментар викладача: {comment}',
-      rescheduled: 'Урок англійської мови у {child} перенесено. Було: {oldTime}. Новий час: {newTime}.',
-      canceled: 'Урок англійської мови у {child} скасовано: {oldTime}.',
-      scheduledChanged: 'Розклад уроку англійської мови у {child} оновлено: {newTime}.',
-      dashboard: 'Відкрити кабінет',
-      homeworkButton: 'Переглянути завдання',
-      gradeButton: 'Переглянути результат',
-      trialConfirmed: 'Пробний урок для {child} підтверджено: {newTime}.',
-      trialRescheduled: 'Пробний урок для {child} перенесено. Було: {oldTime}. Новий час: {newTime}.',
-      trialCanceled: 'Пробний урок для {child} скасовано.',
-    },
-    en: {
-      reminder24: 'Reminder: {child} has an English lesson tomorrow at {time}.',
-      reminder1: 'Today at {time}, {child} has an English lesson. It starts in 1 hour.',
-      conducted: 'Today {child} completed an English lesson. Homework and materials are available in the student dashboard.',
-      homework: 'New homework for {child}: {title}.',
-      homeworkUpdated: 'Homework for {child} was updated: {title}.',
-      homeworkCanceled: 'Homework for {child} was canceled: {title}.',
-      lessonResult: 'A lesson result was published for {child}: {title}.',
-      grade: '{child} received a new grade: {grade} for {title}.',
-      comment: 'Teacher comment: {comment}',
-      rescheduled: '{child}’s English lesson was rescheduled. Old time: {oldTime}. New time: {newTime}.',
-      canceled: '{child}’s English lesson was canceled: {oldTime}.',
-      scheduledChanged: '{child}’s English lesson schedule was updated: {newTime}.',
-      dashboard: 'Open dashboard',
-      homeworkButton: 'View homework',
-      gradeButton: 'View result',
-      trialConfirmed: 'The trial lesson for {child} is confirmed: {newTime}.',
-      trialRescheduled: 'The trial lesson for {child} was rescheduled. Old time: {oldTime}. New time: {newTime}.',
-      trialCanceled: 'The trial lesson for {child} was canceled.',
-    },
+export function templateVars(payload: any, lang: NotifyLang, now = new Date()) {
+  const lessonAt = payload.lessonAt || payload.newLessonAt || null;
+  const oldAt = payload.oldLessonAt || payload.oldTime || null;
+  const [scoreRaw, maxRaw] = String(payload.grade || '').split('/');
+  const score = Number(scoreRaw);
+  const maxScore = Number(maxRaw) || 5;
+  const url = payload.url || '';
+  return {
+    student_name: payload.studentName || payload.childName || '',
+    child_name: payload.childName || payload.studentName || '',
+    parent_name: payload.parentName || '',
+    teacher_name: payload.teacherName || '',
+    lesson_topic: payload.topic || payload.title || '',
+    lesson_title: payload.title || payload.topic || '',
+    homework_title: payload.title || '',
+    content_title: payload.title || '',
+    due_date: payload.dueDate ? formatDate(payload.dueDate, lang) : '',
+    lesson_when: lessonAt ? formatWhen(lessonAt, lang, now) : payload.slotLabel || '',
+    lesson_date: lessonAt ? formatDate(lessonAt, lang) : payload.slotLabel || '',
+    lesson_time: lessonAt ? formatTime(lessonAt, lang) : '',
+    old_date: oldAt ? formatDate(oldAt, lang) : payload.oldSlotLabel || '',
+    old_time: oldAt ? formatTime(oldAt, lang) : '',
+    new_date: lessonAt ? formatDate(lessonAt, lang) : payload.slotLabel || '',
+    new_time: lessonAt ? formatTime(lessonAt, lang) : '',
+    cancellation_reason: payload.reason || payload.cancellationReason || '',
+    score: Number.isFinite(score) ? score : '',
+    max_score: maxScore,
+    score_note: Number.isFinite(score) ? scoreNote(score, maxScore, lang) : '',
+    teacher_comment: payload.comment || payload.teacherComment || '',
+    lesson_summary: payload.summary || '',
+    homework_summary: payload.homeworkSummary || '',
+    plan_name: payload.planName || '',
+    amount: payload.amount ?? '',
+    currency: payload.currency || '',
+    lessons_added: payload.lessonsAdded ?? '',
+    lessons_remaining: payload.lessonsRemaining ?? '',
+    next_payment_date: payload.nextPaymentDate ? formatDate(payload.nextPaymentDate, lang) : '',
+    access_until: payload.accessUntil ? formatDate(payload.accessUntil, lang) : '',
+    // контекстные ссылки: без валидного https кнопка просто не показывается
+    schedule_url: url, lesson_url: payload.lessonUrl || url, homework_url: url, result_url: url,
+    request_url: payload.requestUrl || url, billing_url: payload.billingUrl || url,
+    dashboard_url: url, progress_url: url, contact_url: payload.contactUrl || url,
+    reschedule_url: payload.rescheduleUrl || url, pricing_url: payload.pricingUrl || url,
+    student_url: payload.studentUrl || url, recommendation_url: payload.recommendationUrl || url,
+    settings_url: payload.settingsUrl || url,
   };
-  return (dict[lang]?.[key] || dict.ru[key] || key).replace(/\{(\w+)\}/g, (_, name) => String(p[name] ?? ''));
 }
 
-function button(label: string, url: string) {
-  return url ? [{ text: label, url }] : [];
-}
-
-function notificationMessage(parent: ParentRow, notification: any) {
-  const lang = parent.language || 'ru';
+export function notificationMessage(parent: ParentRow, notification: any) {
+  const lang = (parent.language || 'ru') as NotifyLang;
   const payload = notification.payload || {};
-  const child = payload.studentName || payload.childName || 'ученик';
-  const title = payload.title || payload.topic || 'задание';
-  const lessonAt = payload.lessonAt || payload.newLessonAt;
-  const time = dateTimeLabel(lessonAt, lang);
-  const oldTime = dateTimeLabel(payload.oldLessonAt || payload.oldTime, lang) || payload.oldSlotLabel || '';
-  const newTime = dateTimeLabel(payload.newLessonAt || payload.lessonAt, lang) || payload.slotLabel || '';
-  const url = payload.url || dashboardUrl(notification.student_id);
-  let text = '';
-  let buttons = button(t(lang, 'dashboard'), url);
-
-  if (notification.notification_type === 'lesson_reminder_24h') text = t(lang, 'reminder24', { child, time });
-  if (notification.notification_type === 'lesson_reminder_1h') text = t(lang, 'reminder1', { child, time });
-  if (notification.notification_type === 'lesson_conducted') text = t(lang, 'conducted', { child });
-  if (notification.notification_type === 'homework_published') {
-    text = t(lang, 'homework', { child, title });
-    buttons = button(t(lang, 'homeworkButton'), url);
+  const event = EVENT_ALIASES[notification.notification_type] || (notification.notification_type as NotificationEvent);
+  const rendered = renderNotification(event, 'parent', lang, templateVars(payload, lang));
+  if (!rendered) {
+    return { text: payload.title || notification.notification_type, buttons: [] as any[] };
   }
-  if (notification.notification_type === 'homework_updated') text = t(lang, 'homeworkUpdated', { child, title });
-  if (notification.notification_type === 'homework_canceled') text = t(lang, 'homeworkCanceled', { child, title });
-  if (notification.notification_type === 'lesson_result_published') text = t(lang, 'lessonResult', { child, title });
-  if (notification.notification_type === 'grade_published') {
-    text = t(lang, 'grade', { child, grade: payload.grade, title });
-    if (payload.comment) text += `\n\n${t(lang, 'comment', { comment: payload.comment })}`;
-    buttons = button(t(lang, 'gradeButton'), url);
-  }
-  if (notification.notification_type === 'lesson_rescheduled') {
-    text = oldTime ? t(lang, 'rescheduled', { child, oldTime, newTime }) : t(lang, 'scheduledChanged', { child, newTime });
-  }
-  if (notification.notification_type === 'lesson_canceled') text = t(lang, 'canceled', { child, oldTime: oldTime || payload.slotLabel || '' });
-  if (notification.notification_type === 'trial_confirmed') text = t(lang, 'trialConfirmed', { child, newTime });
-  if (notification.notification_type === 'trial_rescheduled') text = t(lang, 'trialRescheduled', { child, oldTime, newTime });
-  if (notification.notification_type === 'trial_canceled') text = t(lang, 'trialCanceled', { child });
-
-  return { text: text || title, buttons };
+  return {
+    text: rendered.text,
+    buttons: rendered.buttons.map(entry => ({ text: entry.label, url: entry.url })),
+    subject: rendered.subject,
+    event,
+  };
 }
+
 
 async function sendDirectTelegram(chatId: string, text: string, buttons: any[]) {
   const token = Deno.env.get('TELEGRAM_BOT_TOKEN');
-  if (!token) return false;
+  if (!token) return null;
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: chatId,
       text,
-      reply_markup: buttons.length ? { inline_keyboard: [buttons] } : undefined,
+      parse_mode: 'HTML',
+      // Каждая кнопка отдельной строкой — так действия читаются лучше.
+      reply_markup: buttons.length ? { inline_keyboard: buttons.map(button => [button]) } : undefined,
       disable_web_page_preview: true,
     }),
   });
-  if (!response.ok) throw new Error(await response.text());
-  return true;
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.ok === false) throw new Error(JSON.stringify(data));
+  return String(data?.result?.message_id ?? '') || null;
 }
+
+/**
+ * Журнал отправок. Уникальный idempotency_key не даёт отправить то же самое
+ * событие тому же получателю дважды: повторная отправка администратором
+ * должна поднимать event_version.
+ */
+async function logNotification(admin: any, entry: {
+  eventType: string;
+  eventVersion?: number;
+  entityType: string;
+  entityId: string;
+  recipientRole?: string;
+  recipientId?: string | null;
+  recipientEmail?: string | null;
+  telegramChatId?: string | null;
+  studentId?: string | null;
+  channel: 'telegram' | 'email';
+  language: string;
+  status: 'pending' | 'sent' | 'failed' | 'skipped';
+  providerMessageId?: string | null;
+  subject?: string | null;
+  bodyPreview?: string | null;
+  errorMessage?: string | null;
+}) {
+  const key = idempotencyKey({
+    eventType: entry.eventType,
+    entityId: entry.entityId,
+    recipientId: entry.recipientId || entry.telegramChatId || entry.recipientEmail || 'unknown',
+    channel: entry.channel,
+    eventVersion: entry.eventVersion ?? 1,
+  });
+  const now = new Date().toISOString();
+  const { error } = await admin.from('notification_log').upsert({
+    event_type: entry.eventType,
+    event_version: entry.eventVersion ?? 1,
+    entity_type: entry.entityType,
+    entity_id: entry.entityId,
+    recipient_role: entry.recipientRole || 'parent',
+    recipient_id: entry.recipientId || null,
+    recipient_email: entry.recipientEmail || null,
+    telegram_chat_id: entry.telegramChatId || null,
+    student_id: entry.studentId || null,
+    channel: entry.channel,
+    language: entry.language,
+    status: entry.status,
+    provider_message_id: entry.providerMessageId || null,
+    subject: entry.subject || null,
+    body_preview: entry.bodyPreview ? entry.bodyPreview.slice(0, 500) : null,
+    error_message: entry.errorMessage || null,
+    idempotency_key: key,
+    sent_at: entry.status === 'sent' ? now : null,
+    failed_at: entry.status === 'failed' ? now : null,
+  }, { onConflict: 'idempotency_key', ignoreDuplicates: true });
+  if (error) console.error('notification_log write failed', error.message);
+  return key;
+}
+
 
 let cachedBotUsername: string | null = null;
 async function telegramBotUsername() {
@@ -243,7 +300,7 @@ async function telegramBotUsername() {
 async function sendToParent(parent: ParentRow, text: string, buttons: any[]) {
   if (!Deno.env.get('TELEGRAM_BOT_TOKEN')) throw new Error('TELEGRAM_BOT_TOKEN is not configured');
   if (!parent.telegram_chat_id) throw new Error('Parent is not connected to the Telegram bot');
-  await sendDirectTelegram(parent.telegram_chat_id, text, buttons);
+  return await sendDirectTelegram(parent.telegram_chat_id, text, buttons);
 }
 
 async function currentUser(req: Request, anonKey: string) {
@@ -613,8 +670,23 @@ async function processDue(admin: any, limit = 25) {
     }
     try {
       const message = notificationMessage(parent, notification);
-      await sendToParent(parent, message.text, message.buttons);
+      const providerMessageId = await sendToParent(parent, message.text, message.buttons);
       await admin.from('telegram_notifications').update({ status: 'sent', sent_at: new Date().toISOString(), error: null }).eq('id', notification.id);
+      await logNotification(admin, {
+        eventType: (message as any).event || notification.notification_type,
+        entityType: notification.trial_booking_id ? 'trial_booking' : 'notification',
+        entityId: String(notification.trial_booking_id || notification.event_key || notification.id),
+        recipientRole: 'parent',
+        recipientId: parent.id,
+        telegramChatId: parent.telegram_chat_id,
+        studentId: notification.student_id,
+        channel: 'telegram',
+        language: parent.language || 'ru',
+        status: 'sent',
+        providerMessageId,
+        subject: (message as any).subject || null,
+        bodyPreview: message.text,
+      });
       sent++;
     } catch (error) {
       const attempts = Number(notification.attempts || 0) + 1;
