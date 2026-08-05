@@ -1,79 +1,44 @@
 /// <reference types="npm:@types/react@18.3.1" />
 
 import * as React from 'npm:react@18.3.1'
+import { Button, Text } from 'npm:@react-email/components@0.0.22'
 
-import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Heading,
-  Html,
-  Link,
-  Preview,
-  Text,
-} from 'npm:@react-email/components@0.0.22'
+import { EmailLayout, Lang, pickLang, securityNote, styles, tr, SITE_URL } from './brand.tsx'
 
 interface InviteEmailProps {
-  siteName: string
-  siteUrl: string
-  confirmationUrl: string
+  siteName?: string
+  siteUrl?: string
+  confirmationUrl?: string
+  lang?: string
 }
 
-export const InviteEmail = ({
-  siteName,
-  siteUrl,
-  confirmationUrl,
-}: InviteEmailProps) => (
-  <Html lang="en" dir="ltr">
-    <Head />
-    <Preview>You've been invited to join {siteName}</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Heading style={h1}>You've been invited</Heading>
-        <Text style={text}>
-          You've been invited to join{' '}
-          <Link href={siteUrl} style={link}>
-            <strong>{siteName}</strong>
-          </Link>
-          . Click the button below to accept the invitation and create your
-          account.
-        </Text>
-        <Button style={button} href={confirmationUrl}>
-          Accept Invitation
-        </Button>
-        <Text style={footer}>
-          If you weren't expecting this invitation, you can safely ignore this
-          email.
-        </Text>
-      </Container>
-    </Body>
-  </Html>
-)
+const copy = {
+  preview: {
+    ru: 'Приглашение в Vetoschool',
+    ua: 'Запрошення до Vetoschool',
+    en: 'Your invitation to Vetoschool',
+  },
+  title: { ru: 'Вас пригласили', ua: 'Вас запросили', en: "You've been invited" },
+  intro: {
+    ru: 'Вас пригласили в Vetoschool. Нажмите кнопку ниже, чтобы создать аккаунт.',
+    ua: 'Вас запросили до Vetoschool. Натисніть кнопку нижче, щоб створити акаунт.',
+    en: "You've been invited to Vetoschool. Use the button below to create your account.",
+  },
+  cta: { ru: 'Принять приглашение', ua: 'Прийняти запрошення', en: 'Accept invitation' },
+}
+
+export const InviteEmail = ({ confirmationUrl, lang }: InviteEmailProps) => {
+  const l: Lang = pickLang(lang)
+  return (
+    <EmailLayout lang={l} preview={tr(copy.preview, l)}>
+      <Text style={styles.h1}>{tr(copy.title, l)}</Text>
+      <Text style={styles.text}>{tr(copy.intro, l)}</Text>
+      <Button style={styles.button} href={confirmationUrl || SITE_URL}>
+        {tr(copy.cta, l)}
+      </Button>
+      <Text style={styles.note}>{tr(securityNote, l)}</Text>
+    </EmailLayout>
+  )
+}
 
 export default InviteEmail
-
-const main = { backgroundColor: '#ffffff', fontFamily: 'Arial, sans-serif' }
-const container = { padding: '20px 25px' }
-const h1 = {
-  fontSize: '22px',
-  fontWeight: 'bold' as const,
-  color: '#000000',
-  margin: '0 0 20px',
-}
-const text = {
-  fontSize: '14px',
-  color: '#55575d',
-  lineHeight: '1.5',
-  margin: '0 0 25px',
-}
-const link = { color: 'inherit', textDecoration: 'underline' }
-const button = {
-  backgroundColor: '#000000',
-  color: '#ffffff',
-  fontSize: '14px',
-  borderRadius: '8px',
-  padding: '12px 20px',
-  textDecoration: 'none',
-}
-const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
