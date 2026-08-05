@@ -541,6 +541,20 @@ function logStripeWebhookSupabaseDebug(details: {
   });
 }
 
+// PostgREST maps plpgsql RAISE (and trigger errors) to HTTP 400 with the real
+// reason in the JSON body. Surface it instead of a bare status code.
+async function readSupabaseRpcFailure(response: Response): Promise<{ code: string | null; detail: string }> {
+  const raw = await response.clone().text().catch(() => '');
+  try {
+    const payload = JSON.parse(raw) as { code?: string; message?: string; details?: string; hint?: string };
+    const detail = [payload.code, payload.message, payload.details, payload.hint].filter(Boolean).join(' | ');
+    return { code: payload.code || payload.message || null, detail: detail || raw.slice(0, 500) };
+  } catch {
+    return { code: null, detail: raw.slice(0, 500) };
+  }
+}
+
+
 function reserveLocalStripeWebhookEvent(event: StripeWebhookLogEvent): StripeWebhookLogReservation {
   const existingStatus = localStripeWebhookEvents.get(event.id);
   if (existingStatus === 'processed' || existingStatus === 'processing') {
