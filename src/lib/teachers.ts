@@ -85,6 +85,7 @@ export interface StudentGroup {
   lessonDurationMinutes?: number | null;
   weeklyFrequency?: number | null;
   startDate?: string | null;
+  lessonUrl?: string | null;
 }
 
 export interface StudentGroupInput {
@@ -440,6 +441,7 @@ function rowToStudentGroup(group: any, studentIds: string[] = []): StudentGroup 
     lessonDurationMinutes: group.lesson_duration_minutes ?? null,
     weeklyFrequency: group.weekly_frequency ?? null,
     startDate: group.start_date ?? null,
+    lessonUrl: group.lesson_url ?? null,
   };
 }
 
@@ -932,6 +934,20 @@ export async function createStudentGroupForAdmin(input: StudentGroupInput): Prom
 
   await setStudentGroupMembers(result.data.id, input.studentIds || []);
   return rowToStudentGroup(result.data, input.studentIds || []);
+}
+
+/** Постоянная ссылка на урок группы; пустая строка очищает её. */
+export async function setStudentGroupLessonUrl(groupId: string, lessonUrl: string): Promise<string | null> {
+  const value = lessonUrl.trim();
+  if (value && !/^https:\/\/([^\s]+\.)+[^\s]+/i.test(value)) {
+    throw new Error('Lesson link must be a valid https:// URL.');
+  }
+  const { error } = await (supabase as any)
+    .from('student_groups')
+    .update({ lesson_url: value || null })
+    .eq('id', groupId);
+  if (error) throw error;
+  return value || null;
 }
 
 export async function deleteStudentGroupForAdmin(groupId: string) {
