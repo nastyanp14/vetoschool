@@ -2552,7 +2552,8 @@ export type Database = {
           sent_at: string | null
           skipped_reason: string | null
           status: string
-          student_id: string
+          student_id: string | null
+          trial_booking_id: string | null
           updated_at: string
         }
         Insert: {
@@ -2573,7 +2574,8 @@ export type Database = {
           sent_at?: string | null
           skipped_reason?: string | null
           status?: string
-          student_id: string
+          student_id?: string | null
+          trial_booking_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -2594,7 +2596,8 @@ export type Database = {
           sent_at?: string | null
           skipped_reason?: string | null
           status?: string
-          student_id?: string
+          student_id?: string | null
+          trial_booking_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2610,6 +2613,13 @@ export type Database = {
             columns: ["student_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "telegram_notifications_trial_booking_id_fkey"
+            columns: ["trial_booking_id"]
+            isOneToOne: false
+            referencedRelation: "trial_bookings"
             referencedColumns: ["id"]
           },
         ]
