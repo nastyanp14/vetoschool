@@ -53,7 +53,7 @@ export default function Register({ lang }: { lang: Lang }) {
     }
 
     setLoading(true);
-    const result = await register(name, email, password);
+    const result = await register(name, email, password, lang);
     setLoading(false);
 
     if (result.success) {
