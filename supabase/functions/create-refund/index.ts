@@ -402,6 +402,23 @@ async function resolveStripeRefundPaymentSource(payment: VetoschoolStripePayment
     charge = firstChargeFromPaymentIntent(paymentIntent) || charge;
   }
 
+  // Sandbox subscription invoices frequently expose only a charge id (or only a
+  // payment intent). Retrieve the charge itself so amount/currency/refunded are
+  // real values instead of falling back to the stored invoice total.
+  if (charge?.id && !charge.amount) {
+    charge = await stripeApiGet<StripeCharge>(`/charges/${encodeURIComponent(charge.id)}`, env, STRIPE_LEGACY_API_VERSION)
+      .catch(() => charge);
+  }
+
+  if (!charge?.amount && paymentIntentId) {
+    const list = await stripeApiGet<{ data?: StripeCharge[] }>(
+      `/charges?payment_intent=${encodeURIComponent(paymentIntentId)}&limit=1`,
+      env,
+      STRIPE_LEGACY_API_VERSION,
+    ).catch(() => ({ data: [] as StripeCharge[] }));
+    charge = list.data?.[0] || charge;
+  }
+
   const chargeId = charge?.id || payment.stripe_charge_id || '';
   if (!paymentIntentId && charge?.payment_intent) paymentIntentId = charge.payment_intent;
   if (!paymentIntentId && !chargeId) throw new Error('stripe_refund_payment_source_not_found');
