@@ -42,10 +42,21 @@ const stripePlanConfig: Record<PricingPlanId, {
   'individual-intensive': { priceId: STRIPE_PRICE_INDIVIDUAL_INTENSIVE, lessonFormat: 'individual', lessonsTotal: 12 },
 };
 
+// Sandbox price ids kept only so historical (test-mode) rows still resolve to a plan.
+const legacySandboxPriceIds: Record<string, PricingPlanId> = {
+  'price_1Txb9HLCIsxnginYf4mX2Uwg': 'group-lite',
+  'price_1TxbAFLCIsxnginY7Mlaf63r': 'group-progress',
+  'price_1TxbAnLCIsxnginYE3at3vOH': 'group-intensive',
+  'price_1TxbBMLCIsxnginYHI1sficF': 'individual-lite',
+  'price_1TxbBqLCIsxnginYkBwPHgg8': 'individual-progress',
+  'price_1TxbCJLCIsxnginYq2t7tAIs': 'individual-intensive',
+};
+
 function planIdFromStripePriceId(priceId: string | null | undefined): PricingPlanId | null {
   if (!priceId) return null;
   const entry = Object.entries(stripePlanConfig).find(([, config]) => config.priceId === priceId);
-  return entry ? entry[0] as PricingPlanId : null;
+  if (entry) return entry[0] as PricingPlanId;
+  return legacySandboxPriceIds[priceId] ?? null;
 }
 
 function planIdFromMetadataValue(value: unknown): PricingPlanId | null {
