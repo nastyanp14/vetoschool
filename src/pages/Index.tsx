@@ -78,14 +78,15 @@ export default function Index() {
         <Route path="/" element={<><Seo {...seo.home} schema={homeSchoolSchema} /><Navbar lang={lang} setLang={setLang} /><Home lang={lang} /></>} />
         <Route path="/login" element={<><Seo {...seo.login} /><Login lang={lang} /></>} />
         <Route path="/register" element={<><Seo {...seo.register} /><Register lang={lang} /></>} />
-        <Route path="/auth/check-email" element={<><Seo title="Check Email | Vetoschool" description="Confirm your Vetoschool email address." path="/auth/check-email" noindex /><CheckEmail lang={lang} /></>} />
-        <Route path="/auth/callback" element={<><Seo title="Auth Callback | Vetoschool" description="Vetoschool authentication callback." path="/auth/callback" noindex /><AuthCallback lang={lang} /></>} />
-        <Route path="/auth/confirmed" element={<><Seo title="Email Confirmed | Vetoschool" description="Vetoschool email confirmation success." path="/auth/confirmed" noindex /><EmailConfirmed lang={lang} /></>} />
-        <Route path="/auth/link-expired" element={<><Seo title="Auth Link Expired | Vetoschool" description="Vetoschool authentication link expired." path="/auth/link-expired" noindex /><AuthLinkExpired lang={lang} /></>} />
-        <Route path="/forgot-password" element={<><Seo title="Forgot Password | Vetoschool" description="Recover your Vetoschool password." path="/forgot-password" noindex /><ForgotPassword lang={lang} /></>} />
-        <Route path="/reset-password" element={<><Seo title="Reset Password | Vetoschool" description="Reset your Vetoschool password." path="/reset-password" noindex /><ResetPassword lang={lang} /></>} />
-        <Route path="/pending-activation" element={<><Seo title="Pending Activation | Vetoschool" description="Vetoschool paid access pending activation." path="/pending-activation" noindex /><ProtectedRoute><Navigate to="/dashboard" replace /></ProtectedRoute></>} />
-        <Route path="/account/security" element={<><Seo title="Account Security | Vetoschool" description="Manage Vetoschool account security." path="/account/security" noindex /><ProtectedRoute><AccountSecurity lang={lang} /></ProtectedRoute></>} />
+        <Route path="/auth/check-email" element={<><Seo {...seo.checkEmail} /><CheckEmail lang={lang} /></>} />
+        <Route path="/auth/callback" element={<><Seo {...seo.authCallback} /><AuthCallback lang={lang} /></>} />
+        <Route path="/auth/confirmed" element={<><Seo {...seo.emailConfirmed} /><EmailConfirmed lang={lang} /></>} />
+        <Route path="/auth/link-expired" element={<><Seo {...seo.authLinkExpired} /><AuthLinkExpired lang={lang} /></>} />
+        <Route path="/forgot-password" element={<><Seo {...seo.forgotPassword} /><ForgotPassword lang={lang} /></>} />
+        <Route path="/reset-password" element={<><Seo {...seo.resetPassword} /><ResetPassword lang={lang} /></>} />
+        <Route path="/pending-activation" element={<><Seo {...seo.pendingActivation} /><ProtectedRoute><Navigate to="/dashboard" replace /></ProtectedRoute></>} />
+        <Route path="/account/security" element={<><Seo {...seo.accountSecurity} /><ProtectedRoute><AccountSecurity lang={lang} /></ProtectedRoute></>} />
+
         <Route path="/dashboard" element={<><Seo {...seo.dashboard} /><ProtectedRoute role="student"><Dashboard lang={lang} /></ProtectedRoute></>} />
         <Route path="/admin" element={<><Seo {...seo.admin} /><ProtectedRoute role="admin"><Admin lang={lang} setLang={setLang} /></ProtectedRoute></>} />
         <Route path="/teacher" element={<><Seo {...seo.teacher} /><ProtectedRoute role="teacher"><TeacherDashboard lang={lang} setLang={setLang} /></ProtectedRoute></>} />
