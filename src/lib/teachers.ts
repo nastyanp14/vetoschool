@@ -1321,6 +1321,9 @@ export async function syncLessonBlockContentForStudents(input: {
   if (staleIds.length) {
     const { error: staleError } = await (supabase as any).from('content_items').delete().in('id', staleIds);
     if (staleError && !isSchemaNotReadyError(staleError)) throw staleError;
+    await Promise.all(allExisting
+      .filter(row => staleIds.includes(row.id) && row.type === 'homework')
+      .map(row => notifyHomeworkChanged(row.user_id, { id: row.id, title: row.title || 'Homework', eventId: nowIso(), canceled: true })));
   }
   if (!reviewableBlocks.length) return;
 
@@ -1397,6 +1400,13 @@ export async function syncLessonBlockContentForStudents(input: {
         : (supabase as any).from('content_items').insert(payload);
       const { error } = await query;
       if (error && !isSchemaNotReadyError(error)) throw error;
+      if (meta.type === 'homework') {
+        if (!existing) {
+          await notifyHomeworkAssigned(studentId, { id: payload.module_id, title: payload.title });
+        } else if (existing.title !== payload.title || existing.due_date !== payload.due_date || existing.external_link !== payload.external_link) {
+          await notifyHomeworkChanged(studentId, { id: existing.id, title: payload.title, eventId: now });
+        }
+      }
     }
   }
 }

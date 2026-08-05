@@ -250,6 +250,9 @@ type VetoschoolProfile = {
   name?: string | null;
   stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;
+  stripe_price_id?: string | null;
+  plan_id?: string | null;
+  cancel_at_period_end?: boolean | null;
 };
 
 type VetoschoolRoleRow = {
@@ -816,7 +819,7 @@ async function loadProfileByEmail(email: string, env: StripeCheckoutEnv): Promis
 async function loadProfileByStripeSubscription(customerId: string, subscriptionId: string, env: StripeCheckoutEnv): Promise<VetoschoolProfile | null> {
   const supabaseUrl = requireSupabaseUrl(env);
   const response = await fetch(
-    `${supabaseUrl}/rest/v1/profiles?stripe_customer_id=eq.${encodeURIComponent(customerId)}&stripe_subscription_id=eq.${encodeURIComponent(subscriptionId)}&select=id,email,name,stripe_customer_id,stripe_subscription_id&limit=1`,
+    `${supabaseUrl}/rest/v1/profiles?stripe_customer_id=eq.${encodeURIComponent(customerId)}&stripe_subscription_id=eq.${encodeURIComponent(subscriptionId)}&select=id,email,name,stripe_customer_id,stripe_subscription_id,stripe_price_id,plan_id,cancel_at_period_end&limit=1`,
     { headers: supabaseHeaders(env) },
   );
 
@@ -830,7 +833,7 @@ async function loadProfileByStripeCustomer(customerId: string, env: StripeChecko
   if (!customerId) return null;
   const supabaseUrl = requireSupabaseUrl(env);
   const response = await fetch(
-    `${supabaseUrl}/rest/v1/profiles?stripe_customer_id=eq.${encodeURIComponent(customerId)}&select=id,email,name,stripe_customer_id,stripe_subscription_id&limit=1`,
+    `${supabaseUrl}/rest/v1/profiles?stripe_customer_id=eq.${encodeURIComponent(customerId)}&select=id,email,name,stripe_customer_id,stripe_subscription_id,stripe_price_id,plan_id,cancel_at_period_end&limit=1`,
     { headers: supabaseHeaders(env) },
   );
   if (!response.ok) throw new Error(`profile_stripe_customer_lookup_failed_${response.status}`);
@@ -1560,7 +1563,7 @@ async function reserveStripeWebhookEvent(event: StripeWebhookLogEvent, env: Stri
       status: null,
       supabaseCode: !supabaseUrl ? 'missing_supabase_url' : 'missing_service_role_key',
     });
-    return reserveLocalStripeWebhookEvent(event);
+    throw new Error('stripe_webhook_durable_idempotency_unavailable');
   }
 
   try {
@@ -2103,13 +2106,16 @@ async function applySubscriptionWebhookState(
     lessonFormat,
   }, env);
 
-  const isCancelAtPeriodEndEmail = !options.deleted && cancelAtPeriodEnd;
-  const isRenewalRestoredEmail = !options.deleted && !cancelAtPeriodEnd && subscription.status === 'active';
-  if (isCancelAtPeriodEndEmail || isRenewalRestoredEmail || options.deleted) {
+  const isPlanChanged = !options.deleted && !!profile.stripe_price_id && !!stripePriceId && profile.stripe_price_id !== stripePriceId;
+  const isCancelAtPeriodEndEmail = !options.deleted && cancelAtPeriodEnd && !profile.cancel_at_period_end;
+  const isRenewalRestoredEmail = !options.deleted && !cancelAtPeriodEnd && !!profile.cancel_at_period_end && subscription.status === 'active';
+  if (isPlanChanged || isCancelAtPeriodEndEmail || isRenewalRestoredEmail || options.deleted) {
     await sendEmailNotificationSafe({
-      notificationKey: `${event.id}:email:${options.deleted ? 'customer.subscription.deleted' : isCancelAtPeriodEndEmail ? 'subscription.cancel_at_period_end' : 'subscription.renewal_restored'}`,
+      notificationKey: `${event.id}:email:${options.deleted ? 'customer.subscription.deleted' : isPlanChanged ? 'subscription.plan_changed' : isCancelAtPeriodEndEmail ? 'subscription.cancel_at_period_end' : 'subscription.renewal_restored'}`,
       type: options.deleted
         ? 'customer.subscription.deleted'
+        : isPlanChanged
+          ? 'customer.subscription.updated.renewal_restored'
         : isCancelAtPeriodEndEmail
           ? 'customer.subscription.updated.cancel_at_period_end'
           : 'customer.subscription.updated.renewal_restored',
@@ -2119,21 +2125,29 @@ async function applySubscriptionWebhookState(
       stripeEventId: event.id,
       subject: options.deleted
         ? 'Vetoschool: подписка завершена'
+        : isPlanChanged
+          ? 'Vetoschool: тариф изменён'
         : isCancelAtPeriodEndEmail
           ? 'Vetoschool: автопродление отключено'
           : 'Vetoschool: автопродление снова активно',
       preview: options.deleted
         ? 'Оставшиеся уроки и история обучения сохраняются.'
+        : isPlanChanged
+          ? `Новый тариф: ${planDisplayName(planId)}.`
         : isCancelAtPeriodEndEmail
           ? `Доступ сохранится до ${formatEmailDate(currentPeriodEnd)}.`
           : 'Подписка продолжит продлеваться автоматически.',
       title: options.deleted
         ? 'Подписка завершена'
+        : isPlanChanged
+          ? 'Тариф изменён'
         : isCancelAtPeriodEndEmail
           ? 'Автопродление отключено'
           : 'Автопродление снова активно',
       intro: options.deleted
         ? 'Подписка завершена. Оставшиеся уроки сохраняются, а история обучения не удаляется.'
+        : isPlanChanged
+          ? `Подписка переведена на тариф «${planDisplayName(planId)}».`
         : isCancelAtPeriodEndEmail
           ? 'Автопродление отключено. Доступ не отключается сразу и сохраняется до конца оплаченного периода.'
           : 'Отмена автопродления снята. Подписка вернулась в обычный активный режим.',
@@ -2145,9 +2159,11 @@ async function applySubscriptionWebhookState(
     }, env);
 
     await sendTelegramNotificationSafe({
-      notificationKey: `${event.id}:${options.deleted ? 'customer.subscription.deleted' : isCancelAtPeriodEndEmail ? 'subscription.cancel_at_period_end' : 'subscription.renewal_restored'}`,
+      notificationKey: `${event.id}:${options.deleted ? 'customer.subscription.deleted' : isPlanChanged ? 'subscription.plan_changed' : isCancelAtPeriodEndEmail ? 'subscription.cancel_at_period_end' : 'subscription.renewal_restored'}`,
       type: options.deleted
         ? 'stripe.customer.subscription.deleted'
+        : isPlanChanged
+          ? 'stripe.customer.subscription.updated.plan_changed'
         : isCancelAtPeriodEndEmail
           ? 'stripe.customer.subscription.updated.cancel_at_period_end'
           : 'stripe.customer.subscription.updated.renewal_restored',
@@ -2157,6 +2173,8 @@ async function applySubscriptionWebhookState(
       text: [
         options.deleted
           ? 'Vetoschool: подписка завершена'
+          : isPlanChanged
+            ? `Vetoschool: тариф изменён на «${planDisplayName(planId)}»`
           : isCancelAtPeriodEndEmail
             ? 'Vetoschool: автопродление отключено'
             : 'Vetoschool: автопродление снова активно',
