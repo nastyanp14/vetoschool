@@ -112,7 +112,7 @@ describe('create-checkout-session Edge Function', () => {
     expect(params.get('mode')).toBe('subscription');
     expect(params.get('success_url')).toBe('https://vetoschool.eu/payment/success?session_id={CHECKOUT_SESSION_ID}');
     expect(params.get('cancel_url')).toBe('https://vetoschool.eu/payment/cancel');
-    expect(params.get('line_items[0][price]')).toBe('price_1TxbAFLCIsxnginY7Mlaf63r');
+    expect(params.get('line_items[0][price]')).toBe('price_1U0xKDLixIIR8RHzQan57liX');
     expect(params.get('line_items[0][price]')).not.toBe('price_attacker_supplied');
     expect(params.get('client_reference_id')).toBe('user_checkout_edge_1');
     expect(params.get('customer')).toBe('cus_existing');
@@ -257,7 +257,7 @@ describe('create-checkout-session Edge Function', () => {
           data: [{
             id: 'sub_active_stripe',
             status: 'active',
-            items: { data: [{ price: { id: 'price_1Txb9HLCIsxnginYf4mX2Uwg' } }] },
+            items: { data: [{ price: { id: 'price_1U0xKHLixIIR8RHzzShRy0jk' } }] },
           }],
         });
       }

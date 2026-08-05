@@ -2,12 +2,12 @@ import type { PricingPlanId } from './pricingCurrency';
 
 export type LessonFormat = 'group' | 'individual';
 
-export const STRIPE_PRICE_GROUP_LITE = 'price_1Txb9HLCIsxnginYf4mX2Uwg';
-export const STRIPE_PRICE_GROUP_PROGRESS = 'price_1TxbAFLCIsxnginY7Mlaf63r';
-export const STRIPE_PRICE_GROUP_INTENSIVE = 'price_1TxbAnLCIsxnginYE3at3vOH';
-export const STRIPE_PRICE_INDIVIDUAL_LITE = 'price_1TxbBMLCIsxnginYHI1sficF';
-export const STRIPE_PRICE_INDIVIDUAL_PROGRESS = 'price_1TxbBqLCIsxnginYkBwPHgg8';
-export const STRIPE_PRICE_INDIVIDUAL_INTENSIVE = 'price_1TxbCJLCIsxnginYq2t7tAIs';
+export const STRIPE_PRICE_GROUP_LITE = 'price_1U0xKHLixIIR8RHzzShRy0jk';
+export const STRIPE_PRICE_GROUP_PROGRESS = 'price_1U0xKDLixIIR8RHzQan57liX';
+export const STRIPE_PRICE_GROUP_INTENSIVE = 'price_1U0xKGLixIIR8RHzG2Rkqf6B';
+export const STRIPE_PRICE_INDIVIDUAL_LITE = 'price_1U0xKALixIIR8RHz4FwKr6Br';
+export const STRIPE_PRICE_INDIVIDUAL_PROGRESS = 'price_1U0xK6LixIIR8RHzD60ZdG6u';
+export const STRIPE_PRICE_INDIVIDUAL_INTENSIVE = 'price_1U0xK6LixIIR8RHzOwTW81bZ';
 
 export const stripePriceIdsByPlan: Record<PricingPlanId, string> = {
   'group-lite': STRIPE_PRICE_GROUP_LITE,
