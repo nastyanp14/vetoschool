@@ -4,6 +4,8 @@ import { CalendarDays, Edit3, GraduationCap, Mail, Phone, Plus, Trash2, Users, U
 import { Lang } from '../lib/i18n';
 import { User } from '../lib/auth';
 import ConfirmActionModal from './ConfirmActionModal';
+import { AvatarImage } from './teacher/AvatarImage';
+
 import {
   createStudentGroupForAdmin,
   createTeacher,
@@ -529,7 +531,7 @@ export default function TeachersAdmin({ lang, students, onToast }: { lang: Lang;
                       <td className="px-4 py-4 min-w-[250px]">
                         <button onClick={() => setSelectedId(teacher.id)} className="flex items-center gap-3 text-left">
                           <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-pink-300 to-purple-400 flex items-center justify-center text-white font-display font-black overflow-hidden">
-                            {teacher.avatarUrl ? <img src={teacher.avatarUrl} alt="" className="w-full h-full object-cover" /> : nameOf(teacher)[0].toUpperCase()}
+                            <AvatarImage src={teacher.avatarUrl} className="w-full h-full object-cover" fallback={nameOf(teacher)[0].toUpperCase()} />
                           </div>
                           <div className="min-w-0">
                             <div className="font-body font-700 text-purple-700 text-sm">{nameOf(teacher)}</div>
@@ -581,7 +583,7 @@ export default function TeachersAdmin({ lang, students, onToast }: { lang: Lang;
             <div className="space-y-6">
               <div className="flex items-start gap-4">
                 <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-pink-300 to-purple-400 flex items-center justify-center text-white font-display font-black text-2xl overflow-hidden">
-                  {selectedTeacher.avatarUrl ? <img src={selectedTeacher.avatarUrl} alt="" className="w-full h-full object-cover" /> : nameOf(selectedTeacher)[0].toUpperCase()}
+                  <AvatarImage src={selectedTeacher.avatarUrl} className="w-full h-full object-cover" fallback={nameOf(selectedTeacher)[0].toUpperCase()} />
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-display font-black text-2xl text-purple-700">{nameOf(selectedTeacher)}</h3>

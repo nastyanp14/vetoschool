@@ -1,3 +1,4 @@
+import { useAvatarUrl } from '@/lib/avatarUrl';
 import { initialsFor } from '@/lib/teacherUi';
 
 export function TeacherAvatar({
@@ -9,6 +10,7 @@ export function TeacherAvatar({
   name?: string | null;
   size?: 'sm' | 'md' | 'lg' | 'xl';
 }) {
+  const resolvedSrc = useAvatarUrl(src);
   const sizes = {
     sm: 'h-9 w-9 text-sm',
     md: 'h-11 w-11 text-base',
@@ -18,8 +20,9 @@ export function TeacherAvatar({
 
   return (
     <div className={`${sizes[size]} flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-pink-300 to-purple-400 font-display font-black text-white shadow-sm`}>
-      {src ? (
-        <img src={src} alt={name || 'Teacher'} className="h-full w-full object-cover" />
+      {resolvedSrc ? (
+        <img src={resolvedSrc} alt={name || 'Teacher'} className="h-full w-full object-cover" />
+
       ) : (
         <span>{initialsFor(name)}</span>
       )}
