@@ -354,7 +354,10 @@ export async function resendConfirmationEmail(email: string): AuthResult {
     options: { emailRedirectTo: redirectUrl('/auth/callback?next=/auth/confirmed') },
   });
 
-  return error ? { success: false, error: friendlyAuthError(error.message) } : { success: true };
+  if (error) return { success: false, error: friendlyAuthError(error.message) };
+  markEmailOtpSent(normalizedEmail);
+  return { success: true };
+
 }
 
 export const EMAIL_OTP_TTL_SECONDS = 600;
