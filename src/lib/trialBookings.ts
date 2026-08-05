@@ -39,6 +39,7 @@ export type TrialBookingRecord = {
   teacher_confirmed_level: string | null;
   teacher_confirmed_direction: string | null;
   internal_notes: string | null;
+  lesson_url: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -52,6 +53,7 @@ export type TrialBookingUpdate = Partial<
     | 'teacher_confirmed_level'
     | 'teacher_confirmed_direction'
     | 'internal_notes'
+    | 'lesson_url'
   >
 >;
 
@@ -136,7 +138,7 @@ export async function loadTrialBookings() {
 }
 
 export async function updateTrialBooking(id: string, patch: TrialBookingUpdate) {
-  const { data: before, error: beforeError } = await trialBookingClient.from('trial_bookings').select('status,selected_date,selected_time,teacher_confirmed_level,teacher_confirmed_direction').eq('id', id).single();
+  const { data: before, error: beforeError } = await trialBookingClient.from('trial_bookings').select('status,selected_date,selected_time,teacher_confirmed_level,teacher_confirmed_direction,lesson_url').eq('id', id).single();
   if (beforeError) throw beforeError;
   const { data, error } = await trialBookingClient
     .from('trial_bookings')
@@ -149,7 +151,8 @@ export async function updateTrialBooking(id: string, patch: TrialBookingUpdate) 
 
   const statusChanged = before.status !== data.status
     || before.selected_date !== data.selected_date
-    || before.selected_time !== data.selected_time;
+    || before.selected_time !== data.selected_time
+    || (data.status === 'confirmed' && before.lesson_url !== data.lesson_url);
   const recommendationReady = !!data.teacher_confirmed_level
     && (before.teacher_confirmed_level !== data.teacher_confirmed_level
       || before.teacher_confirmed_direction !== data.teacher_confirmed_direction);
@@ -170,6 +173,24 @@ export async function updateTrialBooking(id: string, patch: TrialBookingUpdate) 
   }
 
   return data;
+}
+
+/** Ссылка на урок обязательна и должна быть корректным https-адресом. */
+export function isValidLessonUrl(value: string): boolean {
+  const url = value.trim();
+  if (!/^https:\/\//i.test(url)) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' && parsed.hostname.includes('.');
+  } catch {
+    return false;
+  }
+}
+
+/** Подтверждение пробного урока: без валидной ссылки подтвердить нельзя. */
+export async function confirmTrialLesson(id: string, lessonUrl: string, patch: TrialBookingUpdate = {}) {
+  if (!isValidLessonUrl(lessonUrl)) throw new Error('invalid_lesson_url');
+  return updateTrialBooking(id, { ...patch, lesson_url: lessonUrl.trim(), status: 'confirmed' });
 }
 
 export interface TrialNotificationLogEntry {
