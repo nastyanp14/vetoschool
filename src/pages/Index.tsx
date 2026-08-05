@@ -24,7 +24,7 @@ import CookiePolicy from './CookiePolicy';
 import PrivacyPolicy from './PrivacyPolicy';
 import TrialBooking from './TrialBooking';
 import NotFound from './NotFound';
-import { Seo, homeSchoolSchema } from '../components/Seo';
+import { Seo } from '../components/Seo';
 import { routeMeta } from '../lib/routeMeta';
 import CookieConsentBanner from '../components/CookieConsentBanner';
 import CookiePreferencesModal from '../components/CookiePreferencesModal';
@@ -75,7 +75,7 @@ export default function Index() {
   return (
     <>
       <Routes>
-        <Route path="/" element={<><Seo {...seo.home} schema={homeSchoolSchema} /><Navbar lang={lang} setLang={setLang} /><Home lang={lang} /></>} />
+        <Route path="/" element={<><Seo {...seo.home} /><Navbar lang={lang} setLang={setLang} /><Home lang={lang} /></>} />
         <Route path="/login" element={<><Seo {...seo.login} /><Login lang={lang} /></>} />
         <Route path="/register" element={<><Seo {...seo.register} /><Register lang={lang} /></>} />
         <Route path="/auth/check-email" element={<><Seo {...seo.checkEmail} /><CheckEmail lang={lang} /></>} />
