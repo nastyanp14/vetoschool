@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { cacheGet, cacheSet, fileToDataUrl as _fileToDataUrl } from './storage';
-import { notifyContentChanges, notifyContentDeleted } from './telegram';
+import { notifyContentChanges, notifyContentDeleted, notifyHomeworkChanged } from './telegram';
 
 export type ContentType = 'lesson' | 'homework' | 'practice' | 'grammar' | 'listening' | 'checkpoint';
 
@@ -332,9 +332,13 @@ export async function deleteContentItem(userId: string, id: string): Promise<voi
   if (error) { console.error('deleteContentItem error', error); throw error; }
   await loadStudentContent(userId);
   await notifyContentDeleted(userId, deletedItem);
+  if (deletedItem?.type === 'homework') {
+    await notifyHomeworkChanged(userId, { id: deletedItem.id, title: deletedItem.title, eventId: new Date().toISOString(), canceled: true });
+  }
 }
 
 export async function deleteModule(userId: string, moduleId: string): Promise<void> {
+  const deletedHomework = ensureStudentContent(userId).filter(item => item.moduleId === moduleId && item.type === 'homework');
   const { error } = await supabase
     .from('content_items')
     .delete()
@@ -342,6 +346,7 @@ export async function deleteModule(userId: string, moduleId: string): Promise<vo
     .eq('module_id', moduleId);
   if (error) { console.error('deleteModule error', error); throw error; }
   await loadStudentContent(userId);
+  await Promise.all(deletedHomework.map(item => notifyHomeworkChanged(userId, { id: item.id, title: item.title, eventId: new Date().toISOString(), canceled: true })));
 }
 
 export function getStudentRating(userId: string): { avg: number; count: number } {

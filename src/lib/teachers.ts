@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { User } from './auth';
 import { awardStars } from './stars';
-import { notifyHomeworkAssigned, notifyHomeworkReviewed, notifyLessonGradePublished, notifyScheduleSaved } from './telegram';
+import { notifyHomeworkAssigned, notifyHomeworkChanged, notifyHomeworkReviewed, notifyLessonGradePublished, notifyLessonResultPublished, notifyScheduleSaved } from './telegram';
 import type { ScheduleSlot } from './schedule';
 
 export type TeacherStatus = 'active' | 'inactive' | 'vacation' | 'blocked';
@@ -401,6 +401,9 @@ function lessonToScheduleSlot(lesson: TeacherLesson): ScheduleSlot {
     status: lesson.status,
     groupId: lesson.groupId,
     teacherId: lesson.teacherId,
+    durationMinutes: lesson.durationMinutes,
+    room: lesson.room,
+    onlineUrl: lesson.onlineUrl,
   };
 }
 
@@ -1240,7 +1243,7 @@ export async function saveTeacherLesson(input: {
   if (input.assignedBlocks !== undefined) {
     await saveLessonPlanBlocks(savedLesson.id, input.assignedBlocks);
   }
-  if (input.studentId && !['completed', 'cancelled'].includes(savedLesson.status)) {
+  if (input.studentId && savedLesson.status !== 'completed') {
     const before = previousRow ? [lessonToScheduleSlot(rowToLesson(previousRow))] : [];
     await notifyScheduleSaved(input.studentId, before, [lessonToScheduleSlot(savedLesson)]);
   }
@@ -1270,6 +1273,7 @@ export async function saveLessonPlanBlocks(scheduleId: string, blocks: TeacherLe
 }
 
 export async function deleteTeacherLesson(lessonId: string) {
+  const { data: lessonBefore } = await (supabase as any).from('schedules').select('*').eq('id', lessonId).maybeSingle();
   await (supabase as any).from('content_items').delete().like('module_id', `lesson-block:${lessonId}:%`);
   await (supabase as any).from('lesson_plan_blocks').delete().eq('schedule_id', lessonId);
   await (supabase as any).from('lesson_attendance').delete().eq('lesson_id', lessonId);
@@ -1277,6 +1281,9 @@ export async function deleteTeacherLesson(lessonId: string) {
   await (supabase as any).from('grades').delete().eq('lesson_id', lessonId);
   const { error } = await (supabase as any).from('schedules').delete().eq('id', lessonId);
   if (error) throw error;
+  if (lessonBefore?.user_id) {
+    await notifyScheduleSaved(lessonBefore.user_id, [lessonToScheduleSlot(rowToLesson(lessonBefore))], []);
+  }
 }
 
 const REVIEWABLE_LESSON_BLOCKS: Partial<Record<LessonBlockKind, { type: string; emoji: string; label: string }>> = {
@@ -1314,6 +1321,9 @@ export async function syncLessonBlockContentForStudents(input: {
   if (staleIds.length) {
     const { error: staleError } = await (supabase as any).from('content_items').delete().in('id', staleIds);
     if (staleError && !isSchemaNotReadyError(staleError)) throw staleError;
+    await Promise.all(allExisting
+      .filter(row => staleIds.includes(row.id) && row.type === 'homework')
+      .map(row => notifyHomeworkChanged(row.user_id, { id: row.id, title: row.title || 'Homework', eventId: new Date().toISOString(), canceled: true })));
   }
   if (!reviewableBlocks.length) return;
 
@@ -1390,6 +1400,13 @@ export async function syncLessonBlockContentForStudents(input: {
         : (supabase as any).from('content_items').insert(payload);
       const { error } = await query;
       if (error && !isSchemaNotReadyError(error)) throw error;
+      if (meta.type === 'homework') {
+        if (!existing) {
+          await notifyHomeworkAssigned(studentId, { id: payload.module_id, title: payload.title });
+        } else if (existing.title !== payload.title || existing.due_date !== payload.due_date || existing.external_link !== payload.external_link) {
+          await notifyHomeworkChanged(studentId, { id: existing.id, title: payload.title, eventId: now });
+        }
+      }
     }
   }
 }
@@ -1528,6 +1545,14 @@ export async function completeTeacherLesson(input: {
     })
     .eq('id', input.lessonId);
   if (lessonError) throw lessonError;
+  const resultEventId = result.updated_at || now;
+  const resultStudents = Array.from(new Set(input.attendance.map(row => row.studentId).filter(Boolean)));
+  await Promise.all(resultStudents.map(studentId => notifyLessonResultPublished(studentId, {
+    lessonId: input.lessonId,
+    title: input.summary.trim() || 'Lesson result',
+    comment: input.teacherComment,
+    eventId: resultEventId,
+  })));
   if (input.grades?.length) {
     await saveLessonGrades({
       lessonId: input.lessonId,
@@ -1547,6 +1572,7 @@ export async function completeTeacherLesson(input: {
       score: grade.score,
       comment: grade.comment || input.teacherComment,
       category: grade.category || 'Participation',
+      gradeEventId: `${resultEventId}:${grade.category || 'Participation'}`,
     })));
   }
 
@@ -1588,9 +1614,10 @@ export async function saveLessonAttendances(rows: Array<{ lessonId: string; teac
 }
 
 export async function saveHomeworkComment(homeworkId: string, patch: { teacherId?: string; teacherComment?: string; resultPercent?: number | null; errorsCount?: number | null; starRating?: number | null; status?: 'reviewed' | 'revision_requested' }) {
+  const reviewedAt = new Date().toISOString();
   const previous = await (supabase as any)
     .from('content_items')
-    .select('id,user_id,type,title,star_rating,checked_at')
+    .select('id,user_id,type,title,star_rating,teacher_comment,review_comment,checked_at,updated_at')
     .eq('id', homeworkId)
     .maybeSingle();
   if (previous.error && !isSchemaNotReadyError(previous.error)) throw previous.error;
@@ -1619,13 +1646,18 @@ export async function saveHomeworkComment(homeworkId: string, patch: { teacherId
       _status: patch.status || 'reviewed',
     });
     if (!rpcError) {
+      await awardIfNeeded();
       if (previousRow?.user_id) {
+        const changed = previousRow.star_rating !== (patch.starRating ?? null)
+          || (previousRow.teacher_comment || previousRow.review_comment || '') !== (patch.teacherComment || '');
+        if (!changed) return;
         await notifyHomeworkReviewed(previousRow.user_id, {
           id: homeworkId,
           type: previousRow.type,
           title: previousRow.title || 'Homework',
           starRating: patch.starRating,
           teacherComment: patch.teacherComment,
+          gradeEventId: reviewedAt,
         });
       }
       return;
@@ -1643,7 +1675,7 @@ export async function saveHomeworkComment(homeworkId: string, patch: { teacherId
       star_rating: patch.starRating ?? null,
       reviewed_by_teacher_id: patch.teacherId ?? null,
       homework_status: patch.status || 'reviewed',
-      checked_at: new Date().toISOString(),
+      checked_at: reviewedAt,
       student_result: patch.status === 'revision_requested' ? 'Revision Requested' : undefined,
     })
     .eq('id', homeworkId);
@@ -1656,6 +1688,7 @@ export async function saveHomeworkComment(homeworkId: string, patch: { teacherId
       title: previousRow.title || 'Homework',
       starRating: patch.starRating,
       teacherComment: patch.teacherComment,
+      gradeEventId: reviewedAt,
     });
   }
 }
