@@ -2714,10 +2714,13 @@ export type Database = {
           language: string
           last_name: string | null
           linked_at: string | null
+          notify_billing: boolean
           notify_grades: boolean
           notify_homework: boolean
           notify_lesson_reminders: boolean
           notify_schedule_changes: boolean
+          notify_trials: boolean
+          notify_weekly: boolean
           parent_name: string | null
           sendpulse_contact_id: string | null
           telegram_chat_id: string | null
@@ -2733,10 +2736,13 @@ export type Database = {
           language?: string
           last_name?: string | null
           linked_at?: string | null
+          notify_billing?: boolean
           notify_grades?: boolean
           notify_homework?: boolean
           notify_lesson_reminders?: boolean
           notify_schedule_changes?: boolean
+          notify_trials?: boolean
+          notify_weekly?: boolean
           parent_name?: string | null
           sendpulse_contact_id?: string | null
           telegram_chat_id?: string | null
@@ -2752,10 +2758,13 @@ export type Database = {
           language?: string
           last_name?: string | null
           linked_at?: string | null
+          notify_billing?: boolean
           notify_grades?: boolean
           notify_homework?: boolean
           notify_lesson_reminders?: boolean
           notify_schedule_changes?: boolean
+          notify_trials?: boolean
+          notify_weekly?: boolean
           parent_name?: string | null
           sendpulse_contact_id?: string | null
           telegram_chat_id?: string | null
