@@ -83,14 +83,26 @@ export async function loadStudentSchedule(userId: string): Promise<ScheduleSlot[
 
 export async function saveStudentSchedule(userId: string, slots: ScheduleSlot[]): Promise<void> {
   const before = getStudentSchedule(userId);
-  await supabase.from('schedules').delete().eq('user_id', userId);
-  if (slots.length) {
-    const rows = slots.map((s, i) => ({
+  const personalSlots = slots.filter(slot => !slot.groupId);
+  const retainedIds = personalSlots.map(slot => slot.id);
+  let deleteQuery = supabase.from('schedules').delete().eq('user_id', userId);
+  if (retainedIds.length) deleteQuery = deleteQuery.not('id', 'in', `(${retainedIds.join(',')})`);
+  const { error: deleteError } = await deleteQuery;
+  if (deleteError) throw deleteError;
+  if (personalSlots.length) {
+    const rows = personalSlots.map((s, i) => ({
+      id: s.id,
       user_id: userId, day: s.day, time: s.time, topic: s.topic, position: i,
       is_conducted: !!s.isConducted,
       source_lesson_id: s.sourceLessonId || null,
+      scheduled_date: s.date || null,
+      lesson_status: s.status || 'scheduled',
+      teacher_id: s.teacherId || null,
+      duration_minutes: s.durationMinutes || null,
+      room: s.room || null,
+      online_url: s.onlineUrl || null,
     }));
-    const { error } = await supabase.from('schedules').insert(rows as never);
+    const { error } = await supabase.from('schedules').upsert(rows as never, { onConflict: 'id' });
     if (error) throw error;
   }
   await notifyScheduleSaved(userId, before, slots);

@@ -1614,6 +1614,7 @@ export async function saveLessonAttendances(rows: Array<{ lessonId: string; teac
 }
 
 export async function saveHomeworkComment(homeworkId: string, patch: { teacherId?: string; teacherComment?: string; resultPercent?: number | null; errorsCount?: number | null; starRating?: number | null; status?: 'reviewed' | 'revision_requested' }) {
+  const reviewedAt = new Date().toISOString();
   const previous = await (supabase as any)
     .from('content_items')
     .select('id,user_id,type,title,star_rating,teacher_comment,review_comment,checked_at,updated_at')
@@ -1656,7 +1657,7 @@ export async function saveHomeworkComment(homeworkId: string, patch: { teacherId
           title: previousRow.title || 'Homework',
           starRating: patch.starRating,
           teacherComment: patch.teacherComment,
-          gradeEventId: new Date().toISOString(),
+          gradeEventId: reviewedAt,
         });
       }
       return;
@@ -1674,7 +1675,7 @@ export async function saveHomeworkComment(homeworkId: string, patch: { teacherId
       star_rating: patch.starRating ?? null,
       reviewed_by_teacher_id: patch.teacherId ?? null,
       homework_status: patch.status || 'reviewed',
-      checked_at: new Date().toISOString(),
+      checked_at: reviewedAt,
       student_result: patch.status === 'revision_requested' ? 'Revision Requested' : undefined,
     })
     .eq('id', homeworkId);
@@ -1687,6 +1688,7 @@ export async function saveHomeworkComment(homeworkId: string, patch: { teacherId
       title: previousRow.title || 'Homework',
       starRating: patch.starRating,
       teacherComment: patch.teacherComment,
+      gradeEventId: reviewedAt,
     });
   }
 }
