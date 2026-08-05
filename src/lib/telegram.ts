@@ -306,3 +306,13 @@ export async function notifyScheduleSaved(studentId: string, before: ScheduleSlo
 
   await Promise.all(events.map(event => invokeTelegram({ action: 'schedule_event', studentId, ...event })));
 }
+
+export async function notifyHomeworkAssigned(studentId: string, item: { id: string; title: string }) {
+  if (!studentId || !item?.id) return;
+  await invokeTelegram({
+    action: 'content_event',
+    type: 'homework_published',
+    studentId,
+    item: { id: item.id, type: 'homework', title: item.title },
+  });
+}
