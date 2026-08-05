@@ -31,12 +31,13 @@ export async function loadPurchases(userId: string): Promise<string[]> {
 
 export async function purchaseAvatar(userId: string, avatarId: string, cost: number, currentBalance: number) {
   if (currentBalance < cost) throw new Error('Not enough stars');
-  await supabase.from('avatar_purchases').insert({ user_id: userId, avatar_id: avatarId });
-  await supabase.from('profiles').update({ star_balance: currentBalance - cost }).eq('id', userId);
+  const { error } = await supabase.rpc('purchase_avatar', { _avatar_id: avatarId });
+  if (error) throw new Error(error.message);
 }
 
 export async function equipAvatar(userId: string, avatarId: string | null) {
-  await supabase.from('profiles').update({ avatar_id: avatarId }).eq('id', userId);
+  const { error } = await supabase.rpc('equip_avatar', { _avatar_id: avatarId });
+  if (error) throw new Error(error.message);
 }
 
 export async function giftStars(userId: string, amount: number, currentBalance: number, currentTotal: number, currentPending: number) {
@@ -54,8 +55,9 @@ export async function awardStars(userId: string, amount: number) {
 }
 
 export async function clearCelebration(userId: string) {
-  await supabase.from('profiles').update({ pending_celebration: 0 }).eq('id', userId);
+  await supabase.rpc('clear_star_celebration');
 }
+
 
 // ============== AVATAR CATALOG (emoji-based, playful) ==============
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';

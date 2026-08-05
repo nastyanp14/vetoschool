@@ -3063,7 +3063,9 @@ export type Database = {
           lessons_remaining: number
         }[]
       }
+      avatar_cost: { Args: { _avatar_id: string }; Returns: number }
       cleanup_lesson_block_content_items: { Args: never; Returns: undefined }
+      clear_star_celebration: { Args: never; Returns: undefined }
       complete_assigned_interactive_content: {
         Args: {
           _content_item_id: string
@@ -3094,6 +3096,7 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      equip_avatar: { Args: { _avatar_id: string }; Returns: undefined }
       get_interactive_tasks_for_lesson: {
         Args: { _lesson_id: string }
         Returns: {
@@ -3206,6 +3209,7 @@ export type Database = {
         }
         Returns: number
       }
+      purchase_avatar: { Args: { _avatar_id: string }; Returns: number }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
