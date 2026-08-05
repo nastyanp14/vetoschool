@@ -354,14 +354,28 @@ export async function resendConfirmationEmail(email: string): AuthResult {
   return error ? { success: false, error: friendlyAuthError(error.message) } : { success: true };
 }
 
+export const EMAIL_OTP_TTL_SECONDS = 600;
+
 export async function confirmEmailCode(email: string, token: string): AuthResult<User> {
   const normalizedEmail = email.trim().toLowerCase();
   const cleanToken = token.trim().replace(/\s+/g, '');
+
+  // GoTrue's own OTP lifetime is longer than our product rule (10 minutes),
+  // so we enforce the 10-minute window ourselves before verifying.
+  const { data: expired } = await supabase.rpc('email_otp_is_expired', {
+    _email: normalizedEmail,
+    _ttl_seconds: EMAIL_OTP_TTL_SECONDS,
+  });
+  if (expired === true) {
+    return { success: false, error: friendlyAuthError('Email link is invalid or has expired') };
+  }
+
   const { data, error } = await supabase.auth.verifyOtp({
     email: normalizedEmail,
     token: cleanToken,
     type: 'signup',
   });
+
 
   if (error || !data.user) return { success: false, error: friendlyAuthError(error?.message || 'Invalid confirmation code') };
 

@@ -3075,6 +3075,10 @@ export type Database = {
         Args: { _parent_id: string; _student_id: string }
         Returns: boolean
       }
+      email_otp_is_expired: {
+        Args: { _email: string; _ttl_seconds?: number }
+        Returns: boolean
+      }
       email_queue_dispatch: { Args: never; Returns: undefined }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
