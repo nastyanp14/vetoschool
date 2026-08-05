@@ -101,6 +101,9 @@ function t(lang: Lang, key: string, p: Record<string, string | number | undefine
       reminder1: 'Сегодня в {time} у {child} урок английского языка. До начала остался 1 час.',
       conducted: 'Сегодня {child} прошёл урок английского языка. Домашнее задание и материалы можно посмотреть в личном кабинете.',
       homework: 'Новое домашнее задание для {child}: {title}.',
+      homeworkUpdated: 'Домашнее задание для {child} обновлено: {title}.',
+      homeworkCanceled: 'Домашнее задание для {child} отменено: {title}.',
+      lessonResult: 'Опубликован результат урока для {child}: {title}.',
       grade: '{child} получил новую оценку: {grade} за {title}.',
       comment: 'Комментарий преподавателя: {comment}',
       rescheduled: 'Урок английского языка у {child} перенесён. Было: {oldTime}. Новое время: {newTime}.',
@@ -115,6 +118,9 @@ function t(lang: Lang, key: string, p: Record<string, string | number | undefine
       reminder1: 'Сьогодні о {time} у {child} урок англійської мови. До початку залишилась 1 година.',
       conducted: 'Сьогодні {child} пройшов урок англійської мови. Домашнє завдання та матеріали можна переглянути в особистому кабінеті.',
       homework: 'Нове домашнє завдання для {child}: {title}.',
+      homeworkUpdated: 'Домашнє завдання для {child} оновлено: {title}.',
+      homeworkCanceled: 'Домашнє завдання для {child} скасовано: {title}.',
+      lessonResult: 'Опубліковано результат уроку для {child}: {title}.',
       grade: '{child} отримав нову оцінку: {grade} за {title}.',
       comment: 'Коментар викладача: {comment}',
       rescheduled: 'Урок англійської мови у {child} перенесено. Було: {oldTime}. Новий час: {newTime}.',
@@ -129,6 +135,9 @@ function t(lang: Lang, key: string, p: Record<string, string | number | undefine
       reminder1: 'Today at {time}, {child} has an English lesson. It starts in 1 hour.',
       conducted: 'Today {child} completed an English lesson. Homework and materials are available in the student dashboard.',
       homework: 'New homework for {child}: {title}.',
+      homeworkUpdated: 'Homework for {child} was updated: {title}.',
+      homeworkCanceled: 'Homework for {child} was canceled: {title}.',
+      lessonResult: 'A lesson result was published for {child}: {title}.',
       grade: '{child} received a new grade: {grade} for {title}.',
       comment: 'Teacher comment: {comment}',
       rescheduled: '{child}’s English lesson was rescheduled. Old time: {oldTime}. New time: {newTime}.',
@@ -166,6 +175,9 @@ function notificationMessage(parent: ParentRow, notification: any) {
     text = t(lang, 'homework', { child, title });
     buttons = button(t(lang, 'homeworkButton'), url);
   }
+  if (notification.notification_type === 'homework_updated') text = t(lang, 'homeworkUpdated', { child, title });
+  if (notification.notification_type === 'homework_canceled') text = t(lang, 'homeworkCanceled', { child, title });
+  if (notification.notification_type === 'lesson_result_published') text = t(lang, 'lessonResult', { child, title });
   if (notification.notification_type === 'grade_published') {
     text = t(lang, 'grade', { child, grade: payload.grade, title });
     if (payload.comment) text += `\n\n${t(lang, 'comment', { comment: payload.comment })}`;
@@ -375,6 +387,20 @@ async function handleContentEvent(admin: any, body: any) {
     }
   }
 
+  if (type === 'homework_updated' || type === 'homework_canceled' || type === 'lesson_result_published') {
+    const eventId = String(body.eventId || item.updatedAt || item.updated_at || now);
+    for (const parent of parents.filter(parent => parent.notify_homework)) {
+      await enqueue(admin, {
+        event_key: `content:${item.id}:${parent.id}:${type}:${eventId}`,
+        notification_type: type,
+        student_id: studentId,
+        parent_id: parent.id,
+        scheduled_for: now,
+        payload: { studentName: name, title: item.title, comment: item.comment || '', url },
+      });
+    }
+  }
+
   if (type === 'grade_published') {
     const gradeEventId = String(body.gradeEventId || item.updatedAt || item.updated_at || item.id);
     for (const parent of parents.filter(parent => parent.notify_grades)) {
@@ -406,10 +432,10 @@ function preferenceAllows(parent: ParentRow, notificationType: string) {
   if (notificationType === 'lesson_reminder_24h' || notificationType === 'lesson_reminder_1h' || notificationType === 'lesson_conducted') {
     return parent.notify_lesson_reminders;
   }
-  if (notificationType === 'homework_published') return parent.notify_homework;
+  if (notificationType === 'homework_published' || notificationType === 'homework_updated' || notificationType === 'homework_canceled' || notificationType === 'lesson_result_published') return parent.notify_homework;
   if (notificationType === 'grade_published') return parent.notify_grades;
   if (notificationType === 'lesson_rescheduled' || notificationType === 'lesson_canceled') return parent.notify_schedule_changes;
-  return true;
+  return false;
 }
 
 async function handleScheduleEvent(admin: any, body: any) {
@@ -458,7 +484,7 @@ async function handleScheduleEvent(admin: any, body: any) {
     }
     for (const parent of parents.filter(parent => parent.notify_schedule_changes)) {
       await enqueue(admin, {
-        event_key: `${lessonRef}:${parent.id}:${type}:${slotLabel(oldSlot)}:${slotLabel(slot)}`,
+        event_key: `${lessonRef}:${parent.id}:${type}:${body.eventId || `${slotLabel(oldSlot)}:${slotLabel(slot)}`}`,
         notification_type: type === 'lesson_canceled' ? 'lesson_canceled' : 'lesson_rescheduled',
         student_id: studentId,
         parent_id: parent.id,
@@ -484,6 +510,8 @@ async function processDue(admin: any, limit = 25) {
   let skipped = 0;
   const REMINDER_TYPES = ['lesson_reminder_24h', 'lesson_reminder_1h'];
   const STALE_GRACE_MS = 10 * 60_000;
+  const MAX_NOTIFICATION_AGE_MS = 24 * 60 * 60_000;
+  const MAX_ATTEMPTS = 4;
 
   for (const notification of data || []) {
     const processingStartedAt = new Date().toISOString();
@@ -513,6 +541,9 @@ async function processDue(admin: any, limit = 25) {
         await skip('stale: lesson already started');
         continue;
       }
+    } else if (Date.now() - new Date(notification.scheduled_for).getTime() > MAX_NOTIFICATION_AGE_MS) {
+      await skip('stale: notification expired');
+      continue;
       if (Date.now() - new Date(notification.scheduled_for).getTime() > STALE_GRACE_MS) {
         await skip('stale: reminder window missed');
         continue;
@@ -538,8 +569,17 @@ async function processDue(admin: any, limit = 25) {
       await admin.from('telegram_notifications').update({ status: 'sent', sent_at: new Date().toISOString(), error: null }).eq('id', notification.id);
       sent++;
     } catch (error) {
-      await admin.from('telegram_notifications').update({ status: 'failed', error: (error as Error).message }).eq('id', notification.id);
-      failed++;
+      const attempts = Number(notification.attempts || 0) + 1;
+      if (attempts < MAX_ATTEMPTS) {
+        await admin.from('telegram_notifications').update({
+          status: 'pending',
+          error: (error as Error).message,
+          scheduled_for: new Date(Date.now() + attempts * 60_000).toISOString(),
+        }).eq('id', notification.id);
+      } else {
+        await admin.from('telegram_notifications').update({ status: 'failed', error: (error as Error).message }).eq('id', notification.id);
+        failed++;
+      }
     }
   }
 
