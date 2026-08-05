@@ -1,4 +1,5 @@
 import { handleCreateStripeCheckoutSession, handleCreateStripePortalSession, handleCreateStripeRefund, handleStripeWebhook } from './lib/stripeCheckoutServer';
+import { resolveRouteMeta, SITE_URL } from './lib/routeMeta';
 
 type AssetsBinding = {
   fetch(input: Request | string | URL): Promise<Response>;
@@ -79,20 +80,59 @@ function shouldServeSpaShell(request: Request, pathname: string) {
   return isNavigation || acceptsHtml || !looksLikeStaticAsset(pathname);
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** Injects per-route title/description/canonical/og tags into the static SPA shell. */
+function applyRouteMeta(html: string, pathname: string) {
+  const meta = resolveRouteMeta(pathname);
+  const title = escapeHtml(meta.title);
+  const description = escapeHtml(meta.description);
+  const canonical = escapeHtml(new URL(meta.path, SITE_URL).toString());
+  const robots = meta.noindex ? 'noindex,nofollow' : 'index,follow';
+
+  return html
+    .replace(/<title>[\s\S]*?<\/title>/, `<title>${title}</title>`)
+    .replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${description}" />`)
+    .replace(/<meta name="robots" content="[^"]*" \/>/, `<meta name="robots" content="${robots}" />`)
+    .replace(/<link rel="canonical" href="[^"]*" \/>/, `<link rel="canonical" href="${canonical}" />`)
+    .replace(/<meta property="og:title" content="[^"]*" \/>/, `<meta property="og:title" content="${title}" />`)
+    .replace(
+      /<meta property="og:description" content="[^"]*" \/>/,
+      `<meta property="og:description" content="${description}" />`,
+    )
+    .replace(/<meta property="og:url" content="[^"]*" \/>/, `<meta property="og:url" content="${canonical}" />`)
+    .replace(/<meta name="twitter:title" content="[^"]*" \/>/, `<meta name="twitter:title" content="${title}" />`)
+    .replace(
+      /<meta name="twitter:description" content="[^"]*" \/>/,
+      `<meta name="twitter:description" content="${description}" />`,
+    );
+}
+
 async function serveIndex(request: Request, env: Env, status = 200) {
+  const requestUrl = new URL(request.url);
   const indexUrl = new URL(request.url);
   indexUrl.pathname = '/index.html';
   indexUrl.search = '';
 
   const indexResponse = await env.ASSETS.fetch(new Request(indexUrl, request));
   const headers = new Headers(indexResponse.headers);
+  headers.set('content-type', 'text/html; charset=UTF-8');
 
-  return new Response(indexResponse.body, {
+  const html = applyRouteMeta(await indexResponse.text(), normalizePathname(requestUrl.pathname));
+
+  return new Response(html, {
     status,
     statusText: status === 404 ? 'Not Found' : indexResponse.statusText,
     headers,
   });
 }
+
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {

@@ -25,6 +25,7 @@ import PrivacyPolicy from './PrivacyPolicy';
 import TrialBooking from './TrialBooking';
 import NotFound from './NotFound';
 import { Seo, homeSchoolSchema } from '../components/Seo';
+import { routeMeta } from '../lib/routeMeta';
 import CookieConsentBanner from '../components/CookieConsentBanner';
 import CookiePreferencesModal from '../components/CookiePreferencesModal';
 
