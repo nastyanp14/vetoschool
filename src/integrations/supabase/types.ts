@@ -2541,11 +2541,13 @@ export type Database = {
           notification_type: string
           parent_id: string | null
           payload: Json
+          processing_started_at: string | null
           provider: string
           recipient_label: string | null
           recipient_type: string
           scheduled_for: string
           sent_at: string | null
+          skipped_reason: string | null
           status: string
           student_id: string
           updated_at: string
@@ -2560,11 +2562,13 @@ export type Database = {
           notification_type: string
           parent_id?: string | null
           payload?: Json
+          processing_started_at?: string | null
           provider?: string
           recipient_label?: string | null
           recipient_type?: string
           scheduled_for?: string
           sent_at?: string | null
+          skipped_reason?: string | null
           status?: string
           student_id: string
           updated_at?: string
@@ -2579,11 +2583,13 @@ export type Database = {
           notification_type?: string
           parent_id?: string | null
           payload?: Json
+          processing_started_at?: string | null
           provider?: string
           recipient_label?: string | null
           recipient_type?: string
           scheduled_for?: string
           sent_at?: string | null
+          skipped_reason?: string | null
           status?: string
           student_id?: string
           updated_at?: string
