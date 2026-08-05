@@ -541,6 +541,20 @@ function logStripeWebhookSupabaseDebug(details: {
   });
 }
 
+// PostgREST maps plpgsql RAISE (and trigger errors) to HTTP 400 with the real
+// reason in the JSON body. Surface it instead of a bare status code.
+async function readSupabaseRpcFailure(response: Response): Promise<{ code: string | null; detail: string }> {
+  const raw = await response.clone().text().catch(() => '');
+  try {
+    const payload = JSON.parse(raw) as { code?: string; message?: string; details?: string; hint?: string };
+    const detail = [payload.code, payload.message, payload.details, payload.hint].filter(Boolean).join(' | ');
+    return { code: payload.code || payload.message || null, detail: detail || raw.slice(0, 500) };
+  } catch {
+    return { code: null, detail: raw.slice(0, 500) };
+  }
+}
+
+
 function reserveLocalStripeWebhookEvent(event: StripeWebhookLogEvent): StripeWebhookLogReservation {
   const existingStatus = localStripeWebhookEvents.get(event.id);
   if (existingStatus === 'processed' || existingStatus === 'processing') {
@@ -1388,21 +1402,16 @@ async function applyStripeCheckoutCompletedPayment(params: {
   });
 
   if (!response.ok) {
-    let supabaseCode: string | null = null;
-    try {
-      const payload = await response.clone().json() as { code?: string };
-      supabaseCode = payload.code || null;
-    } catch {
-      supabaseCode = null;
-    }
+    const failure = await readSupabaseRpcFailure(response);
     logStripeWebhookSupabaseDebug({
       stage: 'checkout_completed_apply',
       rpc: 'apply_stripe_subscription_payment',
       status: response.status,
-      supabaseCode,
+      supabaseCode: failure.code,
     });
-    throw new Error(`stripe_checkout_apply_failed_${response.status}`);
+    throw new Error(`stripe_checkout_apply_failed_${response.status}: ${failure.detail}`);
   }
+
 
   return await response.json().catch(() => []) as Array<{ payment_inserted?: boolean; lessons_remaining?: number }>;
 }
@@ -1451,7 +1460,11 @@ async function applyStripeInvoicePaidPayment(params: {
     }),
   });
 
-  if (!response.ok) throw new Error(`stripe_invoice_apply_failed_${response.status}`);
+  if (!response.ok) {
+    const failure = await readSupabaseRpcFailure(response);
+    logStripeWebhookSupabaseDebug({ stage: 'invoice_paid_apply', rpc: 'apply_stripe_subscription_payment', status: response.status, supabaseCode: failure.code });
+    throw new Error(`stripe_invoice_apply_failed_${response.status}: ${failure.detail}`);
+  }
   return await response.json().catch(() => []) as Array<{ payment_inserted?: boolean; lessons_remaining?: number }>;
 }
 
@@ -1487,7 +1500,11 @@ async function applyStripeInvoicePaymentFailed(params: {
     }),
   });
 
-  if (!response.ok) throw new Error(`stripe_invoice_failed_apply_failed_${response.status}`);
+  if (!response.ok) {
+    const failure = await readSupabaseRpcFailure(response);
+    logStripeWebhookSupabaseDebug({ stage: 'invoice_payment_failed_apply', rpc: 'apply_stripe_invoice_payment_failed', status: response.status, supabaseCode: failure.code });
+    throw new Error(`stripe_invoice_failed_apply_failed_${response.status}: ${failure.detail}`);
+  }
   return await response.json().catch(() => []) as Array<{ failure_inserted?: boolean; lessons_remaining?: number }>;
 }
 
@@ -1525,7 +1542,11 @@ async function applyStripeSubscriptionState(params: {
     }),
   });
 
-  if (!response.ok) throw new Error(`stripe_subscription_state_apply_failed_${response.status}`);
+  if (!response.ok) {
+    const failure = await readSupabaseRpcFailure(response);
+    logStripeWebhookSupabaseDebug({ stage: 'subscription_state_apply', rpc: 'apply_stripe_subscription_state', status: response.status, supabaseCode: failure.code });
+    throw new Error(`stripe_subscription_state_apply_failed_${response.status}: ${failure.detail}`);
+  }
   return await response.json().catch(() => []) as Array<{ lessons_remaining?: number }>;
 }
 

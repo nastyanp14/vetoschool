@@ -114,12 +114,41 @@ export async function listTelegramParents(studentId: string): Promise<TelegramPa
     : firstResult;
 
   if (error) {
-    console.warn('Could not load Telegram parents', error);
-    return [];
+    console.warn('Could not load Telegram parents (embedded query)', error);
   }
-  return (data || [])
+
+  const embedded = (data || [])
     .map(telegramParentFromLinkRow)
     .filter((parent): parent is TelegramParentAccount => Boolean(parent));
+  if (embedded.length) return embedded;
+
+  // Fallback: PostgREST embedding can come back empty when the joined row is
+  // filtered by its own RLS policy evaluation. Fetch links and parents apart.
+  const { data: links, error: linksError } = await asAnySupabase()
+    .from('student_parent_links')
+    .select('parent_id,linked_at,created_at,active')
+    .eq('student_id', studentId)
+    .eq('active', true);
+  if (linksError || !links?.length) {
+    if (linksError) console.warn('Could not load Telegram parent links', linksError);
+    return [];
+  }
+
+  const parentIds = links.map((row: any) => row.parent_id).filter(Boolean);
+  const { data: accounts, error: accountsError } = await asAnySupabase()
+    .from('telegram_parent_accounts')
+    .select('*')
+    .in('id', parentIds);
+  if (accountsError) {
+    console.warn('Could not load Telegram parent accounts', accountsError);
+    return [];
+  }
+
+  const accountById = new Map((accounts || []).map((account: any) => [account.id, account]));
+  return links
+    .map((row: any) => telegramParentFromLinkRow({ ...row, telegram_parent_accounts: accountById.get(row.parent_id) }))
+    .filter((parent): parent is TelegramParentAccount => Boolean(parent));
+
 }
 
 export async function disconnectTelegramParent(studentId: string, parentId: string) {
