@@ -480,10 +480,14 @@ async function processDue(admin: any, limit = 25) {
 
   let sent = 0;
   let failed = 0;
+  const REMINDER_TYPES = ['lesson_reminder_24h', 'lesson_reminder_1h'];
+  const STALE_GRACE_MS = 10 * 60_000;
+
   for (const notification of data || []) {
+    const processingStartedAt = new Date().toISOString();
     const { data: claimed } = await admin
       .from('telegram_notifications')
-      .update({ attempts: notification.attempts + 1, updated_at: new Date().toISOString() })
+      .update({ attempts: notification.attempts + 1, processing_started_at: processingStartedAt, updated_at: processingStartedAt })
       .eq('id', notification.id)
       .eq('status', 'pending')
       .eq('attempts', notification.attempts)
@@ -491,15 +495,39 @@ async function processDue(admin: any, limit = 25) {
       .maybeSingle();
     if (!claimed) continue;
 
+    const skip = async (reason: string) => {
+      await admin
+        .from('telegram_notifications')
+        .update({ status: 'canceled', canceled_at: new Date().toISOString(), skipped_reason: reason })
+        .eq('id', notification.id);
+      skipped++;
+    };
+
+    // Never deliver a reminder after the lesson already started, and never deliver
+    // a reminder that the queue picked up long after its scheduled slot.
+    if (REMINDER_TYPES.includes(notification.notification_type)) {
+      const lessonAt = notification.payload?.lessonAt ? new Date(notification.payload.lessonAt).getTime() : null;
+      if (lessonAt && Date.now() >= lessonAt) {
+        await skip('stale: lesson already started');
+        continue;
+      }
+      if (Date.now() - new Date(notification.scheduled_for).getTime() > STALE_GRACE_MS) {
+        await skip('stale: reminder window missed');
+        continue;
+      }
+    }
+
     const parent = notification.telegram_parent_accounts as ParentRow | null;
     if (!parent) {
-      await admin.from('telegram_notifications').update({ status: 'failed', error: 'Parent account not found' }).eq('id', notification.id);
+      await admin
+        .from('telegram_notifications')
+        .update({ status: 'failed', error: 'Parent account not found', skipped_reason: 'parent_not_found' })
+        .eq('id', notification.id);
       failed++;
       continue;
     }
     if (!preferenceAllows(parent, notification.notification_type)) {
-      await admin.from('telegram_notifications').update({ status: 'canceled', canceled_at: new Date().toISOString(), error: 'Notification preference is disabled' }).eq('id', notification.id);
-      failed++;
+      await skip('preference_disabled');
       continue;
     }
     try {
@@ -512,6 +540,7 @@ async function processDue(admin: any, limit = 25) {
       failed++;
     }
   }
+
   return { sent, failed, checked: data?.length || 0 };
 }
 
