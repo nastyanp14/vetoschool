@@ -480,6 +480,7 @@ async function processDue(admin: any, limit = 25) {
 
   let sent = 0;
   let failed = 0;
+  let skipped = 0;
   const REMINDER_TYPES = ['lesson_reminder_24h', 'lesson_reminder_1h'];
   const STALE_GRACE_MS = 10 * 60_000;
 
@@ -541,7 +542,7 @@ async function processDue(admin: any, limit = 25) {
     }
   }
 
-  return { sent, failed, checked: data?.length || 0 };
+  return { sent, failed, skipped, checked: data?.length || 0 };
 }
 
 Deno.serve(async (req) => {
