@@ -581,7 +581,7 @@ export default function TeachersAdmin({ lang, students, onToast }: { lang: Lang;
             <div className="space-y-6">
               <div className="flex items-start gap-4">
                 <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-pink-300 to-purple-400 flex items-center justify-center text-white font-display font-black text-2xl overflow-hidden">
-                  {selectedTeacher.avatarUrl ? <img src={selectedTeacher.avatarUrl} alt="" className="w-full h-full object-cover" /> : nameOf(selectedTeacher)[0].toUpperCase()}
+                  <AvatarImage src={selectedTeacher.avatarUrl} className="w-full h-full object-cover" fallback={nameOf(selectedTeacher)[0].toUpperCase()} />
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-display font-black text-2xl text-purple-700">{nameOf(selectedTeacher)}</h3>
