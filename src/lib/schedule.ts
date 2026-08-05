@@ -13,6 +13,9 @@ export interface ScheduleSlot {
   status?: string | null;
   groupId?: string | null;
   teacherId?: string | null;
+  durationMinutes?: number | null;
+  room?: string | null;
+  onlineUrl?: string | null;
 }
 
 type ScheduleRow = {
@@ -26,6 +29,9 @@ type ScheduleRow = {
   lesson_status?: string | null;
   group_id?: string | null;
   teacher_id?: string | null;
+  duration_minutes?: number | null;
+  room?: string | null;
+  online_url?: string | null;
 };
 
 const key = (uid: string) => `schedule:${uid}`;
@@ -67,6 +73,9 @@ export async function loadStudentSchedule(userId: string): Promise<ScheduleSlot[
     status: r.lesson_status ?? null,
     groupId: r.group_id ?? null,
     teacherId: r.teacher_id ?? null,
+    durationMinutes: r.duration_minutes ?? null,
+    room: r.room ?? null,
+    onlineUrl: r.online_url ?? null,
   })).sort((a, b) => scheduleSlotTimeValue(a) - scheduleSlotTimeValue(b));
   cacheSet(key(userId), slots);
   return slots;
@@ -100,7 +109,8 @@ export async function setSlotConducted(slotId: string, value: boolean, studentId
   }
 }
 
-export async function deleteScheduleSlot(slotId: string): Promise<void> {
+export async function deleteScheduleSlot(slotId: string, studentId?: string): Promise<void> {
+  const before = studentId ? getStudentSchedule(studentId).find(slot => slot.id === slotId) : undefined;
   await (supabase as any).from('content_items').delete().like('module_id', `lesson-block:${slotId}:%`);
   await (supabase as any).from('lesson_plan_blocks').delete().eq('schedule_id', slotId);
   await (supabase as any).from('lesson_attendance').delete().eq('lesson_id', slotId);
@@ -108,4 +118,5 @@ export async function deleteScheduleSlot(slotId: string): Promise<void> {
   await (supabase as any).from('grades').delete().eq('lesson_id', slotId);
   const { error } = await supabase.from('schedules').delete().eq('id', slotId);
   if (error) throw error;
+  if (studentId && before) await notifyScheduleSaved(studentId, [before], []);
 }

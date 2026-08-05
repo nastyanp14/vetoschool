@@ -61,12 +61,10 @@ export function normalizeIso(date?: string | null, time?: string | null) {
 
 
 async function invokeTelegram(body: Record<string, unknown>) {
-  try {
-    const { error } = await supabase.functions.invoke('telegram-notifications', { body });
-    if (error) console.warn('telegram notification skipped', error);
-  } catch (error) {
-    console.warn('telegram notification skipped', error);
-  }
+  const { data, error } = await supabase.functions.invoke('telegram-notifications', { body });
+  if (error) throw error;
+  if (data?.error) throw new Error(String(data.error));
+  return data;
 }
 
 export function telegramParentFromLinkRow(row: any): TelegramParentAccount | null {
@@ -244,12 +242,14 @@ export async function notifyHomeworkReviewed(studentId: string, item: {
   starRating?: number | null;
   teacherComment?: string | null;
   reviewComment?: string | null;
+  gradeEventId?: string | null;
 }) {
   if (!studentId || !item.id || !item.starRating || item.starRating <= 0) return;
   await invokeTelegram({
     action: 'content_event',
     type: 'grade_published',
     studentId,
+    gradeEventId: item.gradeEventId || item.id,
     item: {
       id: item.id,
       type: item.type,
@@ -266,13 +266,15 @@ export async function notifyLessonGradePublished(studentId: string, input: {
   score: number;
   comment?: string | null;
   category?: string | null;
+  gradeEventId?: string | null;
 }) {
-  if (!studentId || !input.lessonId || !input.score || input.score <= 0) return;
+  if (!studentId || !input.lessonId || input.score == null || input.score < 0) return;
   const categoryKey = (input.category || 'lesson').toLowerCase().replace(/[^a-z0-9_-]+/gi, '-');
   await invokeTelegram({
     action: 'content_event',
     type: 'grade_published',
     studentId,
+    gradeEventId: input.gradeEventId || input.lessonId,
     item: {
       id: `lesson-result:${input.lessonId}:${studentId}:${categoryKey}`,
       type: 'checkpoint',
@@ -290,8 +292,18 @@ export async function notifyScheduleSaved(studentId: string, before: ScheduleSlo
 
   for (const slot of after) {
     const prev = beforeById.get(slot.id);
-    if (prev && (prev.day !== slot.day || prev.time !== slot.time || prev.topic !== slot.topic)) {
-      events.push({ type: 'lesson_rescheduled', slot, oldSlot: prev });
+    const canceled = slot.status === 'cancelled';
+    const wasCanceled = prev?.status === 'cancelled';
+    const meaningfulChange = prev && (
+      prev.day !== slot.day || prev.date !== slot.date || prev.time !== slot.time ||
+      prev.topic !== slot.topic || prev.teacherId !== slot.teacherId ||
+      prev.durationMinutes !== slot.durationMinutes || prev.room !== slot.room ||
+      prev.onlineUrl !== slot.onlineUrl
+    );
+    if (prev && canceled && !wasCanceled) {
+      events.push({ type: 'lesson_canceled', slot: prev, oldSlot: prev, eventId: slot.id + ':status:cancelled' });
+    } else if (prev && meaningfulChange && !canceled) {
+      events.push({ type: 'lesson_rescheduled', slot, oldSlot: prev, eventId: slot.id + ':' + [slot.date, slot.time, slot.teacherId, slot.durationMinutes, slot.room, slot.onlineUrl].join(':') });
     } else if (!prev && !beforeSignatures.has(`${slot.day}|${slot.time}|${slot.topic}`)) {
       events.push({ type: 'lesson_scheduled', slot });
     }
@@ -315,4 +327,19 @@ export async function notifyHomeworkAssigned(studentId: string, item: { id: stri
     studentId,
     item: { id: item.id, type: 'homework', title: item.title },
   });
+}
+
+export async function notifyHomeworkChanged(studentId: string, item: { id: string; title: string; eventId: string; canceled?: boolean }) {
+  if (!studentId || !item.id) return;
+  await invokeTelegram({
+    action: 'content_event',
+    type: item.canceled ? 'homework_canceled' : 'homework_updated',
+    studentId,
+    eventId: item.eventId,
+    item: { id: item.id, type: 'homework', title: item.title },
+  });
+}
+
+export async function notifyLessonResultPublished(studentId: string, input: { lessonId: string; title: string; comment?: string | null; eventId: string }) {
+  await invokeTelegram({ action: 'content_event', type: 'lesson_result_published', studentId, eventId: input.eventId, item: { id: input.lessonId, type: 'lesson', title: input.title, teacherComment: input.comment || '' } });
 }
