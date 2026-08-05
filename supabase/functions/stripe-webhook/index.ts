@@ -2272,6 +2272,17 @@ async function applySubscriptionWebhookState(
         ]),
       ].filter(Boolean).join('\n'),
     }, env);
+
+    if (options.deleted || isCancelAtPeriodEndEmail) {
+      await notifyBillingEventSafe({
+        type: options.deleted ? 'subscription_ended' : 'subscription_cancelled',
+        studentId: profile.id,
+        eventId: `${event.id}:${options.deleted ? 'subscription_ended' : 'subscription_cancelled'}`,
+        planName: planDisplayName(planId),
+        accessUntil: currentPeriodEnd,
+        lessonsRemaining: applyResult?.[0]?.lessons_remaining ?? null,
+      }, env);
+    }
   }
 }
 
