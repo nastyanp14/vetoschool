@@ -1388,21 +1388,16 @@ async function applyStripeCheckoutCompletedPayment(params: {
   });
 
   if (!response.ok) {
-    let supabaseCode: string | null = null;
-    try {
-      const payload = await response.clone().json() as { code?: string };
-      supabaseCode = payload.code || null;
-    } catch {
-      supabaseCode = null;
-    }
+    const failure = await readSupabaseRpcFailure(response);
     logStripeWebhookSupabaseDebug({
       stage: 'checkout_completed_apply',
       rpc: 'apply_stripe_subscription_payment',
       status: response.status,
-      supabaseCode,
+      supabaseCode: failure.code,
     });
-    throw new Error(`stripe_checkout_apply_failed_${response.status}`);
+    throw new Error(`stripe_checkout_apply_failed_${response.status}: ${failure.detail}`);
   }
+
 
   return await response.json().catch(() => []) as Array<{ payment_inserted?: boolean; lessons_remaining?: number }>;
 }
