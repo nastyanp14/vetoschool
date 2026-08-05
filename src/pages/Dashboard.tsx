@@ -63,6 +63,8 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
+  const [confirmDisconnectId, setConfirmDisconnectId] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [waitingForLink, setWaitingForLink] = useState(false);
 
@@ -84,11 +86,18 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
   };
   const disconnectParent = async (parentId: string) => {
     setDisconnectingId(parentId);
+    setStatusMessage(null);
     try {
-      await disconnectTelegramParent(studentId, parentId);
+      const removed = await disconnectTelegramParent(studentId, parentId);
+      setParents(current => current.filter(parent => parent.id !== parentId));
       await loadParents();
+      setStatusMessage({ kind: removed ? 'ok' : 'error', text: removed ? 'disconnected' : 'notFound' });
+    } catch (error) {
+      console.error('Telegram disconnect failed', error);
+      setStatusMessage({ kind: 'error', text: 'failed' });
     } finally {
       setDisconnectingId(null);
+      setConfirmDisconnectId(null);
     }
   };
   const createLink = async () => {
@@ -135,6 +144,11 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
       empty: 'Пока нет подключённых родителей',
       refresh: 'Обновить',
       disconnect: 'Отключить',
+      confirm: 'Точно отключить?',
+      cancel: 'Отмена',
+      disconnected: 'Родитель отключён',
+      notFound: 'Связь уже отключена',
+      failed: 'Не удалось отключить. Попробуйте ещё раз.',
       settings: 'Настройки уведомлений меняются в боте: напоминания, домашки, оценки, переносы и отмены.',
       waiting: 'Ждём подтверждения из Telegram...',
       linkedAt: 'Подключён',
@@ -150,6 +164,11 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
       empty: 'Поки немає підключених батьків',
       refresh: 'Оновити',
       disconnect: 'Відключити',
+      confirm: 'Точно відключити?',
+      cancel: 'Скасувати',
+      disconnected: 'Батька відключено',
+      notFound: "Зв'язок вже відключено",
+      failed: 'Не вдалося відключити. Спробуйте ще раз.',
       settings: 'Налаштування сповіщень змінюються в боті: нагадування, домашки, оцінки, перенесення та скасування.',
       waiting: 'Чекаємо підтвердження з Telegram...',
       linkedAt: 'Підключено',
@@ -165,6 +184,11 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
       empty: 'No connected parents yet',
       refresh: 'Refresh',
       disconnect: 'Disconnect',
+      confirm: 'Really disconnect?',
+      cancel: 'Cancel',
+      disconnected: 'Parent disconnected',
+      notFound: 'This link is already disconnected',
+      failed: 'Could not disconnect. Please try again.',
       settings: 'Notification settings are changed in the bot: reminders, homework, grades, reschedules and cancellations.',
       waiting: 'Waiting for Telegram confirmation...',
       linkedAt: 'Linked',
@@ -238,16 +262,41 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
                     </span>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => disconnectParent(parent.id)}
-                  disabled={disconnectingId === parent.id}
-                  className="mt-2 rounded-xl border border-red-100 bg-red-50/70 px-3 py-1.5 font-body text-xs font-800 text-red-500 hover:bg-red-100 disabled:opacity-60"
-                >
-                  {disconnectingId === parent.id ? '...' : text.disconnect}
-                </button>
+                {confirmDisconnectId === parent.id ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="font-body text-xs font-800 text-red-500">{text.confirm}</span>
+                    <button
+                      type="button"
+                      onClick={() => disconnectParent(parent.id)}
+                      disabled={disconnectingId === parent.id}
+                      className="rounded-xl border border-red-200 bg-red-100 px-3 py-1.5 font-body text-xs font-800 text-red-600 hover:bg-red-200 disabled:opacity-60"
+                    >
+                      {disconnectingId === parent.id ? '...' : text.disconnect}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDisconnectId(null)}
+                      className="rounded-xl bg-white/80 px-3 py-1.5 font-body text-xs font-800 text-purple-500 hover:bg-purple-50"
+                    >
+                      {text.cancel}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { setStatusMessage(null); setConfirmDisconnectId(parent.id); }}
+                    className="mt-2 rounded-xl border border-red-100 bg-red-50/70 px-3 py-1.5 font-body text-xs font-800 text-red-500 hover:bg-red-100"
+                  >
+                    {text.disconnect}
+                  </button>
+                )}
               </div>
             ))}
+          </div>
+        )}
+        {statusMessage && (
+          <div className={`mt-2 rounded-2xl px-4 py-2 font-body text-xs font-800 ${statusMessage.kind === 'ok' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'}`}>
+            {text[statusMessage.text as 'disconnected' | 'notFound' | 'failed']}
           </div>
         )}
       </div>

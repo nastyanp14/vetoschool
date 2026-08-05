@@ -200,15 +200,26 @@ async function isAdmin(admin: any, userId: string | null) {
   return !!data?.some((row: { role: string }) => row.role === 'admin');
 }
 
+async function teacherIdsForUser(admin: any, userId: string): Promise<string[]> {
+  // teacher_students.teacher_id / student_groups.teacher_id reference teachers.id,
+  // NOT the auth user id. Resolve the teacher rows owned by this auth user first.
+  const { data } = await admin.from('teachers').select('id').eq('teacher_user_id', userId);
+  const ids = (data || []).map((row: { id: string }) => row.id);
+  return ids.length ? ids : [];
+}
+
 async function canNotifyForStudent(admin: any, userId: string | null, studentId: string) {
   if (!userId || !studentId) return false;
   if (userId === studentId) return true;
   if (await isAdmin(admin, userId)) return true;
 
+  const teacherIds = await teacherIdsForUser(admin, userId);
+  if (!teacherIds.length) return false;
+
   const { data: directTeacher } = await admin
     .from('teacher_students')
     .select('teacher_id')
-    .eq('teacher_id', userId)
+    .in('teacher_id', teacherIds)
     .eq('student_id', studentId)
     .maybeSingle();
   if (directTeacher) return true;
@@ -217,7 +228,7 @@ async function canNotifyForStudent(admin: any, userId: string | null, studentId:
     .from('student_group_members')
     .select('student_groups!inner(teacher_id)')
     .eq('user_id', studentId)
-    .eq('student_groups.teacher_id', userId)
+    .in('student_groups.teacher_id', teacherIds)
     .maybeSingle();
   return !!groupTeacher;
 }

@@ -152,12 +152,16 @@ export async function listTelegramParents(studentId: string): Promise<TelegramPa
 }
 
 export async function disconnectTelegramParent(studentId: string, parentId: string) {
-  const { error } = await asAnySupabase()
-    .from('student_parent_links')
-    .delete()
-    .eq('student_id', studentId)
-    .eq('parent_id', parentId);
+  // The table has no DELETE/UPDATE policy for end users, so a direct mutation
+  // silently affects 0 rows. Use the SECURITY DEFINER RPC instead: it keeps the
+  // Telegram account (still usable for other children) and only deactivates
+  // this student-parent link so the parent can reconnect with a new token.
+  const { data, error } = await asAnySupabase().rpc('disconnect_telegram_parent', {
+    _student_id: studentId,
+    _parent_id: parentId,
+  });
   if (error) throw error;
+  return data === true;
 }
 
 export async function notifyContentChanges(studentId: string, before: ContentItem[], after: ContentItem[]) {

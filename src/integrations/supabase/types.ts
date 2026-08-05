@@ -1722,6 +1722,7 @@ export type Database = {
         Row: {
           active: boolean
           created_at: string
+          disconnected_at: string | null
           id: string
           linked_at: string
           parent_id: string
@@ -1731,6 +1732,7 @@ export type Database = {
         Insert: {
           active?: boolean
           created_at?: string
+          disconnected_at?: string | null
           id?: string
           linked_at?: string
           parent_id: string
@@ -1740,6 +1742,7 @@ export type Database = {
         Update: {
           active?: boolean
           created_at?: string
+          disconnected_at?: string | null
           id?: string
           linked_at?: string
           parent_id?: string
@@ -2943,6 +2946,10 @@ export type Database = {
           already_completed: boolean
           stars_awarded: number
         }[]
+      }
+      disconnect_telegram_parent: {
+        Args: { _parent_id: string; _student_id: string }
+        Returns: boolean
       }
       get_interactive_tasks_for_lesson: {
         Args: { _lesson_id: string }
