@@ -294,6 +294,9 @@ export async function register(name: string, email: string, password: string, la
 
   if (error) return { success: false, error: friendlyAuthError(error.message) };
 
+  markEmailOtpSent(normalizedEmail);
+
+
   if (data.user && data.session) {
     try {
       await initializeProfile(data.user.id, normalizedEmail, name);
