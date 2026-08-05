@@ -1323,7 +1323,7 @@ export async function syncLessonBlockContentForStudents(input: {
     if (staleError && !isSchemaNotReadyError(staleError)) throw staleError;
     await Promise.all(allExisting
       .filter(row => staleIds.includes(row.id) && row.type === 'homework')
-      .map(row => notifyHomeworkChanged(row.user_id, { id: row.id, title: row.title || 'Homework', eventId: nowIso(), canceled: true })));
+      .map(row => notifyHomeworkChanged(row.user_id, { id: row.id, title: row.title || 'Homework', eventId: new Date().toISOString(), canceled: true })));
   }
   if (!reviewableBlocks.length) return;
 
