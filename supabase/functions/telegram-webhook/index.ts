@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { extractParentIdentity, extractSetting, extractStartToken, webhookSource } from '../_shared/telegramCore.ts';
+import { renderNotification } from '../_shared/notificationTemplates.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -276,9 +277,14 @@ async function handleTelegramUpdate(admin: any, update: any) {
     if (parent && !existing) {
       await admin.from('telegram_parent_accounts').update({ language: lang }).eq('id', parent.id);
     }
+    // Одно аккуратное сообщение о подключении из единого реестра шаблонов.
+    const connected = renderNotification('telegram_connected', 'parent', lang, {
+      student_name: result.student_name || '',
+    });
     await telegramApi('sendMessage', {
       chat_id: chatId,
-      text: T[lang].linked.replace('{name}', result.student_name || ''),
+      text: connected?.text || T[lang].linked.replace('{name}', result.student_name || ''),
+      parse_mode: 'HTML',
       reply_markup: settingsKeyboard({ ...(parent || {}), language: lang }, lang),
     });
     return json({ ok: true, linked: true });
