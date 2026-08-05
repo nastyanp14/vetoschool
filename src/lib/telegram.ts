@@ -235,6 +235,11 @@ export async function notifyLessonConducted(studentId: string, slot: ScheduleSlo
   await invokeTelegram({ action: 'schedule_event', type: 'lesson_conducted', studentId, slot });
 }
 
+export async function notifyLessonNoShow(studentId: string, slot: ScheduleSlot, teacherName?: string | null) {
+  if (!studentId || !slot?.id) return;
+  await invokeTelegram({ action: 'schedule_event', type: 'lesson_no_show', studentId, slot, teacherName: teacherName || '' });
+}
+
 export async function notifyHomeworkReviewed(studentId: string, item: {
   id: string;
   type: string;

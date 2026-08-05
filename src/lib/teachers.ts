@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { User } from './auth';
 import { awardStars } from './stars';
-import { notifyHomeworkAssigned, notifyHomeworkChanged, notifyHomeworkReviewed, notifyLessonGradePublished, notifyLessonResultPublished, notifyScheduleSaved } from './telegram';
+import { notifyHomeworkAssigned, notifyHomeworkChanged, notifyHomeworkReviewed, notifyLessonGradePublished, notifyLessonNoShow, notifyLessonResultPublished, notifyScheduleSaved } from './telegram';
 import type { ScheduleSlot } from './schedule';
 
 export type TeacherStatus = 'active' | 'inactive' | 'vacation' | 'blocked';
@@ -1597,6 +1597,7 @@ export async function saveLessonAttendance(input: {
       updated_at: new Date().toISOString(),
     }, { onConflict: 'lesson_id,student_id' });
   if (error) throw error;
+  await notifyAttendanceNoShow([input]);
 }
 
 export async function saveLessonAttendances(rows: Array<{ lessonId: string; teacherId: string; studentId: string; status: AttendanceStatus; note?: string }>) {
@@ -1611,6 +1612,34 @@ export async function saveLessonAttendances(rows: Array<{ lessonId: string; teac
   }));
   const { error } = await (supabase as any).from('lesson_attendance').upsert(payload, { onConflict: 'lesson_id,student_id' });
   if (error) throw error;
+  await notifyAttendanceNoShow(rows);
+}
+
+/** Пропуск урока — отдельное событие уведомлений (родитель, преподаватель, админ). */
+async function notifyAttendanceNoShow(rows: Array<{ lessonId: string; studentId: string; status: AttendanceStatus }>) {
+  const absent = rows.filter(row => row.status === 'absent_unexcused');
+  if (!absent.length) return;
+  const lessonIds = Array.from(new Set(absent.map(row => row.lessonId)));
+  const { data } = await (supabase as any)
+    .from('schedules')
+    .select('id,day,date,time,topic,teacher_id')
+    .in('id', lessonIds);
+  const byId = new Map(((data as any[]) || []).map(row => [row.id, row]));
+  await Promise.all(absent.map(async row => {
+    const lesson = byId.get(row.lessonId);
+    if (!lesson) return;
+    try {
+      await notifyLessonNoShow(row.studentId, {
+        id: lesson.id,
+        day: lesson.day,
+        date: lesson.date,
+        time: lesson.time,
+        topic: lesson.topic,
+      } as any);
+    } catch (error) {
+      console.warn('no-show notification failed', error);
+    }
+  }));
 }
 
 export async function saveHomeworkComment(homeworkId: string, patch: { teacherId?: string; teacherComment?: string; resultPercent?: number | null; errorsCount?: number | null; starRating?: number | null; status?: 'reviewed' | 'revision_requested' }) {

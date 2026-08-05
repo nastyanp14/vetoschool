@@ -11,6 +11,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { Lang } from '@/lib/i18n';
+import TrialNotificationHistory from '@/components/TrialNotificationHistory';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   loadTrialBookings,
@@ -570,6 +571,8 @@ export default function TrialLessonsAdmin({ lang }: { lang: Lang }) {
                   {labels.save}
                 </button>
               </section>
+
+              <TrialNotificationHistory bookingId={selected.id} lang={lang} />
             </div>
           )}
         </aside>

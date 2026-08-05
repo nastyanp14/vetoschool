@@ -17,6 +17,9 @@ type ParentRow = {
   notify_homework: boolean;
   notify_grades: boolean;
   notify_schedule_changes: boolean;
+  notify_billing: boolean;
+  notify_trials: boolean;
+  notify_weekly: boolean;
 };
 
 const encoder = new TextEncoder();
@@ -91,11 +94,18 @@ import {
   formatTime,
   formatWhen,
   idempotencyKey,
+  isCritical,
+  preferenceFor,
   renderNotification,
   scoreNote,
   type NotificationEvent,
   type NotifyLang,
+  type NotifyRole,
 } from '../_shared/notificationTemplates.ts';
+import {
+  enqueueNotificationEmail,
+  renderNotificationEmail,
+} from '../_shared/notificationEmail.tsx';
 
 /** Старые типы очереди -> события реестра. */
 const EVENT_ALIASES: Record<string, NotificationEvent> = {
@@ -127,6 +137,10 @@ const EVENT_ALIASES: Record<string, NotificationEvent> = {
   trial_reminder_24h: 'trial_reminder_24h',
   trial_reminder_1h: 'trial_reminder_1h',
   trial_reminder_10m: 'trial_reminder_10m',
+  trial_request_completed: 'trial_request_completed',
+  trial_request_no_show: 'trial_request_no_show',
+  trial_request_converted: 'trial_request_converted',
+  trial_recommendation_ready: 'trial_recommendation_ready',
   payment_succeeded: 'payment_succeeded',
   payment_failed: 'payment_failed',
   subscription_cancelled: 'subscription_cancelled',
@@ -173,6 +187,23 @@ export function templateVars(payload: any, lang: NotifyLang, now = new Date()) {
     lessons_remaining: payload.lessonsRemaining ?? '',
     next_payment_date: payload.nextPaymentDate ? formatDate(payload.nextPaymentDate, lang) : '',
     access_until: payload.accessUntil ? formatDate(payload.accessUntil, lang) : '',
+    invoice_number: payload.invoiceNumber || '',
+    final_level: payload.finalLevel || '',
+    recommended_format: payload.recommendedFormat || '',
+    recommended_group: payload.recommendedGroup || '',
+    recommended_plan: payload.recommendedPlan || '',
+    assigned_group: payload.assignedGroup || '',
+    purchased_plan: payload.purchasedPlan || payload.planName || '',
+    payment_status: payload.paymentStatus || '',
+    first_lesson_date: payload.firstLessonDate ? formatDate(payload.firstLessonDate, lang) : '',
+    lessons_total: payload.lessonsTotal ?? '',
+    lessons_completed: payload.lessonsCompleted ?? '',
+    homework_completed: payload.homeworkCompleted ?? '',
+    average_score: payload.averageScore ?? '',
+    learning_streak: payload.learningStreak ?? '',
+    progress_summary: payload.progressSummary || '',
+    teacher_weekly_comment: payload.teacherWeeklyComment || '',
+    submitted_at: payload.submittedAt ? formatDate(payload.submittedAt, lang) : '',
     // контекстные ссылки: без валидного https кнопка просто не показывается
     schedule_url: url, lesson_url: payload.lessonUrl || url, homework_url: url, result_url: url,
     request_url: payload.requestUrl || url, billing_url: payload.billingUrl || url,
@@ -380,9 +411,16 @@ async function cancelLessonReminders(admin: any, studentId: string, lessonRef: s
     .update({ status: 'canceled', canceled_at: new Date().toISOString() })
     .eq('student_id', studentId)
     .eq('status', 'pending')
-    .in('notification_type', ['lesson_reminder_24h', 'lesson_reminder_1h'])
+    .in('notification_type', ['lesson_reminder_24h', 'lesson_reminder_1h', 'lesson_reminder_10m'])
     .eq('payload->>lessonRef', lessonRef);
 }
+
+// 24 часа / 1 час / 10 минут до начала.
+const REMINDER_STEPS = [
+  { suffix: '24h', minutes: 24 * 60 },
+  { suffix: '1h', minutes: 60 },
+  { suffix: '10m', minutes: 10 },
+] as const;
 
 function minutesBefore(iso: string, minutes: number) {
   return new Date(new Date(iso).getTime() - minutes * 60_000).toISOString();
@@ -401,12 +439,12 @@ async function handleContentEvent(admin: any, body: any) {
   if ((type === 'lesson_scheduled' || type === 'lesson_rescheduled') && body.lessonAt) {
     await cancelLessonReminders(admin, studentId, lessonRef);
     for (const parent of parents.filter(parent => parent.notify_lesson_reminders)) {
-      for (const reminder of [{ suffix: '24h', minutes: 24 * 60 }, { suffix: '1h', minutes: 60 }]) {
+      for (const reminder of REMINDER_STEPS) {
         const scheduledFor = minutesBefore(body.lessonAt, reminder.minutes);
         if (new Date(scheduledFor).getTime() <= Date.now()) continue;
         await enqueue(admin, {
           event_key: `${lessonRef}:${parent.id}:reminder:${reminder.suffix}:${body.lessonAt}`,
-          notification_type: reminder.suffix === '24h' ? 'lesson_reminder_24h' : 'lesson_reminder_1h',
+          notification_type: `lesson_reminder_${reminder.suffix}`,
           student_id: studentId,
           parent_id: parent.id,
           scheduled_for: scheduledFor,
@@ -444,6 +482,7 @@ async function handleContentEvent(admin: any, body: any) {
   }
 
   if (type === 'homework_published') {
+    await emailStudentEvent(admin, studentId, type, { studentName: name, title: item.title, url }, { type: 'content', id: String(item.id) });
     for (const parent of parents.filter(parent => parent.notify_homework)) {
       await enqueue(admin, {
         event_key: `content:${item.id}:${parent.id}:homework_published`,
@@ -458,6 +497,7 @@ async function handleContentEvent(admin: any, body: any) {
 
   if (type === 'homework_updated' || type === 'homework_canceled' || type === 'lesson_result_published') {
     const eventId = String(body.eventId || item.updatedAt || item.updated_at || now);
+    await emailStudentEvent(admin, studentId, type, { studentName: name, title: item.title, comment: item.comment || '', url }, { type: 'content', id: `${item.id}:${eventId}` });
     for (const parent of parents.filter(parent => parent.notify_homework)) {
       await enqueue(admin, {
         event_key: `content:${item.id}:${parent.id}:${type}:${eventId}`,
@@ -472,6 +512,7 @@ async function handleContentEvent(admin: any, body: any) {
 
   if (type === 'grade_published') {
     const gradeEventId = String(body.gradeEventId || item.updatedAt || item.updated_at || item.id);
+    await emailStudentEvent(admin, studentId, type, { studentName: name, title: item.title, grade: `${item.starRating}/5`, comment: item.teacherComment || item.comment || '', url }, { type: 'content', id: `${item.id}:${gradeEventId}` });
     for (const parent of parents.filter(parent => parent.notify_grades)) {
       await enqueue(admin, {
         event_key: `content:${item.id}:${parent.id}:grade:${item.starRating}:${gradeEventId}`,
@@ -497,15 +538,166 @@ function slotLessonAt(slot: any) {
   return naiveLocalToIso(`${date}T${time}`);
 }
 
+const PREFERENCE_COLUMN: Record<string, keyof ParentRow> = {
+  lessons: 'notify_lesson_reminders',
+  homework: 'notify_homework',
+  grades: 'notify_grades',
+  schedule: 'notify_schedule_changes',
+  billing: 'notify_billing',
+  trials: 'notify_trials',
+  weekly: 'notify_weekly',
+};
+
+function registryEvent(notificationType: string): NotificationEvent {
+  return EVENT_ALIASES[notificationType] || (notificationType as NotificationEvent);
+}
+
+/**
+ * Настройки получателя решают всё, кроме критичных событий
+ * (отмена, перенос, биллинг) — их родитель получает всегда.
+ */
 function preferenceAllows(parent: ParentRow, notificationType: string) {
-  if (notificationType === 'lesson_reminder_24h' || notificationType === 'lesson_reminder_1h' || notificationType === 'lesson_conducted') {
-    return parent.notify_lesson_reminders;
+  const event = registryEvent(notificationType);
+  if (isCritical(event, 'parent')) return true;
+  const preference = preferenceFor(event, 'parent');
+  if (!preference) return false;
+  const column = PREFERENCE_COLUMN[preference];
+  if (!column) return false;
+  return parent[column] !== false;
+}
+
+/* ----------------------------------------------------- email-канал */
+
+function pickLangCode(value?: string | null): NotifyLang {
+  const normalized = (value || '').toLowerCase();
+  if (normalized === 'ua' || normalized === 'uk') return 'ua';
+  if (normalized === 'en') return 'en';
+  return 'ru';
+}
+
+async function studentContact(admin: any, studentId: string) {
+  const { data } = await admin.from('profiles').select('email,name,lang').eq('id', studentId).maybeSingle();
+  return data || null;
+}
+
+/** Следующая версия события: повторная отправка не спорит с idempotency_key. */
+async function nextEventVersion(admin: any, entityType: string, entityId: string, eventType: string) {
+  const { data } = await admin
+    .from('notification_log')
+    .select('event_version')
+    .eq('entity_type', entityType)
+    .eq('entity_id', entityId)
+    .eq('event_type', eventType)
+    .order('event_version', { ascending: false })
+    .limit(1);
+  return Number(data?.[0]?.event_version || 0) + 1;
+}
+
+/**
+ * Письмо строится из того же реестра, что и Telegram, и уходит в очередь
+ * transactional_emails. Дубли отсекает уникальный idempotency_key.
+ */
+async function deliverEmail(admin: any, input: {
+  event: NotificationEvent;
+  entityType: string;
+  entityId: string;
+  studentId?: string | null;
+  recipientEmail?: string | null;
+  recipientRole?: NotifyRole;
+  lang?: string | null;
+  vars: Record<string, unknown>;
+  eventVersion?: number;
+}) {
+  const email = (input.recipientEmail || '').trim().toLowerCase();
+  if (!email) return { skipped: 'no_email' };
+
+  const lang = pickLangCode(input.lang);
+  const role = input.recipientRole || 'parent';
+  const eventVersion = input.eventVersion ?? 1;
+  const key = idempotencyKey({
+    eventType: input.event,
+    entityId: input.entityId,
+    recipientId: email,
+    channel: 'email',
+    eventVersion,
+  });
+
+  const { error: claimError } = await admin.from('notification_log').insert({
+    event_type: input.event,
+    event_version: eventVersion,
+    entity_type: input.entityType,
+    entity_id: input.entityId,
+    recipient_role: role,
+    recipient_email: email,
+    student_id: input.studentId || null,
+    channel: 'email',
+    language: lang,
+    status: 'pending',
+    idempotency_key: key,
+  });
+  if (claimError) {
+    // 23505 = такое письмо уже отправлялось
+    if (claimError.code !== '23505') console.error('notification_log claim failed', claimError.message);
+    return { skipped: 'duplicate' };
   }
-  if (notificationType === 'homework_published' || notificationType === 'homework_updated' || notificationType === 'homework_canceled' || notificationType === 'lesson_result_published') return parent.notify_homework;
-  if (notificationType === 'grade_published') return parent.notify_grades;
-  if (notificationType === 'lesson_rescheduled' || notificationType === 'lesson_canceled') return parent.notify_schedule_changes;
-  if (notificationType === 'trial_confirmed' || notificationType === 'trial_rescheduled' || notificationType === 'trial_canceled') return parent.notify_schedule_changes;
-  return false;
+
+  const finish = async (patch: Record<string, unknown>) => {
+    await admin.from('notification_log').update(patch).eq('idempotency_key', key);
+  };
+
+  try {
+    const rendered = await renderNotificationEmail(input.event, role, lang, input.vars as any);
+    if (!rendered) {
+      await finish({ status: 'skipped', error_message: 'no_template' });
+      return { skipped: 'no_template' };
+    }
+    const queued = await enqueueNotificationEmail(admin, {
+      to: email,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      label: input.event,
+      idempotencyKey: key,
+    });
+    if (queued.skipped) {
+      await finish({ status: 'skipped', error_message: queued.skipped });
+      return { skipped: queued.skipped };
+    }
+    await finish({
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+      provider_message_id: queued.messageId,
+      subject: rendered.subject,
+      body_preview: rendered.message.text.slice(0, 500),
+    });
+    return { sent: true };
+  } catch (error) {
+    await finish({
+      status: 'failed',
+      failed_at: new Date().toISOString(),
+      error_message: (error as Error).message,
+    });
+    return { skipped: 'failed' };
+  }
+}
+
+/** Письмо владельцу аккаунта ученика по тем же данным, что и Telegram. */
+async function emailStudentEvent(admin: any, studentId: string, notificationType: string, payload: any, entity: { type: string; id: string }, eventVersion = 1) {
+  if (!studentId) return;
+  const contact = await studentContact(admin, studentId);
+  if (!contact?.email) return;
+  const lang = pickLangCode(contact.lang);
+  await deliverEmail(admin, {
+    event: registryEvent(notificationType),
+    entityType: entity.type,
+    entityId: entity.id,
+    studentId,
+    recipientEmail: contact.email,
+    recipientRole: 'parent',
+    lang,
+    vars: templateVars({ studentName: contact.name || '', ...payload }, lang) as any,
+    eventVersion,
+  });
 }
 
 async function handleScheduleEvent(admin: any, body: any) {
@@ -531,6 +723,25 @@ async function handleScheduleEvent(admin: any, body: any) {
         payload: { studentName: name, topic: slot.topic, slotLabel: slotLabel(slot), lessonRef, url },
       });
     }
+    await emailStudentEvent(admin, studentId, 'lesson_conducted', { studentName: name, topic: slot.topic, slotLabel: slotLabel(slot), summary: body.summary || '', homeworkSummary: body.homeworkSummary || '', url }, { type: 'schedule', id: `${lessonRef}:conducted` });
+    await maybeNotifyLowBalance(admin, studentId);
+    return;
+  }
+
+  if (type === 'lesson_no_show') {
+    await cancelLessonReminders(admin, studentId, lessonRef);
+    const payload = { studentName: name, topic: slot.topic, lessonAt, slotLabel: slotLabel(slot), teacherName: body.teacherName || '', lessonRef, url, contactUrl: `${siteUrl()}/contacts` };
+    for (const parent of parents) {
+      await enqueue(admin, {
+        event_key: `${lessonRef}:${parent.id}:no_show`,
+        notification_type: 'lesson_no_show',
+        student_id: studentId,
+        parent_id: parent.id,
+        scheduled_for: now,
+        payload,
+      });
+    }
+    await emailStudentEvent(admin, studentId, 'lesson_no_show', payload, { type: 'schedule', id: `${lessonRef}:no_show` });
     return;
   }
 
@@ -538,12 +749,12 @@ async function handleScheduleEvent(admin: any, body: any) {
     await cancelLessonReminders(admin, studentId, lessonRef);
     if (lessonAt && type !== 'lesson_canceled') {
       for (const parent of parents.filter(parent => parent.notify_lesson_reminders)) {
-        for (const reminder of [{ suffix: '24h', minutes: 24 * 60 }, { suffix: '1h', minutes: 60 }]) {
+        for (const reminder of REMINDER_STEPS) {
           const scheduledFor = minutesBefore(lessonAt, reminder.minutes);
           if (new Date(scheduledFor).getTime() <= Date.now()) continue;
           await enqueue(admin, {
             event_key: `${lessonRef}:${parent.id}:reminder:${reminder.suffix}:${lessonAt}`,
-            notification_type: reminder.suffix === '24h' ? 'lesson_reminder_24h' : 'lesson_reminder_1h',
+            notification_type: `lesson_reminder_${reminder.suffix}`,
             student_id: studentId,
             parent_id: parent.id,
             scheduled_for: scheduledFor,
@@ -562,42 +773,301 @@ async function handleScheduleEvent(admin: any, body: any) {
         payload: { studentName: name, topic: slot.topic, oldSlotLabel: slotLabel(oldSlot), slotLabel: slotLabel(slot), lessonRef, url },
       });
     }
+    if (type !== 'lesson_scheduled') {
+      const eventId = String(body.eventId || `${slotLabel(oldSlot)}:${slotLabel(slot)}`);
+      await emailStudentEvent(
+        admin,
+        studentId,
+        type === 'lesson_canceled' ? 'lesson_canceled' : 'lesson_rescheduled',
+        { studentName: name, topic: slot.topic, oldSlotLabel: slotLabel(oldSlot), slotLabel: slotLabel(slot), lessonAt, reason: body.reason || '', url },
+        { type: 'schedule', id: `${lessonRef}:${type}:${eventId}` },
+      );
+    }
   }
 }
+
+/* --------------------------------------------------------- биллинг */
+
+const BILLING_EVENTS = ['payment_succeeded', 'payment_failed', 'subscription_cancelled', 'subscription_ended', 'lessons_low_balance'];
+
+async function handleBillingEvent(admin: any, body: any) {
+  const studentId = String(body.studentId || body.userId || '');
+  const type = String(body.type || '');
+  if (!studentId) throw new Error('studentId is required');
+  if (!BILLING_EVENTS.includes(type)) throw new Error('unsupported_billing_event');
+
+  const name = await studentName(admin, studentId);
+  const eventId = String(body.eventId || `${type}:${studentId}:${new Date().toISOString().slice(0, 10)}`);
+  const base = siteUrl();
+  const payload = {
+    studentName: name,
+    planName: body.planName || '',
+    amount: body.amount ?? '',
+    currency: (body.currency || '').toUpperCase(),
+    lessonsAdded: body.lessonsAdded ?? '',
+    lessonsRemaining: body.lessonsRemaining ?? '',
+    nextPaymentDate: body.nextPaymentDate || '',
+    accessUntil: body.accessUntil || '',
+    invoiceNumber: body.invoiceNumber || '',
+    url: base ? `${base}/dashboard` : '',
+    billingUrl: base ? `${base}/dashboard?tab=billing` : '',
+    pricingUrl: base ? `${base}/pricing` : '',
+  };
+  const now = new Date().toISOString();
+
+  for (const parent of await parentsFor(admin, studentId)) {
+    await enqueue(admin, {
+      event_key: `billing:${eventId}:${parent.id}:${type}`,
+      notification_type: type,
+      student_id: studentId,
+      parent_id: parent.id,
+      scheduled_for: now,
+      payload,
+    });
+  }
+  await emailStudentEvent(admin, studentId, type, payload, { type: 'billing', id: eventId });
+
+  if (type === 'payment_succeeded') return;
+  if (type !== 'lessons_low_balance') await maybeNotifyLowBalance(admin, studentId);
+}
+
+/** Одно напоминание об остатке на каждое значение баланса — без спама. */
+async function maybeNotifyLowBalance(admin: any, studentId: string) {
+  const { data } = await admin
+    .from('profiles')
+    .select('lessons_remaining,next_payment_date,plan_id')
+    .eq('id', studentId)
+    .maybeSingle();
+  const remaining = Number(data?.lessons_remaining);
+  if (!Number.isFinite(remaining) || remaining < 0 || remaining > 2) return;
+  await handleBillingEvent(admin, {
+    studentId,
+    type: 'lessons_low_balance',
+    eventId: `low_balance:${studentId}:${remaining}`,
+    lessonsRemaining: remaining,
+    nextPaymentDate: data?.next_payment_date || '',
+    planName: data?.plan_id || '',
+  });
+}
+
+const TRIAL_STATUS_EVENTS: Record<string, string> = {
+  cancelled: 'trial_canceled',
+  completed: 'trial_request_completed',
+  no_show: 'trial_request_no_show',
+  converted: 'trial_request_converted',
+};
+
+/** Родительские события пробной заявки: остальные адресованы преподавателю/админу. */
+const TRIAL_PARENT_EVENTS = [
+  'trial_confirmed',
+  'trial_rescheduled',
+  'trial_canceled',
+  'trial_request_no_show',
+  'trial_request_converted',
+  'trial_recommendation_ready',
+];
 
 async function handleTrialEvent(admin: any, body: any) {
   const bookingId = String(body.bookingId || '');
   if (!bookingId) throw new Error('bookingId is required');
   const { data: booking, error } = await admin.from('trial_bookings').select('*').eq('id', bookingId).single();
   if (error) throw error;
+
   const { data: profile } = await admin.from('profiles').select('id').ilike('email', booking.parent_email).maybeSingle();
-  if (!profile?.id) return;
-  const parents = await parentsFor(admin, profile.id);
+  const studentId = profile?.id || null;
+  const parents = studentId ? await parentsFor(admin, studentId) : [];
   const currentAt = naiveLocalToIso(`${booking.selected_date}T${booking.selected_time}`);
   const previousAt = body.previousDate && body.previousTime ? naiveLocalToIso(`${body.previousDate}T${body.previousTime}`) : null;
   const changedTime = previousAt && previousAt !== currentAt;
-  const type = booking.status === 'cancelled' ? 'trial_canceled' : changedTime ? 'trial_rescheduled' : 'trial_confirmed';
+  const type = String(
+    body.type
+    || TRIAL_STATUS_EVENTS[booking.status as string]
+    || (changedTime ? 'trial_rescheduled' : 'trial_confirmed'),
+  );
+  const lang = pickLangCode(booking.preferred_language);
+  const base = siteUrl();
   const now = new Date().toISOString();
+  const eventVersion = body.resend
+    ? await nextEventVersion(admin, 'trial_booking', bookingId, registryEvent(type))
+    : 1;
+
+  const payload = {
+    studentName: booking.child_name,
+    childName: booking.child_name,
+    parentName: booking.parent_name,
+    teacherName: body.teacherName || '',
+    oldLessonAt: previousAt,
+    newLessonAt: currentAt,
+    lessonAt: currentAt,
+    reason: body.reason || booking.internal_notes || '',
+    finalLevel: booking.teacher_confirmed_level || '',
+    recommendedFormat: booking.teacher_confirmed_direction || '',
+    recommendedGroup: body.recommendedGroup || '',
+    recommendedPlan: body.recommendedPlan || '',
+    assignedGroup: body.assignedGroup || '',
+    purchasedPlan: body.purchasedPlan || '',
+    paymentStatus: body.paymentStatus || '',
+    lessonsTotal: body.lessonsTotal ?? '',
+    firstLessonDate: body.firstLessonDate || '',
+    teacherComment: booking.preliminary_recommendation || body.teacherComment || '',
+    url: studentId && base ? dashboardUrl(studentId, 'dashboard') : base,
+    requestUrl: base ? `${base}/trial` : '',
+    rescheduleUrl: base ? `${base}/trial` : '',
+    pricingUrl: base ? `${base}/pricing` : '',
+    recommendationUrl: base ? `${base}/trial` : '',
+    contactUrl: base ? `${base}/contacts` : '',
+  };
+
+  // Ставшие неактуальными напоминания снимаем перед постановкой новых.
   await admin.from('telegram_notifications').update({ status: 'canceled', canceled_at: now }).eq('trial_booking_id', bookingId).eq('status', 'pending');
-  for (const parent of parents.filter(parent => parent.notify_schedule_changes)) {
-    await enqueue(admin, {
-      event_key: `trial:${bookingId}:${parent.id}:${type}:${booking.updated_at}`,
-      notification_type: type, student_id: profile.id, trial_booking_id: bookingId, parent_id: parent.id, scheduled_for: now,
-      payload: { studentName: booking.child_name, oldLessonAt: previousAt, newLessonAt: currentAt, lessonAt: currentAt, url: dashboardUrl(profile.id, 'dashboard') },
+
+  if (TRIAL_PARENT_EVENTS.includes(type)) {
+    for (const parent of parents) {
+      if (!preferenceAllows(parent, type)) continue;
+      await enqueue(admin, {
+        event_key: `trial:${bookingId}:${parent.id}:${type}:${booking.updated_at}:v${eventVersion}`,
+        notification_type: type,
+        student_id: studentId,
+        trial_booking_id: bookingId,
+        parent_id: parent.id,
+        scheduled_for: now,
+        payload,
+      });
+    }
+
+    // Письмо уходит на адрес из заявки: аккаунта в системе может ещё не быть.
+    await deliverEmail(admin, {
+      event: registryEvent(type),
+      entityType: 'trial_booking',
+      entityId: bookingId,
+      studentId,
+      recipientEmail: booking.parent_email,
+      recipientRole: 'parent',
+      lang,
+      vars: templateVars(payload, lang) as any,
+      eventVersion,
     });
   }
-  if (type !== 'trial_canceled' && currentAt) {
-    const scheduledFor = minutesBefore(currentAt, 60);
-    if (new Date(scheduledFor).getTime() > Date.now()) {
+
+  const keepsSlot = type === 'trial_confirmed' || type === 'trial_rescheduled';
+  if (keepsSlot && currentAt) {
+    for (const reminder of REMINDER_STEPS) {
+      const scheduledFor = minutesBefore(currentAt, reminder.minutes);
+      if (new Date(scheduledFor).getTime() <= Date.now()) continue;
       for (const parent of parents.filter(parent => parent.notify_lesson_reminders)) {
         await enqueue(admin, {
-          event_key: `trial:${bookingId}:${parent.id}:reminder:1h:${currentAt}`,
-          notification_type: 'lesson_reminder_1h', student_id: profile.id, trial_booking_id: bookingId, parent_id: parent.id, scheduled_for: scheduledFor,
-          payload: { studentName: booking.child_name, lessonAt: currentAt, lessonRef: `trial:${bookingId}`, url: dashboardUrl(profile.id, 'dashboard') },
+          event_key: `trial:${bookingId}:${parent.id}:reminder:${reminder.suffix}:${currentAt}`,
+          notification_type: `trial_reminder_${reminder.suffix}`,
+          student_id: studentId,
+          trial_booking_id: bookingId,
+          parent_id: parent.id,
+          scheduled_for: scheduledFor,
+          payload: { ...payload, lessonRef: `trial:${bookingId}` },
         });
       }
     }
   }
+
+  return { type, eventVersion };
+}
+
+/* ------------------------------------------------- weekly summary (opt-in) */
+
+async function handleWeeklySummary(admin: any, body: any) {
+  const studentIds: string[] = Array.isArray(body.studentIds) ? body.studentIds.map(String) : [];
+  if (!studentIds.length) throw new Error('studentIds is required');
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString();
+  const weekTag = since.slice(0, 10);
+  const base = siteUrl();
+  const now = new Date().toISOString();
+  const results: Array<{ studentId: string; queued: number }> = [];
+
+  for (const studentId of studentIds) {
+    const [{ data: lessons }, { data: content }] = await Promise.all([
+      admin.from('schedules').select('id').eq('user_id', studentId).eq('is_conducted', true).gte('updated_at', since),
+      admin.from('content_items').select('star_rating,checked_at').eq('user_id', studentId).gte('checked_at', since),
+    ]);
+    const graded = (content || []).filter((row: any) => Number(row.star_rating) > 0);
+    const average = graded.length
+      ? (graded.reduce((sum: number, row: any) => sum + Number(row.star_rating), 0) / graded.length).toFixed(1)
+      : '';
+    const payload = {
+      studentName: await studentName(admin, studentId),
+      lessonsCompleted: lessons?.length ?? 0,
+      homeworkCompleted: graded.length,
+      averageScore: average,
+      learningStreak: body.learningStreak ?? '',
+      progressSummary: body.progressSummary || '',
+      teacherWeeklyComment: body.teacherComment || '',
+      url: base ? dashboardUrl(studentId, 'dashboard') : '',
+    };
+
+    let queued = 0;
+    // Еженедельный отчёт выключен по умолчанию: только явное согласие родителя.
+    for (const parent of (await parentsFor(admin, studentId)).filter(parent => parent.notify_weekly)) {
+      await enqueue(admin, {
+        event_key: `weekly:${studentId}:${parent.id}:${weekTag}`,
+        notification_type: 'weekly_progress_summary',
+        student_id: studentId,
+        parent_id: parent.id,
+        scheduled_for: now,
+        payload,
+      });
+      queued++;
+      const contact = await studentContact(admin, studentId);
+      if (contact?.email) {
+        await deliverEmail(admin, {
+          event: 'weekly_progress_summary',
+          entityType: 'weekly',
+          entityId: `${studentId}:${weekTag}`,
+          studentId,
+          recipientEmail: contact.email,
+          recipientRole: 'parent',
+          lang: contact.lang,
+          vars: templateVars(payload, pickLangCode(contact.lang)) as any,
+        });
+      }
+    }
+    results.push({ studentId, queued });
+  }
+  return results;
+}
+
+/** Проверка актуального статуса урока прямо перед отправкой напоминания. */
+async function reminderStillValid(admin: any, notification: any): Promise<{ ok: boolean; reason?: string }> {
+  const lessonRef = String(notification.payload?.lessonRef || '');
+  const lessonAt = notification.payload?.lessonAt || null;
+
+  if (notification.trial_booking_id || lessonRef.startsWith('trial:')) {
+    const bookingId = notification.trial_booking_id || lessonRef.split(':')[1];
+    const { data } = await admin.from('trial_bookings').select('status,selected_date,selected_time').eq('id', bookingId).maybeSingle();
+    if (!data) return { ok: false, reason: 'trial_removed' };
+    if (!['submitted', 'confirmed'].includes(String(data.status))) return { ok: false, reason: `trial_${data.status}` };
+    const actualAt = naiveLocalToIso(`${data.selected_date}T${data.selected_time}`);
+    if (lessonAt && actualAt && actualAt !== lessonAt) return { ok: false, reason: 'trial_time_changed' };
+    return { ok: true };
+  }
+
+  if (lessonRef.startsWith('schedule:')) {
+    const scheduleId = lessonRef.split(':')[1];
+    if (!scheduleId || !/^[0-9a-f-]{36}$/i.test(scheduleId)) return { ok: true };
+    const { data } = await admin.from('schedules').select('date,scheduled_date,day,time,is_conducted,lesson_status').eq('id', scheduleId).maybeSingle();
+    if (!data) return { ok: false, reason: 'lesson_removed' };
+    if (data.is_conducted) return { ok: false, reason: 'lesson_already_conducted' };
+    if (['cancelled', 'canceled'].includes(String(data.lesson_status || ''))) return { ok: false, reason: 'lesson_cancelled' };
+    const actualAt = slotLessonAt(data);
+    if (lessonAt && actualAt && actualAt !== lessonAt) return { ok: false, reason: 'lesson_time_changed' };
+    return { ok: true };
+  }
+
+  if (lessonRef.startsWith('content:')) {
+    const contentId = lessonRef.split(':')[1];
+    if (!contentId || !/^[0-9a-f-]{36}$/i.test(contentId)) return { ok: true };
+    const { data } = await admin.from('content_items').select('id').eq('id', contentId).maybeSingle();
+    if (!data) return { ok: false, reason: 'lesson_removed' };
+  }
+
+  return { ok: true };
 }
 
 async function processDue(admin: any, limit = 25) {
@@ -613,7 +1083,10 @@ async function processDue(admin: any, limit = 25) {
   let sent = 0;
   let failed = 0;
   let skipped = 0;
-  const REMINDER_TYPES = ['lesson_reminder_24h', 'lesson_reminder_1h'];
+  const REMINDER_TYPES = [
+    'lesson_reminder_24h', 'lesson_reminder_1h', 'lesson_reminder_10m',
+    'trial_reminder_24h', 'trial_reminder_1h', 'trial_reminder_10m',
+  ];
   const STALE_GRACE_MS = 10 * 60_000;
   const MAX_NOTIFICATION_AGE_MS = 24 * 60 * 60_000;
   const MAX_ATTEMPTS = 4;
@@ -644,6 +1117,12 @@ async function processDue(admin: any, limit = 25) {
       const lessonAt = notification.payload?.lessonAt ? new Date(notification.payload.lessonAt).getTime() : null;
       if (lessonAt && Date.now() >= lessonAt) {
         await skip('stale: lesson already started');
+        continue;
+      }
+      // Урок мог быть отменён, перенесён или уже проведён после постановки в очередь.
+      const freshness = await reminderStillValid(admin, notification);
+      if (!freshness.ok) {
+        await skip(`stale: ${freshness.reason}`);
         continue;
       }
     } else if (Date.now() - new Date(notification.scheduled_for).getTime() > MAX_NOTIFICATION_AGE_MS) {
@@ -774,9 +1253,41 @@ Deno.serve(async (req) => {
     }
     if (action === 'trial_event') {
       if (!adminUser) return json({ error: 'Forbidden' }, 403);
-      await handleTrialEvent(admin, body);
+      const dispatched = await handleTrialEvent(admin, body);
+      const flushed = await processDue(admin, 25).catch(() => null);
+      return json({ success: true, ...dispatched, flushed });
+    }
+
+    if (action === 'billing_event') {
+      // Вызывается из stripe-webhook сервисным ключом либо администратором.
+      const service = req.headers.get('Authorization') === `Bearer ${SERVICE}`
+        || req.headers.get('x-service-key') === SERVICE;
+      if (!service && !adminUser) return json({ error: 'Forbidden' }, 403);
+      await handleBillingEvent(admin, body);
       const flushed = await processDue(admin, 25).catch(() => null);
       return json({ success: true, flushed });
+    }
+
+    if (action === 'weekly_summary') {
+      if (!adminUser) return json({ error: 'Forbidden' }, 403);
+      const results = await handleWeeklySummary(admin, body);
+      const flushed = await processDue(admin, 50).catch(() => null);
+      return json({ success: true, results, flushed });
+    }
+
+    if (action === 'notification_history') {
+      if (!adminUser && !(await canNotifyForStudent(admin, userId, body.studentId))) return json({ error: 'Forbidden' }, 403);
+      const query = admin
+        .from('notification_log')
+        .select('id,event_type,event_version,channel,recipient_role,recipient_email,telegram_chat_id,language,status,subject,error_message,sent_at,created_at')
+        .order('created_at', { ascending: false })
+        .limit(Math.min(100, Number(body.limit) || 50));
+      if (body.entityType) query.eq('entity_type', body.entityType);
+      if (body.entityId) query.eq('entity_id', body.entityId);
+      if (body.studentId) query.eq('student_id', body.studentId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return json({ items: data || [] });
     }
 
 

@@ -1287,6 +1287,45 @@ async function sendDirectTelegramAdminMessage(chatId: string, text: string, env:
   if (!response.ok) throw new Error(`telegram_send_failed_${response.status}`);
 }
 
+/**
+ * Родительские уведомления о биллинге идут через единый реестр шаблонов
+ * (telegram-notifications). Ошибка доставки не должна ронять обработку вебхука.
+ */
+async function notifyBillingEventSafe(input: {
+  type: 'payment_succeeded' | 'payment_failed' | 'subscription_cancelled' | 'subscription_ended' | 'lessons_low_balance';
+  studentId: string;
+  eventId: string;
+  planName?: string | null;
+  amount?: string | null;
+  currency?: string | null;
+  lessonsAdded?: number | null;
+  lessonsRemaining?: number | null;
+  nextPaymentDate?: string | null;
+  accessUntil?: string | null;
+  invoiceNumber?: string | null;
+}, env: StripeCheckoutEnv) {
+  const baseUrl = env.SUPABASE_URL;
+  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!baseUrl || !serviceKey) return;
+  try {
+    const response = await fetch(`${baseUrl}/functions/v1/telegram-notifications`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${serviceKey}`,
+        'x-service-key': serviceKey,
+      },
+      body: JSON.stringify({ action: 'billing_event', ...input }),
+    });
+    if (!response.ok) {
+      console.warn('[Billing notification failed]', { type: input.type, status: response.status });
+    }
+    await response.text().catch(() => '');
+  } catch (error) {
+    console.warn('[Billing notification error]', { type: input.type, error: (error as Error).message });
+  }
+}
+
 async function sendTelegramNotificationSafe(input: TelegramNotificationInput, env: StripeCheckoutEnv) {
   if (isHistoricalStripeTelegramNotification(input, env)) {
     console.warn('[Stripe Telegram notification skipped]', {
@@ -1861,6 +1900,19 @@ async function processCheckoutSessionCompleted(event: StripeWebhookLogEvent, env
     cta: { label: 'Открыть кабинет', url: `${appBaseUrl(env)}/dashboard` },
   }, env);
 
+  await notifyBillingEventSafe({
+    type: 'payment_succeeded',
+    studentId: profile.id,
+    eventId: `${event.id}:checkout.session.completed`,
+    planName: planDisplayName(planId),
+    amount: formatEmailMoney(session.amount_total, session.currency),
+    currency: '',
+    lessonsAdded: planConfig.lessonsTotal,
+    lessonsRemaining: applyResult[0]?.lessons_remaining ?? null,
+    nextPaymentDate: stripeTimestampToIso(periodEnd),
+    invoiceNumber: stripeInvoiceId,
+  }, env);
+
   await sendTelegramNotificationSafe({
     notificationKey: `${event.id}:checkout.session.completed`,
     type: 'stripe.checkout.session.completed',
@@ -1952,6 +2004,19 @@ async function processInvoicePaid(event: StripeWebhookLogEvent, env: StripeCheck
     cta: { label: 'Открыть кабинет', url: `${appBaseUrl(env)}/dashboard` },
   }, env);
 
+  await notifyBillingEventSafe({
+    type: 'payment_succeeded',
+    studentId: profile.id,
+    eventId: `${event.id}:invoice.paid`,
+    planName: planDisplayName(planId),
+    amount: formatEmailMoney(invoice.amount_paid ?? invoice.amount_due, invoice.currency),
+    currency: '',
+    lessonsAdded: planConfig.lessonsTotal,
+    lessonsRemaining: applyResult[0]?.lessons_remaining ?? null,
+    nextPaymentDate,
+    invoiceNumber: stripeInvoiceId,
+  }, env);
+
   await sendTelegramNotificationSafe({
     notificationKey: `${event.id}:invoice.paid`,
     type: 'stripe.invoice.paid',
@@ -2038,6 +2103,17 @@ async function processInvoicePaymentFailed(event: StripeWebhookLogEvent, env: St
   }, env);
 
   const failedPlanId = planIdFromStripePriceId(subscriptionPriceId(subscription));
+  await notifyBillingEventSafe({
+    type: 'payment_failed',
+    studentId: profile.id,
+    eventId: `${event.id}:invoice.payment_failed`,
+    planName: planDisplayName(failedPlanId),
+    amount: formatEmailMoney(invoice.amount_due, invoice.currency),
+    currency: '',
+    nextPaymentDate: nextAttempt,
+    invoiceNumber: stripeInvoiceId,
+  }, env);
+
   await sendTelegramNotificationSafe({
     notificationKey: `${event.id}:invoice.payment_failed`,
     type: 'stripe.invoice.payment_failed',
@@ -2196,6 +2272,17 @@ async function applySubscriptionWebhookState(
         ]),
       ].filter(Boolean).join('\n'),
     }, env);
+
+    if (options.deleted || isCancelAtPeriodEndEmail) {
+      await notifyBillingEventSafe({
+        type: options.deleted ? 'subscription_ended' : 'subscription_cancelled',
+        studentId: profile.id,
+        eventId: `${event.id}:${options.deleted ? 'subscription_ended' : 'subscription_cancelled'}`,
+        planName: planDisplayName(planId),
+        accessUntil: currentPeriodEnd,
+        lessonsRemaining: applyResult?.[0]?.lessons_remaining ?? null,
+      }, env);
+    }
   }
 }
 
