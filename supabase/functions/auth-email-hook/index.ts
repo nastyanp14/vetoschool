@@ -16,13 +16,40 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type, x-lovable-signature, x-lovable-timestamp, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
-const EMAIL_SUBJECTS: Record<string, string> = {
-  signup: 'Confirm your email',
-  invite: "You've been invited",
-  magiclink: 'Your login link',
-  recovery: 'Reset your password',
-  email_change: 'Confirm your new email',
-  reauthentication: 'Your verification code',
+type EmailLang = 'ru' | 'ua' | 'en'
+
+const EMAIL_SUBJECTS: Record<EmailLang, Record<string, string>> = {
+  ru: {
+    signup: 'Ваш код подтверждения Vetoschool',
+    invite: 'Приглашение в Vetoschool',
+    magiclink: 'Ссылка для входа в Vetoschool',
+    recovery: 'Восстановление пароля Vetoschool',
+    email_change: 'Подтвердите новый email',
+    reauthentication: 'Код подтверждения Vetoschool',
+  },
+  ua: {
+    signup: 'Ваш код підтвердження Vetoschool',
+    invite: 'Запрошення до Vetoschool',
+    magiclink: 'Посилання для входу у Vetoschool',
+    recovery: 'Відновлення пароля Vetoschool',
+    email_change: 'Підтвердьте новий email',
+    reauthentication: 'Код підтвердження Vetoschool',
+  },
+  en: {
+    signup: 'Your Vetoschool verification code',
+    invite: "You've been invited to Vetoschool",
+    magiclink: 'Your Vetoschool login link',
+    recovery: 'Reset your Vetoschool password',
+    email_change: 'Confirm your new email',
+    reauthentication: 'Your Vetoschool verification code',
+  },
+}
+
+function normalizeLang(value?: string | null): EmailLang {
+  const normalized = (value || '').toLowerCase()
+  if (normalized === 'ua' || normalized === 'uk') return 'ua'
+  if (normalized === 'en') return 'en'
+  return 'ru'
 }
 
 // Template mapping
