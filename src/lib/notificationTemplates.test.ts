@@ -28,7 +28,7 @@ describe('date and time formatting (Europe/Prague)', () => {
   const iso = '2026-08-05T12:00:00Z'; // 14:00 в Праге
 
   it('formats human dates, not ISO', () => {
-    expect(formatDate(iso, 'ru')).toBe('5 августа 2026 г.');
+    expect(formatDate(iso, 'ru')).toBe('5 августа 2026');
     expect(formatTime(iso, 'ru')).toBe('14:00');
     expect(formatTime(iso, 'en')).toBe('14:00');
   });

@@ -94,7 +94,11 @@ export function formatDate(value?: string | Date | null, lang: NotifyLang = 'ru'
   if (!value) return '';
   const date = zoned(value, timeZone);
   if (!date) return String(value);
-  return new Intl.DateTimeFormat(LOCALES[lang], { day: 'numeric', month: 'long', year: 'numeric', timeZone }).format(date);
+  // «5 августа 2026», без технического «г.»
+  return new Intl.DateTimeFormat(LOCALES[lang], { day: 'numeric', month: 'long', year: 'numeric', timeZone })
+    .format(date)
+    .replace(/\s*(г\.|р\.)$/u, '')
+    .trim();
 }
 
 /** «14:00» */
