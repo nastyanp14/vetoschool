@@ -60,6 +60,7 @@ import {
   updateTeacherLesson,
   setStudentGroupLessonUrl,
 } from '@/lib/teachers';
+import type { StudentGroup } from '@/lib/teachers';
 import {
   LiveEvent,
   LiveSession,
