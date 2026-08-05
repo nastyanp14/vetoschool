@@ -58,6 +58,7 @@ import {
   updateTeacherNotePinned,
   updateOwnTeacherProfile,
   updateTeacherLesson,
+  setStudentGroupLessonUrl,
 } from '@/lib/teachers';
 import {
   LiveEvent,
@@ -2390,10 +2391,60 @@ function GroupProfile({ groupId, workspace, localNotes, onOpenLesson, onSaveNote
           <MetricCard icon={MonitorPlay} label={copy.lesson} value={group.currentLesson || copyMissing(copy)} />
         </section>
       )}
+      {tab === 'Overview' && <GroupLessonUrlCard group={group} lang={copy.lang} />}
       {tab === 'Students' && <StudentsList students={students} workspace={workspace} copy={copy} />}
       {tab === 'Schedule' && <Panel title={copy.groupSchedule}><div className="space-y-2">{lessons.map(lesson => <LessonRow key={lesson.id} workspace={workspace} lesson={lesson} copy={copy} onOpen={() => onOpenLesson(lesson)} />)}</div></Panel>}
       {tab === 'Notes' && <NotesComposer target="Group" targetId={group.id} localNotes={localNotes.filter(note => note.target === 'Group' && note.targetId === group.id)} onSaveNote={onSaveNote} copy={copy} />}
     </div>
+  );
+}
+
+const groupLessonUrlCopy = {
+  ru: { title: 'Постоянная ссылка на урок', hint: 'Автоматически подставляется во все уроки группы.', save: 'Сохранить', saved: 'Ссылка сохранена', invalid: 'Укажите корректную https:// ссылку' },
+  en: { title: 'Permanent lesson link', hint: 'Automatically applied to all lessons of this group.', save: 'Save', saved: 'Link saved', invalid: 'Enter a valid https:// link' },
+  ua: { title: 'Постійне посилання на урок', hint: 'Автоматично додається до всіх уроків групи.', save: 'Зберегти', saved: 'Посилання збережено', invalid: 'Вкажіть коректне https:// посилання' },
+} as const;
+
+function GroupLessonUrlCard({ group, lang }: { group: StudentGroup; lang: Lang }) {
+  const text = groupLessonUrlCopy[lang] || groupLessonUrlCopy.ru;
+  const [value, setValue] = useState(group.lessonUrl || '');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+
+  useEffect(() => { setValue(group.lessonUrl || ''); }, [group.id, group.lessonUrl]);
+
+  const save = async () => {
+    setSaving(true);
+    setMessage(null);
+    try {
+      await setStudentGroupLessonUrl(group.id, value);
+      setMessage({ kind: 'ok', text: text.saved });
+    } catch (error: any) {
+      setMessage({ kind: 'error', text: error?.message?.includes('https') ? text.invalid : String(error?.message || text.invalid) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className={cardClass('p-5')}>
+      <h3 className="font-display text-lg font-black text-purple-700">{text.title}</h3>
+      <p className="mt-1 font-body text-sm text-purple-400">{text.hint}</p>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <input
+          type="url"
+          value={value}
+          onChange={event => setValue(event.target.value)}
+          placeholder="https://meet.google.com/xxx-xxxx-xxx"
+          className="flex-1 rounded-2xl border border-purple-200 bg-white/80 px-4 py-2.5 font-body text-sm text-purple-700 outline-none focus:border-purple-400 dark:bg-slate-900/60"
+        />
+        <button type="button" onClick={save} disabled={saving}
+          className="rounded-2xl bg-gradient-to-r from-pink-400 to-purple-400 px-5 py-2.5 font-body text-sm font-900 text-white shadow-lg transition hover:-translate-y-0.5 disabled:opacity-60">
+          {text.save}
+        </button>
+      </div>
+      {message && <p className={`mt-2 font-body text-sm ${message.kind === 'ok' ? 'text-emerald-500' : 'text-rose-500'}`}>{message.text}</p>}
+    </section>
   );
 }
 
