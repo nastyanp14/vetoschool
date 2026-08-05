@@ -398,8 +398,7 @@ function slotLessonAt(slot: any) {
   const date = slot?.date || slot?.scheduled_date;
   const time = slot?.time;
   if (!date || !time) return null;
-  const value = new Date(`${date}T${time}`);
-  return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  return naiveLocalToIso(`${date}T${time}`);
 }
 
 function preferenceAllows(parent: ParentRow, notificationType: string) {
