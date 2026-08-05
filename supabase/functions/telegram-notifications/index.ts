@@ -112,6 +112,9 @@ function t(lang: Lang, key: string, p: Record<string, string | number | undefine
       dashboard: 'Открыть кабинет',
       homeworkButton: 'Посмотреть задание',
       gradeButton: 'Посмотреть результат',
+      trialConfirmed: 'Пробный урок для {child} подтверждён: {newTime}.',
+      trialRescheduled: 'Пробный урок для {child} перенесён. Было: {oldTime}. Новое время: {newTime}.',
+      trialCanceled: 'Пробный урок для {child} отменён.',
     },
     ua: {
       reminder24: 'Нагадування: завтра у {child} урок англійської мови о {time}.',
@@ -129,6 +132,9 @@ function t(lang: Lang, key: string, p: Record<string, string | number | undefine
       dashboard: 'Відкрити кабінет',
       homeworkButton: 'Переглянути завдання',
       gradeButton: 'Переглянути результат',
+      trialConfirmed: 'Пробний урок для {child} підтверджено: {newTime}.',
+      trialRescheduled: 'Пробний урок для {child} перенесено. Було: {oldTime}. Новий час: {newTime}.',
+      trialCanceled: 'Пробний урок для {child} скасовано.',
     },
     en: {
       reminder24: 'Reminder: {child} has an English lesson tomorrow at {time}.',
@@ -146,6 +152,9 @@ function t(lang: Lang, key: string, p: Record<string, string | number | undefine
       dashboard: 'Open dashboard',
       homeworkButton: 'View homework',
       gradeButton: 'View result',
+      trialConfirmed: 'The trial lesson for {child} is confirmed: {newTime}.',
+      trialRescheduled: 'The trial lesson for {child} was rescheduled. Old time: {oldTime}. New time: {newTime}.',
+      trialCanceled: 'The trial lesson for {child} was canceled.',
     },
   };
   return (dict[lang]?.[key] || dict.ru[key] || key).replace(/\{(\w+)\}/g, (_, name) => String(p[name] ?? ''));
@@ -187,6 +196,9 @@ function notificationMessage(parent: ParentRow, notification: any) {
     text = oldTime ? t(lang, 'rescheduled', { child, oldTime, newTime }) : t(lang, 'scheduledChanged', { child, newTime });
   }
   if (notification.notification_type === 'lesson_canceled') text = t(lang, 'canceled', { child, oldTime: oldTime || payload.slotLabel || '' });
+  if (notification.notification_type === 'trial_confirmed') text = t(lang, 'trialConfirmed', { child, newTime });
+  if (notification.notification_type === 'trial_rescheduled') text = t(lang, 'trialRescheduled', { child, oldTime, newTime });
+  if (notification.notification_type === 'trial_canceled') text = t(lang, 'trialCanceled', { child });
 
   return { text: text || title, buttons };
 }
@@ -435,6 +447,7 @@ function preferenceAllows(parent: ParentRow, notificationType: string) {
   if (notificationType === 'homework_published' || notificationType === 'homework_updated' || notificationType === 'homework_canceled' || notificationType === 'lesson_result_published') return parent.notify_homework;
   if (notificationType === 'grade_published') return parent.notify_grades;
   if (notificationType === 'lesson_rescheduled' || notificationType === 'lesson_canceled') return parent.notify_schedule_changes;
+  if (notificationType === 'trial_confirmed' || notificationType === 'trial_rescheduled' || notificationType === 'trial_canceled') return parent.notify_schedule_changes;
   return false;
 }
 
@@ -491,6 +504,41 @@ async function handleScheduleEvent(admin: any, body: any) {
         scheduled_for: now,
         payload: { studentName: name, topic: slot.topic, oldSlotLabel: slotLabel(oldSlot), slotLabel: slotLabel(slot), lessonRef, url },
       });
+    }
+  }
+}
+
+async function handleTrialEvent(admin: any, body: any) {
+  const bookingId = String(body.bookingId || '');
+  if (!bookingId) throw new Error('bookingId is required');
+  const { data: booking, error } = await admin.from('trial_bookings').select('*').eq('id', bookingId).single();
+  if (error) throw error;
+  const { data: profile } = await admin.from('profiles').select('id').ilike('email', booking.parent_email).maybeSingle();
+  if (!profile?.id) return;
+  const parents = await parentsFor(admin, profile.id);
+  const currentAt = naiveLocalToIso(`${booking.selected_date}T${booking.selected_time}`);
+  const previousAt = body.previousDate && body.previousTime ? naiveLocalToIso(`${body.previousDate}T${body.previousTime}`) : null;
+  const changedTime = previousAt && previousAt !== currentAt;
+  const type = booking.status === 'cancelled' ? 'trial_canceled' : changedTime ? 'trial_rescheduled' : 'trial_confirmed';
+  const now = new Date().toISOString();
+  await admin.from('telegram_notifications').update({ status: 'canceled', canceled_at: now }).eq('trial_booking_id', bookingId).eq('status', 'pending');
+  for (const parent of parents.filter(parent => parent.notify_schedule_changes)) {
+    await enqueue(admin, {
+      event_key: `trial:${bookingId}:${parent.id}:${type}:${booking.updated_at}`,
+      notification_type: type, student_id: profile.id, trial_booking_id: bookingId, parent_id: parent.id, scheduled_for: now,
+      payload: { studentName: booking.child_name, oldLessonAt: previousAt, newLessonAt: currentAt, lessonAt: currentAt, url: dashboardUrl(profile.id, 'dashboard') },
+    });
+  }
+  if (type !== 'trial_canceled' && currentAt) {
+    const scheduledFor = minutesBefore(currentAt, 60);
+    if (new Date(scheduledFor).getTime() > Date.now()) {
+      for (const parent of parents.filter(parent => parent.notify_lesson_reminders)) {
+        await enqueue(admin, {
+          event_key: `trial:${bookingId}:${parent.id}:reminder:1h:${currentAt}`,
+          notification_type: 'lesson_reminder_1h', student_id: profile.id, trial_booking_id: bookingId, parent_id: parent.id, scheduled_for: scheduledFor,
+          payload: { studentName: booking.child_name, lessonAt: currentAt, lessonRef: `trial:${bookingId}`, url: dashboardUrl(profile.id, 'dashboard') },
+        });
+      }
     }
   }
 }
@@ -649,6 +697,12 @@ Deno.serve(async (req) => {
     if (action === 'schedule_event') {
       if (!adminUser && !(await canNotifyForStudent(admin, userId, body.studentId))) return json({ error: 'Forbidden' }, 403);
       await handleScheduleEvent(admin, body);
+      const flushed = await processDue(admin, 25).catch(() => null);
+      return json({ success: true, flushed });
+    }
+    if (action === 'trial_event') {
+      if (!adminUser) return json({ error: 'Forbidden' }, 403);
+      await handleTrialEvent(admin, body);
       const flushed = await processDue(admin, 25).catch(() => null);
       return json({ success: true, flushed });
     }

@@ -136,6 +136,8 @@ export async function loadTrialBookings() {
 }
 
 export async function updateTrialBooking(id: string, patch: TrialBookingUpdate) {
+  const { data: before, error: beforeError } = await trialBookingClient.from('trial_bookings').select('status,selected_date,selected_time').eq('id', id).single();
+  if (beforeError) throw beforeError;
   const { data, error } = await trialBookingClient
     .from('trial_bookings')
     .update(patch)
@@ -144,5 +146,11 @@ export async function updateTrialBooking(id: string, patch: TrialBookingUpdate) 
     .single();
 
   if (error) throw error;
+  if (before.status !== data.status || before.selected_date !== data.selected_date || before.selected_time !== data.selected_time) {
+    const { error: notificationError } = await supabase.functions.invoke('telegram-notifications', {
+      body: { action: 'trial_event', bookingId: id, previousStatus: before.status, previousDate: before.selected_date, previousTime: before.selected_time },
+    });
+    if (notificationError) throw notificationError;
+  }
   return data;
 }
