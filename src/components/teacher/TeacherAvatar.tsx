@@ -1,3 +1,4 @@
+import { useAvatarUrl } from '@/lib/avatarUrl';
 import { initialsFor } from '@/lib/teacherUi';
 
 export function TeacherAvatar({
