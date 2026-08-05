@@ -17,6 +17,9 @@ type ParentRow = {
   notify_homework: boolean;
   notify_grades: boolean;
   notify_schedule_changes: boolean;
+  notify_billing: boolean;
+  notify_trials: boolean;
+  notify_weekly: boolean;
 };
 
 const encoder = new TextEncoder();
@@ -91,11 +94,18 @@ import {
   formatTime,
   formatWhen,
   idempotencyKey,
+  isCritical,
+  preferenceFor,
   renderNotification,
   scoreNote,
   type NotificationEvent,
   type NotifyLang,
+  type NotifyRole,
 } from '../_shared/notificationTemplates.ts';
+import {
+  enqueueNotificationEmail,
+  renderNotificationEmail,
+} from '../_shared/notificationEmail.tsx';
 
 /** Старые типы очереди -> события реестра. */
 const EVENT_ALIASES: Record<string, NotificationEvent> = {
@@ -127,6 +137,10 @@ const EVENT_ALIASES: Record<string, NotificationEvent> = {
   trial_reminder_24h: 'trial_reminder_24h',
   trial_reminder_1h: 'trial_reminder_1h',
   trial_reminder_10m: 'trial_reminder_10m',
+  trial_request_completed: 'trial_request_completed',
+  trial_request_no_show: 'trial_request_no_show',
+  trial_request_converted: 'trial_request_converted',
+  trial_recommendation_ready: 'trial_recommendation_ready',
   payment_succeeded: 'payment_succeeded',
   payment_failed: 'payment_failed',
   subscription_cancelled: 'subscription_cancelled',
@@ -173,6 +187,23 @@ export function templateVars(payload: any, lang: NotifyLang, now = new Date()) {
     lessons_remaining: payload.lessonsRemaining ?? '',
     next_payment_date: payload.nextPaymentDate ? formatDate(payload.nextPaymentDate, lang) : '',
     access_until: payload.accessUntil ? formatDate(payload.accessUntil, lang) : '',
+    invoice_number: payload.invoiceNumber || '',
+    final_level: payload.finalLevel || '',
+    recommended_format: payload.recommendedFormat || '',
+    recommended_group: payload.recommendedGroup || '',
+    recommended_plan: payload.recommendedPlan || '',
+    assigned_group: payload.assignedGroup || '',
+    purchased_plan: payload.purchasedPlan || payload.planName || '',
+    payment_status: payload.paymentStatus || '',
+    first_lesson_date: payload.firstLessonDate ? formatDate(payload.firstLessonDate, lang) : '',
+    lessons_total: payload.lessonsTotal ?? '',
+    lessons_completed: payload.lessonsCompleted ?? '',
+    homework_completed: payload.homeworkCompleted ?? '',
+    average_score: payload.averageScore ?? '',
+    learning_streak: payload.learningStreak ?? '',
+    progress_summary: payload.progressSummary || '',
+    teacher_weekly_comment: payload.teacherWeeklyComment || '',
+    submitted_at: payload.submittedAt ? formatDate(payload.submittedAt, lang) : '',
     // контекстные ссылки: без валидного https кнопка просто не показывается
     schedule_url: url, lesson_url: payload.lessonUrl || url, homework_url: url, result_url: url,
     request_url: payload.requestUrl || url, billing_url: payload.billingUrl || url,
@@ -497,15 +528,166 @@ function slotLessonAt(slot: any) {
   return naiveLocalToIso(`${date}T${time}`);
 }
 
+const PREFERENCE_COLUMN: Record<string, keyof ParentRow> = {
+  lessons: 'notify_lesson_reminders',
+  homework: 'notify_homework',
+  grades: 'notify_grades',
+  schedule: 'notify_schedule_changes',
+  billing: 'notify_billing',
+  trials: 'notify_trials',
+  weekly: 'notify_weekly',
+};
+
+function registryEvent(notificationType: string): NotificationEvent {
+  return EVENT_ALIASES[notificationType] || (notificationType as NotificationEvent);
+}
+
+/**
+ * Настройки получателя решают всё, кроме критичных событий
+ * (отмена, перенос, биллинг) — их родитель получает всегда.
+ */
 function preferenceAllows(parent: ParentRow, notificationType: string) {
-  if (notificationType === 'lesson_reminder_24h' || notificationType === 'lesson_reminder_1h' || notificationType === 'lesson_conducted') {
-    return parent.notify_lesson_reminders;
+  const event = registryEvent(notificationType);
+  if (isCritical(event, 'parent')) return true;
+  const preference = preferenceFor(event, 'parent');
+  if (!preference) return false;
+  const column = PREFERENCE_COLUMN[preference];
+  if (!column) return false;
+  return parent[column] !== false;
+}
+
+/* ----------------------------------------------------- email-канал */
+
+function pickLangCode(value?: string | null): NotifyLang {
+  const normalized = (value || '').toLowerCase();
+  if (normalized === 'ua' || normalized === 'uk') return 'ua';
+  if (normalized === 'en') return 'en';
+  return 'ru';
+}
+
+async function studentContact(admin: any, studentId: string) {
+  const { data } = await admin.from('profiles').select('email,name,lang').eq('id', studentId).maybeSingle();
+  return data || null;
+}
+
+/** Следующая версия события: повторная отправка не спорит с idempotency_key. */
+async function nextEventVersion(admin: any, entityType: string, entityId: string, eventType: string) {
+  const { data } = await admin
+    .from('notification_log')
+    .select('event_version')
+    .eq('entity_type', entityType)
+    .eq('entity_id', entityId)
+    .eq('event_type', eventType)
+    .order('event_version', { ascending: false })
+    .limit(1);
+  return Number(data?.[0]?.event_version || 0) + 1;
+}
+
+/**
+ * Письмо строится из того же реестра, что и Telegram, и уходит в очередь
+ * transactional_emails. Дубли отсекает уникальный idempotency_key.
+ */
+async function deliverEmail(admin: any, input: {
+  event: NotificationEvent;
+  entityType: string;
+  entityId: string;
+  studentId?: string | null;
+  recipientEmail?: string | null;
+  recipientRole?: NotifyRole;
+  lang?: string | null;
+  vars: Record<string, unknown>;
+  eventVersion?: number;
+}) {
+  const email = (input.recipientEmail || '').trim().toLowerCase();
+  if (!email) return { skipped: 'no_email' };
+
+  const lang = pickLangCode(input.lang);
+  const role = input.recipientRole || 'parent';
+  const eventVersion = input.eventVersion ?? 1;
+  const key = idempotencyKey({
+    eventType: input.event,
+    entityId: input.entityId,
+    recipientId: email,
+    channel: 'email',
+    eventVersion,
+  });
+
+  const { error: claimError } = await admin.from('notification_log').insert({
+    event_type: input.event,
+    event_version: eventVersion,
+    entity_type: input.entityType,
+    entity_id: input.entityId,
+    recipient_role: role,
+    recipient_email: email,
+    student_id: input.studentId || null,
+    channel: 'email',
+    language: lang,
+    status: 'pending',
+    idempotency_key: key,
+  });
+  if (claimError) {
+    // 23505 = такое письмо уже отправлялось
+    if (claimError.code !== '23505') console.error('notification_log claim failed', claimError.message);
+    return { skipped: 'duplicate' };
   }
-  if (notificationType === 'homework_published' || notificationType === 'homework_updated' || notificationType === 'homework_canceled' || notificationType === 'lesson_result_published') return parent.notify_homework;
-  if (notificationType === 'grade_published') return parent.notify_grades;
-  if (notificationType === 'lesson_rescheduled' || notificationType === 'lesson_canceled') return parent.notify_schedule_changes;
-  if (notificationType === 'trial_confirmed' || notificationType === 'trial_rescheduled' || notificationType === 'trial_canceled') return parent.notify_schedule_changes;
-  return false;
+
+  const finish = async (patch: Record<string, unknown>) => {
+    await admin.from('notification_log').update(patch).eq('idempotency_key', key);
+  };
+
+  try {
+    const rendered = await renderNotificationEmail(input.event, role, lang, input.vars as any);
+    if (!rendered) {
+      await finish({ status: 'skipped', error_message: 'no_template' });
+      return { skipped: 'no_template' };
+    }
+    const queued = await enqueueNotificationEmail(admin, {
+      to: email,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      label: input.event,
+      idempotencyKey: key,
+    });
+    if (queued.skipped) {
+      await finish({ status: 'skipped', error_message: queued.skipped });
+      return { skipped: queued.skipped };
+    }
+    await finish({
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+      provider_message_id: queued.messageId,
+      subject: rendered.subject,
+      body_preview: rendered.message.text.slice(0, 500),
+    });
+    return { sent: true };
+  } catch (error) {
+    await finish({
+      status: 'failed',
+      failed_at: new Date().toISOString(),
+      error_message: (error as Error).message,
+    });
+    return { skipped: 'failed' };
+  }
+}
+
+/** Письмо владельцу аккаунта ученика по тем же данным, что и Telegram. */
+async function emailStudentEvent(admin: any, studentId: string, notificationType: string, payload: any, entity: { type: string; id: string }, eventVersion = 1) {
+  if (!studentId) return;
+  const contact = await studentContact(admin, studentId);
+  if (!contact?.email) return;
+  const lang = pickLangCode(contact.lang);
+  await deliverEmail(admin, {
+    event: registryEvent(notificationType),
+    entityType: entity.type,
+    entityId: entity.id,
+    studentId,
+    recipientEmail: contact.email,
+    recipientRole: 'parent',
+    lang,
+    vars: templateVars({ studentName: contact.name || '', ...payload }, lang) as any,
+    eventVersion,
+  });
 }
 
 async function handleScheduleEvent(admin: any, body: any) {
