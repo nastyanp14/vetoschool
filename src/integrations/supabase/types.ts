@@ -1836,6 +1836,7 @@ export type Database = {
           description: string | null
           id: string
           lesson_duration_minutes: number | null
+          lesson_url: string | null
           level: string | null
           name: string
           progress: number
@@ -1853,6 +1854,7 @@ export type Database = {
           description?: string | null
           id?: string
           lesson_duration_minutes?: number | null
+          lesson_url?: string | null
           level?: string | null
           name: string
           progress?: number
@@ -1870,6 +1872,7 @@ export type Database = {
           description?: string | null
           id?: string
           lesson_duration_minutes?: number | null
+          lesson_url?: string | null
           level?: string | null
           name?: string
           progress?: number
@@ -2809,6 +2812,7 @@ export type Database = {
           id: string
           idempotency_key: string | null
           internal_notes: string | null
+          lesson_url: string | null
           marketing_consent_at: string | null
           parent_email: string
           parent_name: string
@@ -2836,6 +2840,7 @@ export type Database = {
           id?: string
           idempotency_key?: string | null
           internal_notes?: string | null
+          lesson_url?: string | null
           marketing_consent_at?: string | null
           parent_email: string
           parent_name: string
@@ -2863,6 +2868,7 @@ export type Database = {
           id?: string
           idempotency_key?: string | null
           internal_notes?: string | null
+          lesson_url?: string | null
           marketing_consent_at?: string | null
           parent_email?: string
           parent_name?: string
