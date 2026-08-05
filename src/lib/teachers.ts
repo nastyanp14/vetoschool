@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { User } from './auth';
 import { awardStars } from './stars';
-import { notifyHomeworkAssigned, notifyHomeworkChanged, notifyHomeworkReviewed, notifyLessonGradePublished, notifyLessonResultPublished, notifyScheduleSaved } from './telegram';
+import { notifyHomeworkAssigned, notifyHomeworkChanged, notifyHomeworkReviewed, notifyLessonGradePublished, notifyLessonNoShow, notifyLessonResultPublished, notifyScheduleSaved } from './telegram';
 import type { ScheduleSlot } from './schedule';
 
 export type TeacherStatus = 'active' | 'inactive' | 'vacation' | 'blocked';

@@ -136,7 +136,7 @@ export async function loadTrialBookings() {
 }
 
 export async function updateTrialBooking(id: string, patch: TrialBookingUpdate) {
-  const { data: before, error: beforeError } = await trialBookingClient.from('trial_bookings').select('status,selected_date,selected_time').eq('id', id).single();
+  const { data: before, error: beforeError } = await trialBookingClient.from('trial_bookings').select('status,selected_date,selected_time,teacher_confirmed_level,teacher_confirmed_direction').eq('id', id).single();
   if (beforeError) throw beforeError;
   const { data, error } = await trialBookingClient
     .from('trial_bookings')
@@ -146,11 +146,61 @@ export async function updateTrialBooking(id: string, patch: TrialBookingUpdate) 
     .single();
 
   if (error) throw error;
-  if (before.status !== data.status || before.selected_date !== data.selected_date || before.selected_time !== data.selected_time) {
+
+  const statusChanged = before.status !== data.status
+    || before.selected_date !== data.selected_date
+    || before.selected_time !== data.selected_time;
+  const recommendationReady = !!data.teacher_confirmed_level
+    && (before.teacher_confirmed_level !== data.teacher_confirmed_level
+      || before.teacher_confirmed_direction !== data.teacher_confirmed_direction);
+
+  if (statusChanged) {
     const { error: notificationError } = await supabase.functions.invoke('telegram-notifications', {
       body: { action: 'trial_event', bookingId: id, previousStatus: before.status, previousDate: before.selected_date, previousTime: before.selected_time },
     });
     if (notificationError) throw notificationError;
   }
+
+  // Рекомендация преподавателя — отдельное событие, а не часть смены статуса.
+  if (recommendationReady) {
+    const { error: recommendationError } = await supabase.functions.invoke('telegram-notifications', {
+      body: { action: 'trial_event', bookingId: id, type: 'trial_recommendation_ready' },
+    });
+    if (recommendationError) throw recommendationError;
+  }
+
+  return data;
+}
+
+export interface TrialNotificationLogEntry {
+  id: string;
+  event_type: string;
+  event_version: number;
+  channel: 'telegram' | 'email';
+  recipient_role: string;
+  recipient_email: string | null;
+  telegram_chat_id: string | null;
+  language: string;
+  status: string;
+  subject: string | null;
+  error_message: string | null;
+  sent_at: string | null;
+  created_at: string;
+}
+
+export async function loadTrialNotificationHistory(bookingId: string) {
+  const { data, error } = await supabase.functions.invoke<{ items: TrialNotificationLogEntry[] }>('telegram-notifications', {
+    body: { action: 'notification_history', entityType: 'trial_booking', entityId: bookingId, limit: 50 },
+  });
+  if (error) throw error;
+  return data?.items || [];
+}
+
+/** Повторная отправка поднимает event_version, поэтому не считается дублем. */
+export async function resendTrialNotification(bookingId: string, eventType?: string) {
+  const { data, error } = await supabase.functions.invoke('telegram-notifications', {
+    body: { action: 'trial_event', bookingId, resend: true, ...(eventType ? { type: eventType } : {}) },
+  });
+  if (error) throw error;
   return data;
 }
