@@ -28,11 +28,37 @@ function asAnySupabase() {
   return supabase as any;
 }
 
-function normalizeIso(date?: string | null, time?: string | null) {
-  if (!date || !time) return null;
-  const value = new Date(`${date}T${time}`);
-  return Number.isNaN(value.getTime()) ? null : value.toISOString();
+export const APP_TIMEZONE = 'Europe/Prague';
+
+function tzOffsetMs(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(date).reduce<Record<string, string>>((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value;
+    return acc;
+  }, {});
+  const asUtc = Date.UTC(
+    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+    Number(parts.hour) % 24, Number(parts.minute), Number(parts.second),
+  );
+  return asUtc - date.getTime();
 }
+
+// Lesson dates/times are entered without a timezone and always mean local school
+// time (Europe/Prague). Never rely on the browser timezone here.
+export function normalizeIso(date?: string | null, time?: string | null) {
+  if (!date || !time) return null;
+  const withSeconds = /^\d{2}:\d{2}$/.test(time) ? `${time}:00` : time;
+  const guess = new Date(`${date}T${withSeconds}Z`);
+  if (Number.isNaN(guess.getTime())) return null;
+  let ts = guess.getTime() - tzOffsetMs(guess, APP_TIMEZONE);
+  ts = guess.getTime() - tzOffsetMs(new Date(ts), APP_TIMEZONE);
+  return new Date(ts).toISOString();
+}
+
 
 async function invokeTelegram(body: Record<string, unknown>) {
   try {
@@ -279,4 +305,14 @@ export async function notifyScheduleSaved(studentId: string, before: ScheduleSlo
   }
 
   await Promise.all(events.map(event => invokeTelegram({ action: 'schedule_event', studentId, ...event })));
+}
+
+export async function notifyHomeworkAssigned(studentId: string, item: { id: string; title: string }) {
+  if (!studentId || !item?.id) return;
+  await invokeTelegram({
+    action: 'content_event',
+    type: 'homework_published',
+    studentId,
+    item: { id: item.id, type: 'homework', title: item.title },
+  });
 }

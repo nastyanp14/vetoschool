@@ -48,13 +48,51 @@ function dashboardUrl(studentId: string, path = 'dashboard') {
   return base ? `${base}/${path}?preview=${encodeURIComponent(studentId)}` : `https://t.me/${(Deno.env.get('TELEGRAM_BOT_USERNAME') || 'vetoschool_bot').replace(/^@/, '')}`;
 }
 
+const APP_TZ = 'Europe/Prague';
+
+// Offset (ms) between UTC and the app timezone at the given instant.
+function tzOffsetMs(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(date).reduce<Record<string, string>>((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value;
+    return acc;
+  }, {});
+  const asUtc = Date.UTC(
+    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+    Number(parts.hour) % 24, Number(parts.minute), Number(parts.second),
+  );
+  return asUtc - date.getTime();
+}
+
+// "2026-08-05T03:57" entered by an admin means 03:57 in Europe/Prague.
+// The edge runtime is UTC, so a naive Date() parse would shift it by 1-2 hours.
+export function naiveLocalToIso(value?: string | null) {
+  if (!value) return null;
+  const normalized = value.trim().replace(' ', 'T');
+  if (/(z|[+-]\d{2}:?\d{2})$/i.test(normalized)) {
+    const absolute = new Date(normalized);
+    return Number.isNaN(absolute.getTime()) ? null : absolute.toISOString();
+  }
+  const withSeconds = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(normalized) ? `${normalized}:00` : normalized;
+  const guess = new Date(`${withSeconds}Z`);
+  if (Number.isNaN(guess.getTime())) return null;
+  let ts = guess.getTime() - tzOffsetMs(guess, APP_TZ);
+  ts = guess.getTime() - tzOffsetMs(new Date(ts), APP_TZ);
+  return new Date(ts).toISOString();
+}
+
 function dateTimeLabel(value?: string | null, lang: Lang = 'ru') {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
-  return date.toLocaleString(locale, { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleString(locale, { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: APP_TZ });
 }
+
 
 function t(lang: Lang, key: string, p: Record<string, string | number | undefined> = {}) {
   const dict: Record<Lang, Record<string, string>> = {
@@ -360,8 +398,7 @@ function slotLessonAt(slot: any) {
   const date = slot?.date || slot?.scheduled_date;
   const time = slot?.time;
   if (!date || !time) return null;
-  const value = new Date(`${date}T${time}`);
-  return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  return naiveLocalToIso(`${date}T${time}`);
 }
 
 function preferenceAllows(parent: ParentRow, notificationType: string) {
@@ -443,10 +480,15 @@ async function processDue(admin: any, limit = 25) {
 
   let sent = 0;
   let failed = 0;
+  let skipped = 0;
+  const REMINDER_TYPES = ['lesson_reminder_24h', 'lesson_reminder_1h'];
+  const STALE_GRACE_MS = 10 * 60_000;
+
   for (const notification of data || []) {
+    const processingStartedAt = new Date().toISOString();
     const { data: claimed } = await admin
       .from('telegram_notifications')
-      .update({ attempts: notification.attempts + 1, updated_at: new Date().toISOString() })
+      .update({ attempts: notification.attempts + 1, processing_started_at: processingStartedAt, updated_at: processingStartedAt })
       .eq('id', notification.id)
       .eq('status', 'pending')
       .eq('attempts', notification.attempts)
@@ -454,15 +496,39 @@ async function processDue(admin: any, limit = 25) {
       .maybeSingle();
     if (!claimed) continue;
 
+    const skip = async (reason: string) => {
+      await admin
+        .from('telegram_notifications')
+        .update({ status: 'canceled', canceled_at: new Date().toISOString(), skipped_reason: reason })
+        .eq('id', notification.id);
+      skipped++;
+    };
+
+    // Never deliver a reminder after the lesson already started, and never deliver
+    // a reminder that the queue picked up long after its scheduled slot.
+    if (REMINDER_TYPES.includes(notification.notification_type)) {
+      const lessonAt = notification.payload?.lessonAt ? new Date(notification.payload.lessonAt).getTime() : null;
+      if (lessonAt && Date.now() >= lessonAt) {
+        await skip('stale: lesson already started');
+        continue;
+      }
+      if (Date.now() - new Date(notification.scheduled_for).getTime() > STALE_GRACE_MS) {
+        await skip('stale: reminder window missed');
+        continue;
+      }
+    }
+
     const parent = notification.telegram_parent_accounts as ParentRow | null;
     if (!parent) {
-      await admin.from('telegram_notifications').update({ status: 'failed', error: 'Parent account not found' }).eq('id', notification.id);
+      await admin
+        .from('telegram_notifications')
+        .update({ status: 'failed', error: 'Parent account not found', skipped_reason: 'parent_not_found' })
+        .eq('id', notification.id);
       failed++;
       continue;
     }
     if (!preferenceAllows(parent, notification.notification_type)) {
-      await admin.from('telegram_notifications').update({ status: 'canceled', canceled_at: new Date().toISOString(), error: 'Notification preference is disabled' }).eq('id', notification.id);
-      failed++;
+      await skip('preference_disabled');
       continue;
     }
     try {
@@ -475,7 +541,8 @@ async function processDue(admin: any, limit = 25) {
       failed++;
     }
   }
-  return { sent, failed, checked: data?.length || 0 };
+
+  return { sent, failed, skipped, checked: data?.length || 0 };
 }
 
 Deno.serve(async (req) => {

@@ -280,14 +280,15 @@ export async function login(email: string, password: string): AuthResult<User> {
   return { success: true, data: me || undefined };
 }
 
-export async function register(name: string, email: string, password: string): AuthResult<{ email: string }> {
+export async function register(name: string, email: string, password: string, lang: 'ru' | 'ua' | 'en' = 'ru'): AuthResult<{ email: string }> {
   const normalizedEmail = email.trim().toLowerCase();
   const { error, data } = await supabase.auth.signUp({
     email: normalizedEmail,
     password,
     options: {
       emailRedirectTo: redirectUrl('/auth/callback?next=/auth/confirmed'),
-      data: { name: name.trim() },
+      // lang lands in profiles.lang via handle_new_user and drives the email language.
+      data: { name: name.trim(), lang },
     },
   });
 
