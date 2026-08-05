@@ -262,16 +262,41 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
                     </span>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => disconnectParent(parent.id)}
-                  disabled={disconnectingId === parent.id}
-                  className="mt-2 rounded-xl border border-red-100 bg-red-50/70 px-3 py-1.5 font-body text-xs font-800 text-red-500 hover:bg-red-100 disabled:opacity-60"
-                >
-                  {disconnectingId === parent.id ? '...' : text.disconnect}
-                </button>
+                {confirmDisconnectId === parent.id ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="font-body text-xs font-800 text-red-500">{text.confirm}</span>
+                    <button
+                      type="button"
+                      onClick={() => disconnectParent(parent.id)}
+                      disabled={disconnectingId === parent.id}
+                      className="rounded-xl border border-red-200 bg-red-100 px-3 py-1.5 font-body text-xs font-800 text-red-600 hover:bg-red-200 disabled:opacity-60"
+                    >
+                      {disconnectingId === parent.id ? '...' : text.disconnect}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDisconnectId(null)}
+                      className="rounded-xl bg-white/80 px-3 py-1.5 font-body text-xs font-800 text-purple-500 hover:bg-purple-50"
+                    >
+                      {text.cancel}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { setStatusMessage(null); setConfirmDisconnectId(parent.id); }}
+                    className="mt-2 rounded-xl border border-red-100 bg-red-50/70 px-3 py-1.5 font-body text-xs font-800 text-red-500 hover:bg-red-100"
+                  >
+                    {text.disconnect}
+                  </button>
+                )}
               </div>
             ))}
+          </div>
+        )}
+        {statusMessage && (
+          <div className={`mt-2 rounded-2xl px-4 py-2 font-body text-xs font-800 ${statusMessage.kind === 'ok' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'}`}>
+            {text[statusMessage.text as 'disconnected' | 'notFound' | 'failed']}
           </div>
         )}
       </div>
