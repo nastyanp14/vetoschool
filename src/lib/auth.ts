@@ -294,6 +294,9 @@ export async function register(name: string, email: string, password: string, la
 
   if (error) return { success: false, error: friendlyAuthError(error.message) };
 
+  markEmailOtpSent(normalizedEmail);
+
+
   if (data.user && data.session) {
     try {
       await initializeProfile(data.user.id, normalizedEmail, name);
@@ -351,24 +354,46 @@ export async function resendConfirmationEmail(email: string): AuthResult {
     options: { emailRedirectTo: redirectUrl('/auth/callback?next=/auth/confirmed') },
   });
 
-  return error ? { success: false, error: friendlyAuthError(error.message) } : { success: true };
+  if (error) return { success: false, error: friendlyAuthError(error.message) };
+  markEmailOtpSent(normalizedEmail);
+  return { success: true };
+
 }
 
 export const EMAIL_OTP_TTL_SECONDS = 600;
+
+const OTP_SENT_KEY = 'vs_otp_sent_at';
+
+export function markEmailOtpSent(email: string) {
+  try {
+    localStorage.setItem(OTP_SENT_KEY, JSON.stringify({ email: email.trim().toLowerCase(), at: Date.now() }));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+function isEmailOtpExpiredLocally(email: string): boolean {
+  try {
+    const raw = localStorage.getItem(OTP_SENT_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { email?: string; at?: number };
+    if (parsed?.email !== email || typeof parsed.at !== 'number') return false;
+    return Date.now() - parsed.at > EMAIL_OTP_TTL_SECONDS * 1000;
+  } catch {
+    return false;
+  }
+}
 
 export async function confirmEmailCode(email: string, token: string): AuthResult<User> {
   const normalizedEmail = email.trim().toLowerCase();
   const cleanToken = token.trim().replace(/\s+/g, '');
 
-  // GoTrue's own OTP lifetime is longer than our product rule (10 minutes),
-  // so we enforce the 10-minute window ourselves before verifying.
-  const { data: expired } = await supabase.rpc('email_otp_is_expired', {
-    _email: normalizedEmail,
-    _ttl_seconds: EMAIL_OTP_TTL_SECONDS,
-  });
-  if (expired === true) {
+  // Product rule: codes are valid for 10 minutes. The backend always validates the
+  // code itself; this check only enforces our shorter UX window.
+  if (isEmailOtpExpiredLocally(normalizedEmail)) {
     return { success: false, error: friendlyAuthError('Email link is invalid or has expired') };
   }
+
 
   const { data, error } = await supabase.auth.verifyOtp({
     email: normalizedEmail,
