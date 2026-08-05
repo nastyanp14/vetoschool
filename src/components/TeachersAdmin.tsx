@@ -4,6 +4,8 @@ import { CalendarDays, Edit3, GraduationCap, Mail, Phone, Plus, Trash2, Users, U
 import { Lang } from '../lib/i18n';
 import { User } from '../lib/auth';
 import ConfirmActionModal from './ConfirmActionModal';
+import { AvatarImage } from './teacher/AvatarImage';
+
 import {
   createStudentGroupForAdmin,
   createTeacher,
