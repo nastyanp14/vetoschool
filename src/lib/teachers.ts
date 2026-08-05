@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { User } from './auth';
 import { awardStars } from './stars';
-import { notifyHomeworkReviewed, notifyLessonGradePublished, notifyScheduleSaved } from './telegram';
+import { notifyHomeworkAssigned, notifyHomeworkReviewed, notifyLessonGradePublished, notifyScheduleSaved } from './telegram';
 import type { ScheduleSlot } from './schedule';
 
 export type TeacherStatus = 'active' | 'inactive' | 'vacation' | 'blocked';
@@ -1724,12 +1724,21 @@ export async function assignContentToStudents(input: {
     unlocked: true,
   }));
   if (!rows.length) return;
-  const { error } = await (supabase as any).from('content_items').insert(rows);
+  const { data: inserted, error } = await (supabase as any).from('content_items').insert(rows).select('id,user_id,type,title');
   if (error) throw error;
+
+  // Homework must reach linked Telegram parents immediately, without waiting for
+  // a dashboard refresh. event_key dedupe on the edge function prevents doubles.
+  if (input.type === 'homework') {
+    await Promise.all((inserted || []).map((row: any) => notifyHomeworkAssigned(row.user_id, {
+      id: row.id,
+      title: row.title,
+    })));
+  }
 }
 
 export async function saveGrade(input: { teacherId: string; studentId: string; groupId?: string | null; category: GradeCategory; score: number; comment?: string }) {
-  const { error } = await (supabase as any).from('grades').insert({
+  const { data, error } = await (supabase as any).from('grades').insert({
     teacher_id: input.teacherId,
     user_id: input.studentId,
     group_id: input.groupId || null,
@@ -1737,9 +1746,19 @@ export async function saveGrade(input: { teacherId: string; studentId: string; g
     score: input.score,
     max_score: 5,
     comment: input.comment || null,
-  });
+  }).select('id').maybeSingle();
   if (error) throw error;
+
+  // Standalone grades never notified parents before — this was the missing link.
+  await notifyLessonGradePublished(input.studentId, {
+    lessonId: data?.id || `${input.studentId}:${Date.now()}`,
+    title: input.category,
+    score: input.score,
+    comment: input.comment || null,
+    category: input.category,
+  });
 }
+
 
 export async function assignDictionaryWords(input: { studentIds: string[]; lesson?: string; category?: string; word: string; translation: string; emoji?: string; audioUrl?: string }) {
   const rows = Array.from(new Set(input.studentIds)).map(studentId => ({
