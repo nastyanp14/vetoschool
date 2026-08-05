@@ -601,13 +601,17 @@ Deno.serve(async (req) => {
     if (action === 'content_event') {
       if (!adminUser && !(await canNotifyForStudent(admin, userId, body.studentId))) return json({ error: 'Forbidden' }, 403);
       await handleContentEvent(admin, body);
-      return json({ success: true });
+      // Deliver instantly instead of waiting for the next cron tick.
+      const flushed = await processDue(admin, 25).catch(() => null);
+      return json({ success: true, flushed });
     }
     if (action === 'schedule_event') {
       if (!adminUser && !(await canNotifyForStudent(admin, userId, body.studentId))) return json({ error: 'Forbidden' }, 403);
       await handleScheduleEvent(admin, body);
-      return json({ success: true });
+      const flushed = await processDue(admin, 25).catch(() => null);
+      return json({ success: true, flushed });
     }
+
 
     return json({ error: 'Unknown action' }, 400);
   } catch (error) {
