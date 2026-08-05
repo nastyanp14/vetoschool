@@ -63,6 +63,8 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
+  const [confirmDisconnectId, setConfirmDisconnectId] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [waitingForLink, setWaitingForLink] = useState(false);
 
@@ -84,11 +86,18 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
   };
   const disconnectParent = async (parentId: string) => {
     setDisconnectingId(parentId);
+    setStatusMessage(null);
     try {
-      await disconnectTelegramParent(studentId, parentId);
+      const removed = await disconnectTelegramParent(studentId, parentId);
+      setParents(current => current.filter(parent => parent.id !== parentId));
       await loadParents();
+      setStatusMessage({ kind: removed ? 'ok' : 'error', text: removed ? 'disconnected' : 'notFound' });
+    } catch (error) {
+      console.error('Telegram disconnect failed', error);
+      setStatusMessage({ kind: 'error', text: 'failed' });
     } finally {
       setDisconnectingId(null);
+      setConfirmDisconnectId(null);
     }
   };
   const createLink = async () => {
