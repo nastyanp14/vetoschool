@@ -87,6 +87,14 @@ export default function BookingWizard({ lang }: { lang: Lang }) {
 
   return (
     <section className="mx-auto max-w-6xl px-4 pb-16 pt-28 sm:pt-32">
+      <h1 className="sr-only">
+        {lang === 'ru'
+          ? 'Запись на бесплатный пробный урок английского — Vetoschool'
+          : lang === 'ua'
+            ? 'Запис на безкоштовний пробний урок англійської — Vetoschool'
+            : 'Book a free trial English lesson — Vetoschool'}
+      </h1>
+
       <BookingProgress
         lang={lang}
         currentStep={stepIndex + 1}
