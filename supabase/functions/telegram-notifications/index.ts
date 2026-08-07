@@ -204,6 +204,16 @@ export function templateVars(payload: any, lang: NotifyLang, now = new Date()) {
     progress_summary: payload.progressSummary || '',
     teacher_weekly_comment: payload.teacherWeeklyComment || '',
     submitted_at: payload.submittedAt ? formatDate(payload.submittedAt, lang) : '',
+    // поля новой заявки на пробный урок
+    child_age: payload.childAge ?? '',
+    school_grade: payload.schoolGrade || '',
+    recommended_level: payload.recommendedLevel || payload.finalLevel || '',
+    communication_language: payload.communicationLanguage || '',
+    lesson_language: payload.lessonLanguage || payload.communicationLanguage || '',
+    parent_email: payload.parentEmail || '',
+    parent_phone: payload.parentPhone || '',
+    preferred_date: lessonAt ? formatDate(lessonAt, lang) : '',
+    preferred_time: lessonAt ? formatTime(lessonAt, lang) : '',
     // контекстные ссылки: без валидного https кнопка просто не показывается
     schedule_url: url, lesson_url: payload.lessonUrl || '', homework_url: url, result_url: url,
     request_url: payload.requestUrl || url, billing_url: payload.billingUrl || url,
@@ -622,7 +632,7 @@ async function deliverEmail(admin: any, input: {
     eventVersion,
   });
 
-  const { error: claimError } = await admin.from('notification_log').insert({
+  const { data: claimed, error: claimError } = await admin.from('notification_log').insert({
     event_type: input.event,
     event_version: eventVersion,
     entity_type: input.entityType,
@@ -633,8 +643,9 @@ async function deliverEmail(admin: any, input: {
     channel: 'email',
     language: lang,
     status: 'pending',
+    provider: 'lovable_email',
     idempotency_key: key,
-  });
+  }).select('id').maybeSingle();
   if (claimError) {
     // 23505 = такое письмо уже отправлялось
     if (claimError.code !== '23505') console.error('notification_log claim failed', claimError.message);
@@ -658,11 +669,18 @@ async function deliverEmail(admin: any, input: {
       text: rendered.text,
       label: input.event,
       idempotencyKey: key,
+      language: lang,
+      recipientName: (input.vars as any)?.parent_name || (input.vars as any)?.student_name || null,
+      eventVersion,
+      notificationLogId: claimed?.id || null,
+      trialBookingId: input.entityType === 'trial_booking' ? input.entityId : null,
+      templateVariables: input.vars,
     });
     if (queued.skipped) {
       await finish({ status: 'skipped', error_message: queued.skipped });
       return { skipped: queued.skipped };
     }
+
     await finish({
       status: 'sent',
       sent_at: new Date().toISOString(),
@@ -727,7 +745,7 @@ const TRIAL_LINK_STATUSES = ['submitted', 'confirmed'];
 /** Ссылку на пробный урок отправляем только пока он актуален. */
 function trialLessonUrl(booking: any): string {
   if (!booking || !TRIAL_LINK_STATUSES.includes(String(booking.status))) return '';
-  return validLessonUrl(booking.lesson_url);
+  return validLessonUrl(booking.meeting_url || booking.lesson_url);
 }
 
 async function handleScheduleEvent(admin: any, body: any) {
@@ -893,9 +911,11 @@ const TRIAL_STATUS_EVENTS: Record<string, string> = {
 
 /** Родительские события пробной заявки: остальные адресованы преподавателю/админу. */
 const TRIAL_PARENT_EVENTS = [
+  'trial_request_created',
   'trial_confirmed',
   'trial_rescheduled',
   'trial_canceled',
+  'trial_request_completed',
   'trial_request_no_show',
   'trial_request_converted',
   'trial_recommendation_ready',
@@ -944,6 +964,13 @@ async function handleTrialEvent(admin: any, body: any) {
     lessonsTotal: body.lessonsTotal ?? '',
     firstLessonDate: body.firstLessonDate || '',
     teacherComment: booking.preliminary_recommendation || body.teacherComment || '',
+    childAge: booking.child_age ?? '',
+    schoolGrade: booking.school_grade || '',
+    recommendedLevel: booking.teacher_confirmed_level || booking.preliminary_recommendation || '',
+    communicationLanguage: String(booking.preferred_language || '').toUpperCase(),
+    parentEmail: booking.parent_email || '',
+    parentPhone: booking.parent_phone || '',
+    submittedAt: booking.created_at || '',
     url: studentId && base ? dashboardUrl(studentId, 'dashboard') : base,
     requestUrl: base ? `${base}/trial` : '',
     rescheduleUrl: base ? `${base}/trial` : '',
@@ -1094,7 +1121,7 @@ async function reminderStillValid(admin: any, notification: any): Promise<{ ok: 
 
   if (notification.trial_booking_id || lessonRef.startsWith('trial:')) {
     const bookingId = notification.trial_booking_id || lessonRef.split(':')[1];
-    const { data } = await admin.from('trial_bookings').select('status,selected_date,selected_time,lesson_url').eq('id', bookingId).maybeSingle();
+    const { data } = await admin.from('trial_bookings').select('status,selected_date,selected_time,meeting_url,lesson_url').eq('id', bookingId).maybeSingle();
     if (!data) return { ok: false, reason: 'trial_removed' };
     if (!['submitted', 'confirmed'].includes(String(data.status))) return { ok: false, reason: `trial_${data.status}` };
     const actualAt = naiveLocalToIso(`${data.selected_date}T${data.selected_time}`);

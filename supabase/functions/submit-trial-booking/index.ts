@@ -312,6 +312,22 @@ Deno.serve(async req => {
       .single();
 
     if (insertError) throw insertError;
+
+    // Уведомления о новой заявке (email через Lovable Email + Telegram) — в едином диспетчере.
+    try {
+      await fetch(`${supabaseUrl}/functions/v1/telegram-notifications`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({ action: 'trial_event', bookingId: booking.id, type: 'trial_request_created' }),
+      });
+    } catch (notifyError) {
+      console.error('trial_request_created notification failed', notifyError);
+    }
+
     return jsonResponse({ success: true, bookingId: booking.id }, 201, origin);
   } catch (error) {
     if (error instanceof ValidationError) {

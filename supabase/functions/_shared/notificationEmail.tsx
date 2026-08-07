@@ -20,6 +20,8 @@ import {
 const SENDER_DOMAIN = 'notify.vetoschool.eu'
 const FROM_DOMAIN = 'notify.vetoschool.eu'
 const FROM = `Vetoschool <noreply@${FROM_DOMAIN}>`
+// Единый провайдер отправки: встроенная почта Lovable.
+const PROVIDER = 'lovable_email'
 
 /** Обратное преобразование HTML-экранирования из шаблонов реестра. */
 function unescape(value: string) {
@@ -125,7 +127,7 @@ export async function renderNotificationEmail(
 }
 
 /**
- * Ставит письмо в очередь transactional_emails.
+ * Ставит письмо в очередь transactional_emails (Lovable Email).
  * Дубли отсекаются раньше — по idempotency_key в notification_log.
  */
 export async function enqueueNotificationEmail(admin: any, input: {
@@ -135,6 +137,12 @@ export async function enqueueNotificationEmail(admin: any, input: {
   text: string
   label: string
   idempotencyKey: string
+  language?: string
+  recipientName?: string | null
+  eventVersion?: number
+  notificationLogId?: string | null
+  trialBookingId?: string | null
+  templateVariables?: Record<string, unknown>
 }) {
   const messageId = crypto.randomUUID()
 
@@ -150,6 +158,26 @@ export async function enqueueNotificationEmail(admin: any, input: {
     template_name: input.label,
     recipient_email: input.to,
     status: 'pending',
+    provider: PROVIDER,
+  })
+
+  // Прикладной журнал писем: тот же провайдер, что и в очереди.
+  await admin.from('transactional_emails').insert({
+    notification_log_id: input.notificationLogId || null,
+    event_key: input.idempotencyKey,
+    event_type: input.label,
+    event_version: input.eventVersion ?? 1,
+    trial_request_id: input.trialBookingId || null,
+    recipient_email: input.to,
+    recipient_name: input.recipientName || null,
+    language: input.language || null,
+    subject: input.subject,
+    html: input.html,
+    text: input.text,
+    template_variables: input.templateVariables || {},
+    provider: PROVIDER,
+    provider_message_id: messageId,
+    status: 'queued',
   })
 
   const { error } = await admin.rpc('enqueue_email', {
@@ -171,3 +199,4 @@ export async function enqueueNotificationEmail(admin: any, input: {
   if (error) throw new Error(error.message)
   return { messageId, skipped: null }
 }
+
