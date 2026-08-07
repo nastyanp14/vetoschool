@@ -384,35 +384,68 @@ export type Database = {
       email_send_log: {
         Row: {
           created_at: string
+          error: string | null
           error_message: string | null
           id: string
           message_id: string | null
           metadata: Json | null
+          notification_log_id: string | null
+          provider: string | null
           recipient_email: string
+          request: Json | null
+          response: Json | null
           status: string
           template_name: string
+          transactional_email_id: string | null
         }
         Insert: {
           created_at?: string
+          error?: string | null
           error_message?: string | null
           id?: string
           message_id?: string | null
           metadata?: Json | null
+          notification_log_id?: string | null
+          provider?: string | null
           recipient_email: string
+          request?: Json | null
+          response?: Json | null
           status: string
           template_name: string
+          transactional_email_id?: string | null
         }
         Update: {
           created_at?: string
+          error?: string | null
           error_message?: string | null
           id?: string
           message_id?: string | null
           metadata?: Json | null
+          notification_log_id?: string | null
+          provider?: string | null
           recipient_email?: string
+          request?: Json | null
+          response?: Json | null
           status?: string
           template_name?: string
+          transactional_email_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "email_send_log_notification_log_id_fkey"
+            columns: ["notification_log_id"]
+            isOneToOne: false
+            referencedRelation: "notification_log"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_send_log_transactional_email_id_fkey"
+            columns: ["transactional_email_id"]
+            isOneToOne: false
+            referencedRelation: "transactional_emails"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       email_send_state: {
         Row: {
@@ -1238,7 +1271,9 @@ export type Database = {
           created_at: string
           entity_id: string
           entity_type: string
+          error: string | null
           error_message: string | null
+          event_key: string | null
           event_type: string
           event_version: number
           failed_at: string | null
@@ -1246,7 +1281,11 @@ export type Database = {
           idempotency_key: string
           language: string
           payload: Json
+          provider: string | null
           provider_message_id: string | null
+          provider_response: Json | null
+          queued_at: string | null
+          recipient: string | null
           recipient_email: string | null
           recipient_id: string | null
           recipient_role: string
@@ -1255,6 +1294,8 @@ export type Database = {
           student_id: string | null
           subject: string | null
           telegram_chat_id: string | null
+          template_variables: Json | null
+          trial_request_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1264,7 +1305,9 @@ export type Database = {
           created_at?: string
           entity_id: string
           entity_type: string
+          error?: string | null
           error_message?: string | null
+          event_key?: string | null
           event_type: string
           event_version?: number
           failed_at?: string | null
@@ -1272,7 +1315,11 @@ export type Database = {
           idempotency_key: string
           language?: string
           payload?: Json
+          provider?: string | null
           provider_message_id?: string | null
+          provider_response?: Json | null
+          queued_at?: string | null
+          recipient?: string | null
           recipient_email?: string | null
           recipient_id?: string | null
           recipient_role?: string
@@ -1281,6 +1328,8 @@ export type Database = {
           student_id?: string | null
           subject?: string | null
           telegram_chat_id?: string | null
+          template_variables?: Json | null
+          trial_request_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1290,7 +1339,9 @@ export type Database = {
           created_at?: string
           entity_id?: string
           entity_type?: string
+          error?: string | null
           error_message?: string | null
+          event_key?: string | null
           event_type?: string
           event_version?: number
           failed_at?: string | null
@@ -1298,7 +1349,11 @@ export type Database = {
           idempotency_key?: string
           language?: string
           payload?: Json
+          provider?: string | null
           provider_message_id?: string | null
+          provider_response?: Json | null
+          queued_at?: string | null
+          recipient?: string | null
           recipient_email?: string | null
           recipient_id?: string | null
           recipient_role?: string
@@ -1307,7 +1362,62 @@ export type Database = {
           student_id?: string | null
           subject?: string | null
           telegram_chat_id?: string | null
+          template_variables?: Json | null
+          trial_request_id?: string | null
           updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_log_trial_request_id_fkey"
+            columns: ["trial_request_id"]
+            isOneToOne: false
+            referencedRelation: "trial_bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_registry: {
+        Row: {
+          body: string | null
+          button_label: string | null
+          button_url_template: string | null
+          channel: string | null
+          created_at: string | null
+          enabled: boolean | null
+          event_type: string | null
+          event_version: number | null
+          id: string
+          language: string | null
+          subject: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          body?: string | null
+          button_label?: string | null
+          button_url_template?: string | null
+          channel?: string | null
+          created_at?: string | null
+          enabled?: boolean | null
+          event_type?: string | null
+          event_version?: number | null
+          id?: string
+          language?: string | null
+          subject?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          body?: string | null
+          button_label?: string | null
+          button_url_template?: string | null
+          channel?: string | null
+          created_at?: string | null
+          enabled?: boolean | null
+          event_type?: string | null
+          event_version?: number | null
+          id?: string
+          language?: string | null
+          subject?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -2777,6 +2887,93 @@ export type Database = {
         }
         Relationships: []
       }
+      transactional_emails: {
+        Row: {
+          created_at: string | null
+          error: string | null
+          event_key: string | null
+          event_type: string | null
+          event_version: number | null
+          html: string | null
+          id: string
+          language: string | null
+          notification_log_id: string | null
+          provider: string | null
+          provider_message_id: string | null
+          provider_response: Json | null
+          recipient_email: string | null
+          recipient_name: string | null
+          sent_at: string | null
+          status: string | null
+          subject: string | null
+          template_variables: Json | null
+          text: string | null
+          trial_request_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error?: string | null
+          event_key?: string | null
+          event_type?: string | null
+          event_version?: number | null
+          html?: string | null
+          id?: string
+          language?: string | null
+          notification_log_id?: string | null
+          provider?: string | null
+          provider_message_id?: string | null
+          provider_response?: Json | null
+          recipient_email?: string | null
+          recipient_name?: string | null
+          sent_at?: string | null
+          status?: string | null
+          subject?: string | null
+          template_variables?: Json | null
+          text?: string | null
+          trial_request_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error?: string | null
+          event_key?: string | null
+          event_type?: string | null
+          event_version?: number | null
+          html?: string | null
+          id?: string
+          language?: string | null
+          notification_log_id?: string | null
+          provider?: string | null
+          provider_message_id?: string | null
+          provider_response?: Json | null
+          recipient_email?: string | null
+          recipient_name?: string | null
+          sent_at?: string | null
+          status?: string | null
+          subject?: string | null
+          template_variables?: Json | null
+          text?: string | null
+          trial_request_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactional_emails_notification_log_id_fkey"
+            columns: ["notification_log_id"]
+            isOneToOne: false
+            referencedRelation: "notification_log"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactional_emails_trial_request_id_fkey"
+            columns: ["trial_request_id"]
+            isOneToOne: false
+            referencedRelation: "trial_bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trial_booking_rate_limits: {
         Row: {
           attempts: number
@@ -2814,6 +3011,7 @@ export type Database = {
           internal_notes: string | null
           lesson_url: string | null
           marketing_consent_at: string | null
+          meeting_url: string | null
           parent_email: string
           parent_name: string
           parent_notes: string | null
@@ -2842,6 +3040,7 @@ export type Database = {
           internal_notes?: string | null
           lesson_url?: string | null
           marketing_consent_at?: string | null
+          meeting_url?: string | null
           parent_email: string
           parent_name: string
           parent_notes?: string | null
@@ -2870,6 +3069,7 @@ export type Database = {
           internal_notes?: string | null
           lesson_url?: string | null
           marketing_consent_at?: string | null
+          meeting_url?: string | null
           parent_email?: string
           parent_name?: string
           parent_notes?: string | null
