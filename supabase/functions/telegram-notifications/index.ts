@@ -901,9 +901,11 @@ const TRIAL_STATUS_EVENTS: Record<string, string> = {
 
 /** Родительские события пробной заявки: остальные адресованы преподавателю/админу. */
 const TRIAL_PARENT_EVENTS = [
+  'trial_request_created',
   'trial_confirmed',
   'trial_rescheduled',
   'trial_canceled',
+  'trial_request_completed',
   'trial_request_no_show',
   'trial_request_converted',
   'trial_recommendation_ready',
