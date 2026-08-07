@@ -315,7 +315,7 @@ Deno.serve(async req => {
 
     // Уведомления о новой заявке (email через Lovable Email + Telegram) — в едином диспетчере.
     try {
-      await fetch(`${supabaseUrl}/functions/v1/telegram-notifications`, {
+      const notifyResponse = await fetch(`${supabaseUrl}/functions/v1/telegram-notifications`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -324,6 +324,12 @@ Deno.serve(async req => {
         },
         body: JSON.stringify({ action: 'trial_event', bookingId: booking.id, type: 'trial_request_created' }),
       });
+      if (!notifyResponse.ok) {
+        console.error('trial_request_created notification failed', {
+          status: notifyResponse.status,
+          body: await notifyResponse.text().catch(() => ''),
+        });
+      }
     } catch (notifyError) {
       console.error('trial_request_created notification failed', notifyError);
     }

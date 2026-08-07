@@ -1280,6 +1280,8 @@ Deno.serve(async (req) => {
     const action = body.action || 'process_due';
     const userId = await currentUser(req, ANON);
     const adminUser = await isAdmin(admin, userId);
+    const service = req.headers.get('Authorization') === `Bearer ${SERVICE}`
+      || req.headers.get('x-service-key') === SERVICE;
 
     if (action === 'process_due') {
       const cronSecret = Deno.env.get('TELEGRAM_CRON_SECRET');
@@ -1335,7 +1337,7 @@ Deno.serve(async (req) => {
       return json({ success: true, flushed });
     }
     if (action === 'trial_event') {
-      if (!adminUser) return json({ error: 'Forbidden' }, 403);
+      if (!service && !adminUser) return json({ error: 'Forbidden' }, 403);
       const dispatched = await handleTrialEvent(admin, body);
       const flushed = await processDue(admin, 25).catch(() => null);
       return json({ success: true, ...dispatched, flushed });
@@ -1343,8 +1345,6 @@ Deno.serve(async (req) => {
 
     if (action === 'billing_event') {
       // Вызывается из stripe-webhook сервисным ключом либо администратором.
-      const service = req.headers.get('Authorization') === `Bearer ${SERVICE}`
-        || req.headers.get('x-service-key') === SERVICE;
       if (!service && !adminUser) return json({ error: 'Forbidden' }, 403);
       await handleBillingEvent(admin, body);
       const flushed = await processDue(admin, 25).catch(() => null);
