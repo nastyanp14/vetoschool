@@ -20,6 +20,8 @@ import {
 const SENDER_DOMAIN = 'notify.vetoschool.eu'
 const FROM_DOMAIN = 'notify.vetoschool.eu'
 const FROM = `Vetoschool <noreply@${FROM_DOMAIN}>`
+// Единый провайдер отправки: встроенная почта Lovable.
+const PROVIDER = 'lovable_email'
 
 /** Обратное преобразование HTML-экранирования из шаблонов реестра. */
 function unescape(value: string) {
