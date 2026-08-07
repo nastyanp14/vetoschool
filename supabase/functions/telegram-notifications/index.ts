@@ -735,7 +735,7 @@ const TRIAL_LINK_STATUSES = ['submitted', 'confirmed'];
 /** Ссылку на пробный урок отправляем только пока он актуален. */
 function trialLessonUrl(booking: any): string {
   if (!booking || !TRIAL_LINK_STATUSES.includes(String(booking.status))) return '';
-  return validLessonUrl(booking.lesson_url);
+  return validLessonUrl(booking.meeting_url || booking.lesson_url);
 }
 
 async function handleScheduleEvent(admin: any, body: any) {
