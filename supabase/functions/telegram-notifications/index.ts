@@ -1102,7 +1102,7 @@ async function reminderStillValid(admin: any, notification: any): Promise<{ ok: 
 
   if (notification.trial_booking_id || lessonRef.startsWith('trial:')) {
     const bookingId = notification.trial_booking_id || lessonRef.split(':')[1];
-    const { data } = await admin.from('trial_bookings').select('status,selected_date,selected_time,lesson_url').eq('id', bookingId).maybeSingle();
+    const { data } = await admin.from('trial_bookings').select('status,selected_date,selected_time,meeting_url,lesson_url').eq('id', bookingId).maybeSingle();
     if (!data) return { ok: false, reason: 'trial_removed' };
     if (!['submitted', 'confirmed'].includes(String(data.status))) return { ok: false, reason: `trial_${data.status}` };
     const actualAt = naiveLocalToIso(`${data.selected_date}T${data.selected_time}`);
