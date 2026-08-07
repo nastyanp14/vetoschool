@@ -622,7 +622,7 @@ async function deliverEmail(admin: any, input: {
     eventVersion,
   });
 
-  const { error: claimError } = await admin.from('notification_log').insert({
+  const { data: claimed, error: claimError } = await admin.from('notification_log').insert({
     event_type: input.event,
     event_version: eventVersion,
     entity_type: input.entityType,
@@ -633,8 +633,9 @@ async function deliverEmail(admin: any, input: {
     channel: 'email',
     language: lang,
     status: 'pending',
+    provider: 'lovable_email',
     idempotency_key: key,
-  });
+  }).select('id').maybeSingle();
   if (claimError) {
     // 23505 = такое письмо уже отправлялось
     if (claimError.code !== '23505') console.error('notification_log claim failed', claimError.message);
@@ -658,11 +659,18 @@ async function deliverEmail(admin: any, input: {
       text: rendered.text,
       label: input.event,
       idempotencyKey: key,
+      language: lang,
+      recipientName: (input.vars as any)?.parent_name || (input.vars as any)?.student_name || null,
+      eventVersion,
+      notificationLogId: claimed?.id || null,
+      trialBookingId: input.entityType === 'trial_booking' ? input.entityId : null,
+      templateVariables: input.vars,
     });
     if (queued.skipped) {
       await finish({ status: 'skipped', error_message: queued.skipped });
       return { skipped: queued.skipped };
     }
+
     await finish({
       status: 'sent',
       sent_at: new Date().toISOString(),
