@@ -204,6 +204,16 @@ export function templateVars(payload: any, lang: NotifyLang, now = new Date()) {
     progress_summary: payload.progressSummary || '',
     teacher_weekly_comment: payload.teacherWeeklyComment || '',
     submitted_at: payload.submittedAt ? formatDate(payload.submittedAt, lang) : '',
+    // поля новой заявки на пробный урок
+    child_age: payload.childAge ?? '',
+    school_grade: payload.schoolGrade || '',
+    recommended_level: payload.recommendedLevel || payload.finalLevel || '',
+    communication_language: payload.communicationLanguage || '',
+    lesson_language: payload.lessonLanguage || payload.communicationLanguage || '',
+    parent_email: payload.parentEmail || '',
+    parent_phone: payload.parentPhone || '',
+    preferred_date: lessonAt ? formatDate(lessonAt, lang) : '',
+    preferred_time: lessonAt ? formatTime(lessonAt, lang) : '',
     // контекстные ссылки: без валидного https кнопка просто не показывается
     schedule_url: url, lesson_url: payload.lessonUrl || '', homework_url: url, result_url: url,
     request_url: payload.requestUrl || url, billing_url: payload.billingUrl || url,
