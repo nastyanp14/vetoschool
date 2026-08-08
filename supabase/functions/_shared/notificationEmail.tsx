@@ -145,6 +145,7 @@ export async function enqueueNotificationEmail(admin: any, input: {
   templateVariables?: Record<string, unknown>
 }) {
   const messageId = crypto.randomUUID()
+  const recipient = input.to.toLowerCase()
 
   const { data: suppressed } = await admin
     .from('suppressed_emails')
