@@ -181,6 +181,33 @@ export async function enqueueNotificationEmail(admin: any, input: {
     status: 'queued',
   })
 
+  // Lovable Email требует unsubscribe_token для transactional-писем.
+  let unsubscribeToken: string | null = null
+  const { data: existingToken } = await admin
+    .from('email_unsubscribe_tokens')
+    .select('token')
+    .eq('email', recipient)
+    .maybeSingle()
+  if (existingToken?.token) {
+    unsubscribeToken = existingToken.token
+  } else {
+    const token = crypto.randomUUID().replace(/-/g, '')
+    const { error: tokenError } = await admin
+      .from('email_unsubscribe_tokens')
+      .insert({ token, email: recipient })
+    if (tokenError) {
+      const { data: raced } = await admin
+        .from('email_unsubscribe_tokens')
+        .select('token')
+        .eq('email', recipient)
+        .maybeSingle()
+      unsubscribeToken = raced?.token ?? null
+    } else {
+      unsubscribeToken = token
+    }
+  }
+  if (!unsubscribeToken) throw new Error('Unable to resolve unsubscribe token')
+
   const { error } = await admin.rpc('enqueue_email', {
     queue_name: 'transactional_emails',
     payload: {
@@ -193,7 +220,10 @@ export async function enqueueNotificationEmail(admin: any, input: {
       text: input.text,
       purpose: 'transactional',
       label: input.label,
-      idempotency_key: input.idempotencyKey,
+      // уникальный ключ на попытку отправки: провайдер отклоняет повтор
+      // с тем же ключом после сбоя (409 run_failed).
+      idempotency_key: `${input.idempotencyKey}:${messageId}`,
+      unsubscribe_token: unsubscribeToken,
       queued_at: new Date().toISOString(),
     },
   })
