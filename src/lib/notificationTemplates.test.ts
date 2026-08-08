@@ -109,9 +109,27 @@ describe('event specific content', () => {
     }
   });
 
-  it('does not notify the parent that the trial lesson is merely completed', () => {
-    expect(NOTIFICATION_TEMPLATES.trial_request_completed!.parent).toBeUndefined();
+  it('thanks the parent after a completed trial and offers a plan', () => {
+    const rendered = renderNotification('trial_request_completed', 'parent', 'ru', {
+      child_name: 'Аня', parent_name: 'Ольга', final_level: 'A2',
+      recommended_format: 'Индивидуально', recommended_plan: '8 уроков',
+      teacher_comment: 'Отличный старт!', ...url,
+    });
+    expect(rendered!.text).toContain('Аня');
+    expect(rendered!.text).toContain('A2');
+    expect(rendered!.text).toContain('Индивидуально');
+    expect(rendered!.buttons[0].label).toBe('Выбрать тариф');
+    expect(rendered!.buttons[0].url).toBe(url.pricing_url);
     expect(NOTIFICATION_TEMPLATES.trial_recommendation_ready!.parent).toBeTruthy();
+  });
+
+  it('hides empty recommendation lines when the teacher has not filled them in', () => {
+    const rendered = renderNotification('trial_request_completed', 'parent', 'ru', {
+      child_name: 'Аня', parent_name: 'Ольга', ...url,
+    });
+    expect(rendered!.text).not.toContain('Уровень:');
+    expect(rendered!.text).not.toContain('Комментарий преподавателя');
+    expect(rendered!.buttons[0].url).toBe(url.pricing_url);
   });
 
   it('shows a was/now block when a lesson moves', () => {
