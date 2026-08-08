@@ -412,6 +412,18 @@ export const NOTIFICATION_TEMPLATES: Registry = {
   },
 
   trial_request_completed: {
+    parent: {
+      title: L('🎓 Спасибо за пробный урок!', '🎓 Дякуємо за пробний урок!', '🎓 Thank you for the trial lesson!'),
+      subject: L('Пробный урок {child_name} прошёл — что дальше?', 'Пробний урок {child_name} відбувся — що далі?', '{child_name}’s trial lesson is done — what’s next?'),
+      body: B(
+        ['Здравствуйте, {parent_name}!', 'Спасибо, что были с нами: пробный урок для {child_name} состоялся 🎉', '', '📊 Уровень: {final_level}', '👥 Рекомендуемый формат: {recommended_format}', '📦 Рекомендуемый тариф: {recommended_plan}', '', 'Комментарий преподавателя:\n{teacher_comment}', '', 'Чтобы продолжить обучение, выберите подходящий тариф — мы подберём расписание под вас.'],
+        ['Вітаємо, {parent_name}!', 'Дякуємо, що були з нами: пробний урок для {child_name} відбувся 🎉', '', '📊 Рівень: {final_level}', '👥 Рекомендований формат: {recommended_format}', '📦 Рекомендований тариф: {recommended_plan}', '', 'Коментар викладача:\n{teacher_comment}', '', 'Щоб продовжити навчання, оберіть відповідний тариф — ми підберемо розклад під вас.'],
+        ['Hello {parent_name}!', 'Thank you for joining us — {child_name}’s trial lesson is complete 🎉', '', '📊 Level: {final_level}', '👥 Recommended format: {recommended_format}', '📦 Recommended plan: {recommended_plan}', '', 'Teacher comment:\n{teacher_comment}', '', 'To continue learning, pick the plan that fits — we will build the schedule around you.'],
+      ),
+      buttons: [{ key: 'choose_plan', urlVar: 'pricing_url' }],
+      preference: 'trials',
+    },
+
     teacher: {
       title: L('🎓 Пробный урок проведён', '🎓 Пробний урок проведено', '🎓 Trial lesson completed'),
       body: B(
