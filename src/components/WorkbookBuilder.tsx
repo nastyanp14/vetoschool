@@ -51,6 +51,10 @@ const workbookCopy = {
     pairEmpty: 'Пока пар нет — добавьте первую.',
     pairLeft: 'элемент 1',
     pairRight: 'элемент 2',
+    pairFullImage: 'Большая картинка',
+    pairFullHint: 'Старый формат: картинка нормального размера вместо текста.',
+    pairMiniImage: 'Мини-картинка',
+    pairMiniHint: 'Мини-картинка будет крупным прозрачным стикером рядом со словом.',
     addPair: 'добавить пару',
     fillHint: 'Замените пропуски знаком',
     fillHintSuffix: '(три подчёркивания).',
@@ -162,6 +166,10 @@ const workbookCopy = {
     pairEmpty: 'No pairs yet — add the first one.',
     pairLeft: 'item 1',
     pairRight: 'item 2',
+    pairFullImage: 'Large image',
+    pairFullHint: 'Old format: normal-size image instead of text.',
+    pairMiniImage: 'Mini image',
+    pairMiniHint: 'The mini image appears as a large transparent sticker next to the word.',
     addPair: 'add pair',
     fillHint: 'Mark blanks with',
     fillHintSuffix: '(three underscores).',
@@ -273,6 +281,10 @@ const workbookCopy = {
     pairEmpty: 'Пар поки немає — додайте першу.',
     pairLeft: 'елемент 1',
     pairRight: 'елемент 2',
+    pairFullImage: 'Велика картинка',
+    pairFullHint: 'Старий формат: картинка нормального розміру замість тексту.',
+    pairMiniImage: 'Міні-картинка',
+    pairMiniHint: 'Міні-картинка буде великим прозорим стікером поруч зі словом.',
     addPair: 'додати пару',
     fillHint: 'Позначте пропуски знаком',
     fillHintSuffix: '(три підкреслення).',
@@ -487,13 +499,13 @@ function AssetImg({ path, className }: { path: string; className?: string }) {
 }
 
 // ---------- File upload ----------
-function UploadButton({ onUploaded, lang }: { onUploaded: (path: string) => void; lang: Lang }) {
+function UploadButton({ onUploaded, lang, label }: { onUploaded: (path: string) => void; lang: Lang; label?: string }) {
   const [busy, setBusy] = useState(false);
   const copy = c(lang);
   return (
     <label className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs cursor-pointer transition ${busy ? 'bg-gray-200 text-gray-500' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>
       <Upload className="w-3 h-3" />
-      {busy ? '…' : copy.uploadPhoto}
+      {busy ? '…' : (label || copy.uploadPhoto)}
       <input type="file" accept="image/*" className="hidden" disabled={busy}
         onChange={async e => {
           const f = e.target.files?.[0]; if (!f) return;
@@ -529,7 +541,7 @@ function ConfirmDelete({ open, onOpenChange, title, description, onConfirm, lang
 }
 
 // ---------- Pair editor ----------
-type Side = { text?: string; image?: string };
+type Side = { text?: string; image?: string; miniImage?: string };
 type Pair = { left: Side; right: Side };
 function PairEditor({ payload, onChange, lang }: { payload: any; onChange: (p: any) => void; lang: Lang }) {
   const copy = c(lang);
@@ -546,18 +558,30 @@ function PairEditor({ payload, onChange, lang }: { payload: any; onChange: (p: a
       <AnimatePresence initial={false}>
         {pairs.map((p, i) => (
           <motion.div key={i} layout initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -12 }}
-            className="grid gap-2 rounded-2xl border border-purple-100 bg-white p-3 shadow-sm sm:grid-cols-[2rem_1fr_1fr_2rem] sm:items-center">
+            className="grid gap-3 rounded-2xl border border-purple-100 bg-white p-3 shadow-sm lg:grid-cols-[2rem_minmax(0,1fr)_minmax(0,1fr)_2rem] lg:items-center">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-pink-100 to-purple-100 text-xs font-bold text-purple-600">{i+1}</span>
             {(['left','right'] as const).map(side => (
-              <div key={side} className="flex min-w-0 items-center gap-2 rounded-xl bg-purple-50/60 p-2">
+              <div key={side} className="min-w-0 rounded-xl bg-purple-50/60 p-2">
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <span className="font-body text-[10px] font-900 uppercase tracking-wider text-purple-400">{side === 'left' ? 'A' : 'B'}</span>
+                </div>
                 <input type="text" placeholder={side==='left' ? copy.pairLeft : copy.pairRight} value={p[side].text || ''}
                   onChange={e => setSide(i, side, { text: e.target.value })}
-                  className="input-magic !py-1 !text-sm flex-1" />
-                {p[side].image
-                  ? <div className="relative"><AssetImg path={p[side].image!} className="w-9 h-9 object-cover rounded-lg" />
-                      <button onClick={() => setSide(i, side, { image: undefined })} className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow"><X className="w-3 h-3 text-red-500"/></button>
+                  className="input-magic !py-1.5 !text-sm" />
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {p[side].image
+                  ? <div className="relative flex items-center gap-2 rounded-xl border border-purple-100 bg-white px-2 py-1.5 shadow-sm" title={copy.pairFullHint}><AssetImg path={p[side].image!} className="h-12 w-14 rounded-lg object-contain" />
+                      <span className="font-body text-xs font-800 text-purple-500">{copy.pairFullImage}</span>
+                      <button type="button" onClick={() => setSide(i, side, { image: undefined })} className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow"><X className="w-3 h-3 text-red-500"/></button>
                     </div>
-                  : <UploadButton lang={lang} onUploaded={path => setSide(i, side, { image: path })} />}
+                  : <UploadButton lang={lang} label={copy.pairFullImage} onUploaded={path => setSide(i, side, { image: path })} />}
+                  {p[side].miniImage
+                  ? <div className="relative flex items-center gap-2 rounded-xl border border-purple-100 bg-white px-2 py-1.5 shadow-sm" title={copy.pairMiniHint}><AssetImg path={p[side].miniImage!} className="h-12 w-14 object-contain" />
+                      <span className="font-body text-xs font-800 text-purple-500">{copy.pairMiniImage}</span>
+                      <button type="button" onClick={() => setSide(i, side, { miniImage: undefined })} className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow"><X className="w-3 h-3 text-red-500"/></button>
+                    </div>
+                  : <UploadButton lang={lang} label={copy.pairMiniImage} onUploaded={path => setSide(i, side, { miniImage: path })} />}
+                </div>
               </div>
             ))}
             <button onClick={() => removePair(i)} className="justify-self-end rounded-xl p-2 text-red-400 transition hover:bg-red-50 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -615,6 +639,21 @@ function OddOneOutEditor({ payload, onChange, lang }: { payload: any; onChange: 
             className="input-magic flex-1 !py-1 !text-sm"
             placeholder={`${copy.option} ${i + 1}`}
           />
+          {item.image ? (
+            <div className="relative flex items-center gap-2 rounded-xl border border-purple-100 bg-white px-2 py-1.5 shadow-sm">
+              <AssetImg path={item.image} className="h-12 w-14 object-contain" />
+              <span className="font-body text-xs font-800 text-purple-500">{copy.speakingImage}</span>
+              <button
+                type="button"
+                onClick={() => update(items.map((it, idx) => idx === i ? { ...it, image: undefined } : it))}
+                className="absolute -right-1 -top-1 rounded-full bg-white p-0.5 shadow"
+              >
+                <X className="h-3 w-3 text-red-500" />
+              </button>
+            </div>
+          ) : (
+            <UploadButton lang={lang} label={copy.speakingImage} onUploaded={path => update(items.map((it, idx) => idx === i ? { ...it, image: path } : it))} />
+          )}
           <button onClick={() => update(items.filter((_, idx) => idx !== i))} className="rounded-xl p-2 text-red-400 transition hover:bg-red-50">
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -629,9 +668,21 @@ function OddOneOutEditor({ payload, onChange, lang }: { payload: any; onChange: 
 
 function CategorySortingEditor({ payload, onChange, lang }: { payload: any; onChange: (p: any) => void; lang: Lang }) {
   const copy = c(lang);
-  const categories: Array<{ name: string; items: Array<{ text?: string; image?: string }> }> = payload?.categories || [];
+  const categories: Array<{ name: string; image?: string; cardImage?: string; items: Array<{ text?: string; image?: string }> }> = payload?.categories || [];
   const update = (next: typeof categories) => onChange({ ...payload, categories: next });
   const addCategory = () => update([...categories, { name: `${copy.categoryDefault} ${categories.length + 1}`, items: [] }]);
+  const updateCategory = (categoryIndex: number, next: typeof categories[number]) =>
+    update(categories.map((cat, idx) => idx === categoryIndex ? next : cat));
+  const updateItem = (categoryIndex: number, itemIndex: number, next: { text?: string; image?: string }) =>
+    update(categories.map((cat, idx) => idx === categoryIndex ? {
+      ...cat,
+      items: (cat.items || []).map((item, itemIdx) => itemIdx === itemIndex ? next : item),
+    } : cat));
+  const addItem = (categoryIndex: number) =>
+    update(categories.map((cat, idx) => idx === categoryIndex ? {
+      ...cat,
+      items: [...(cat.items || []), { text: '' }],
+    } : cat));
   return (
     <div className="space-y-3">
       <p className="text-xs text-purple-500">{copy.categoryHint}</p>
@@ -645,20 +696,82 @@ function CategorySortingEditor({ payload, onChange, lang }: { payload: any; onCh
               className="input-magic flex-1 !py-1 !text-sm"
               placeholder={copy.categoryName}
             />
+            {cat.image ? (
+              <div className="relative h-10 w-10 overflow-hidden rounded-xl bg-white">
+                <AssetImg path={cat.image} className="h-full w-full object-contain p-1" />
+                <button
+                  type="button"
+                  onClick={() => updateCategory(i, { ...cat, image: undefined })}
+                  className="absolute right-0 top-0 rounded-bl-lg bg-white/90 p-0.5"
+                >
+                  <X className="h-3 w-3 text-red-500" />
+                </button>
+              </div>
+            ) : (
+              <UploadButton lang={lang} label={copy.speakingImage} onUploaded={path => updateCategory(i, { ...cat, image: path })} />
+            )}
             <button onClick={() => update(categories.filter((_, idx) => idx !== i))} className="rounded-xl p-2 text-red-400 transition hover:bg-red-50">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </div>
-          <textarea
-            value={(cat.items || []).map(item => item.text || '').join('\n')}
-            onChange={e => update(categories.map((c, idx) => idx === i ? {
-              ...c,
-              items: e.target.value.split('\n').map(text => ({ text: text.trim() })).filter(item => item.text),
-            } : c))}
-            rows={3}
-            className="input-magic w-full !text-sm"
-            placeholder="cat&#10;dog&#10;horse"
-          />
+          <div className="mb-2 flex flex-wrap items-center gap-2 rounded-2xl bg-white/60 p-2 text-xs font-body font-700 text-purple-500">
+            <span>Карточка категории</span>
+            {cat.cardImage ? (
+              <div className="relative h-16 w-28 overflow-hidden rounded-xl bg-white">
+                <AssetImg path={cat.cardImage} className="h-full w-full object-contain" />
+                <button
+                  type="button"
+                  onClick={() => updateCategory(i, { ...cat, cardImage: undefined })}
+                  className="absolute right-0 top-0 rounded-bl-lg bg-white/90 p-0.5"
+                >
+                  <X className="h-3 w-3 text-red-500" />
+                </button>
+              </div>
+            ) : (
+              <UploadButton lang={lang} label={copy.speakingImage} onUploaded={path => updateCategory(i, { ...cat, cardImage: path })} />
+            )}
+          </div>
+          <div className="space-y-2">
+            {(cat.items || []).map((item, itemIndex) => (
+              <div key={itemIndex} className="flex items-center gap-2 rounded-2xl border border-white bg-white/70 p-2">
+                {item.image ? (
+                  <div className="relative h-14 w-16 overflow-hidden rounded-xl bg-white">
+                    <AssetImg path={item.image} className="h-full w-full object-contain p-1" />
+                    <button
+                      type="button"
+                      onClick={() => updateItem(i, itemIndex, { ...item, image: undefined })}
+                      className="absolute right-0 top-0 rounded-bl-lg bg-white/90 p-0.5"
+                    >
+                      <X className="h-3 w-3 text-red-500" />
+                    </button>
+                  </div>
+                ) : (
+                  <UploadButton lang={lang} label={copy.speakingImage} onUploaded={path => updateItem(i, itemIndex, { ...item, image: path })} />
+                )}
+                <input
+                  type="text"
+                  value={item.text || ''}
+                  onChange={e => updateItem(i, itemIndex, { ...item, text: e.target.value })}
+                  className="input-magic flex-1 !py-1 !text-sm"
+                  placeholder={copy.option}
+                />
+                <button
+                  type="button"
+                  onClick={() => updateCategory(i, { ...cat, items: (cat.items || []).filter((_, idx) => idx !== itemIndex) })}
+                  className="rounded-xl p-2 text-red-400 transition hover:bg-red-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => addItem(i)}
+              className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-700 text-purple-700 transition hover:bg-purple-100"
+            >
+              <Plus className="h-3 w-3" /> {copy.addOption}
+            </button>
+          </div>
         </div>
       ))}
       <button onClick={addCategory} className="inline-flex items-center gap-1 rounded-xl bg-purple-100 px-3 py-1.5 text-xs font-700 text-purple-700 transition hover:bg-purple-200">
@@ -1298,6 +1411,15 @@ function TaskCard({ task, onDelete, onChange, lang }: { task: InteractiveTask; o
         : task.mechanic_type === 'mini_shop'
           ? <MiniShopEditor payload={payload} onChange={update} lang={lang} />
         : <div className="text-xs text-purple-400 italic bg-purple-50 rounded-xl p-3 text-center">🚧 {copy.mechanicWip} «{mCopy.label}» {copy.wipSuffix}</div>}
+      {isFull && (
+        <input
+          type="text"
+          value={payload?.hint || ''}
+          onChange={e => update({ ...payload, hint: e.target.value })}
+          className="input-magic w-full !text-sm"
+          placeholder={copy.speakingPrompt}
+        />
+      )}
       <ConfirmDelete open={confirmOpen} onOpenChange={setConfirmOpen}
         title={copy.deleteTaskTitle} description={`${copy.deleteTaskDescPrefix} «${mCopy.label}» ${copy.deleteTaskDescSuffix}`}
         lang={lang}

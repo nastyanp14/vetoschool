@@ -1,7 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, BarChart3, BookOpen, CheckCircle2, Headphones, ImageIcon, Mic, RotateCcw, Sparkles, Square, Volume2, X, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BarChart3, BookOpen, CheckCircle2, Headphones, ImageIcon, Lightbulb, Mic, RotateCcw, Sparkles, Square, Undo2, Volume2, X, XCircle } from 'lucide-react';
 import {
   Lesson, InteractiveTask, completeAssignedInteractiveContent, listTasks, markLessonComplete, signedUrlFor,
 } from '../lib/workbooks';
@@ -271,6 +271,7 @@ const taskCopy = {
     partTwo: 'Часть 2',
     check: 'Проверить',
     undoLast: 'Убрать последнюю',
+    reset: 'Сбросить',
     addOptions: 'Добавьте варианты в конструкторе.',
     option: 'Вариант',
     addCategories: 'Добавьте категории и элементы в конструкторе.',
@@ -326,6 +327,7 @@ const taskCopy = {
     partTwo: 'Part 2',
     check: 'Check',
     undoLast: 'Remove last',
+    reset: 'Reset',
     addOptions: 'Add options in the builder.',
     option: 'Option',
     addCategories: 'Add categories and items in the builder.',
@@ -381,6 +383,7 @@ const taskCopy = {
     partTwo: 'Частина 2',
     check: 'Перевірити',
     undoLast: 'Прибрати останню',
+    reset: 'Скинути',
     addOptions: 'Додайте варіанти в конструкторі.',
     option: 'Варіант',
     addCategories: 'Додайте категорії та елементи в конструкторі.',
@@ -431,6 +434,71 @@ const taskCopy = {
   },
 } as const;
 type TaskCopy = Record<keyof typeof taskCopy.ru, string>;
+
+function TaskActionBar({
+  copy,
+  onHint,
+  onReset,
+  resetDisabled = false,
+  className = '',
+  resetClassName = '',
+  centerContent = null,
+}: {
+  copy: TaskCopy;
+  onHint?: () => void;
+  onReset?: () => void;
+  resetDisabled?: boolean;
+  className?: string;
+  resetClassName?: string;
+  centerContent?: ReactNode;
+}) {
+  return (
+    <div className={`mt-[clamp(0.75rem,1.6vh,1.2rem)] flex items-center justify-between gap-3 px-[clamp(0.2rem,1.2vw,1.45rem)] ${className}`}>
+      <button
+        type="button"
+        onClick={onHint}
+        className="inline-flex min-h-[2.35rem] items-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:border-yellow-200 dark:border-purple-800 dark:bg-[#2b1a3d] dark:text-purple-100"
+      >
+        <span className="text-lg leading-none">💡</span> {copy.hintAnswer}
+      </button>
+      <div className="flex min-w-0 flex-1 items-center justify-center">
+        {centerContent}
+      </div>
+      <button
+        type="button"
+        onClick={onReset}
+        disabled={resetDisabled}
+        className={`inline-flex min-h-[2.35rem] items-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:border-violet-200 disabled:cursor-not-allowed disabled:opacity-45 dark:border-purple-800 dark:bg-[#2b1a3d] dark:text-purple-100 ${resetClassName}`}
+      >
+        <RotateCcw className="h-4 w-4 text-violet-500" /> {copy.reset}
+      </button>
+    </div>
+  );
+}
+
+function TaskHintBubble({
+  hint,
+  label = 'Подсказка',
+  className = '',
+  iconClassName = '-my-4 h-20 w-20',
+}: {
+  hint?: string;
+  label?: string;
+  className?: string;
+  iconClassName?: string;
+}) {
+  if (!hint) return null;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      className={`mx-auto flex min-h-[3.45rem] max-w-[36rem] items-center gap-2 rounded-[1.15rem] border border-purple-200 bg-purple-50/85 px-4 py-0 text-left font-body text-[clamp(0.95rem,1.35vw,1.12rem)] font-medium leading-snug text-indigo-900 shadow-sm dark:border-purple-700 dark:bg-purple-950/40 dark:text-purple-100 ${className}`}
+    >
+      <img src="/ui/fill-blank-bulb.png" alt="" className={`${iconClassName} shrink-0 object-contain`} />
+      <span><strong className="font-display font-semibold text-purple-700 dark:text-purple-100">{label}:</strong> {hint}</span>
+    </motion.div>
+  );
+}
 
 function playFeedbackSound(kind: 'correct' | 'wrong') {
   try {
@@ -698,11 +766,11 @@ function CompletionCelebration({ stars, summary, showScore, copy, onExit }: { st
 }
 
 // ==================== Utility: signed image ====================
-function SignedImg({ path, className }: { path: string; className?: string }) {
+function SignedImg({ path, className, placeholderClassName, draggable }: { path: string; className?: string; placeholderClassName?: string; draggable?: boolean }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => { let a = true; signedUrlFor(path).then(u => { if (a) setUrl(u); }); return () => { a = false; }; }, [path]);
-  if (!url) return <div className={`bg-purple-100 animate-pulse ${className}`} />;
-  return <img src={url} alt="" className={className} />;
+  if (!url) return <div className={placeholderClassName || `bg-purple-100 animate-pulse ${className}`} />;
+  return <img src={url} alt="" className={className} draggable={draggable} />;
 }
 
 function normalizeSpeechText(value: string) {
@@ -1056,6 +1124,7 @@ function MatchingTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
   const [matches, setMatches] = useState<Record<number, number>>({});
   const [wrong, setWrong] = useState<number | null>(null);
   const [wrongLeft, setWrongLeft] = useState<number | null>(null);
+  const [showHint, setShowHint] = useState(false);
   const boardRef = useRef<HTMLDivElement | null>(null);
   const leftRefs = useRef<Record<number, HTMLButtonElement | null>>({});
   const rightRefs = useRef<Record<number, HTMLButtonElement | null>>({});
@@ -1084,9 +1153,9 @@ function MatchingTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
         return [{
           left,
           right: rightIdx,
-          x1: l.right - boardRect.left - 8,
+          x1: l.right - boardRect.left + 1,
           y1: l.top + l.height / 2 - boardRect.top,
-          x2: r.left - boardRect.left + 8,
+          x2: r.left - boardRect.left - 1,
           y2: r.top + r.height / 2 - boardRect.top,
         }];
       });
@@ -1113,12 +1182,59 @@ function MatchingTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
     }
   };
 
-  const Side = ({ s }: { s: any }) => s?.image
-    ? <SignedImg path={s.image} className="h-16 w-16 object-cover rounded-xl shadow-sm" />
-    : <span className="font-body font-800">{s?.text}</span>;
+  const readSideText = (s: any) => String(s?.text || s?.label || s?.word || '').trim();
+  const readSideMiniImage = (s: any) => String(s?.miniImage || s?.mini_image || s?.thumbnail || s?.thumb || '').trim();
+  const readSideFullImage = (s: any) => String(s?.image || s?.image_url || s?.imageUrl || '').trim();
+  const renderSide = (s: any) => {
+    const text = readSideText(s);
+    const miniImage = readSideMiniImage(s);
+    const fullImage = readSideFullImage(s);
+    if (miniImage) {
+      return (
+        <span className="relative flex h-full min-h-[3.65rem] w-full min-w-0 items-center justify-center overflow-visible pl-[7.25rem] pr-8">
+          <SignedImg
+            path={miniImage}
+            className="absolute left-4 top-1/2 h-28 w-28 -translate-y-1/2 object-contain drop-shadow-[0_10px_14px_rgba(124,58,237,0.22)]"
+            placeholderClassName="absolute left-4 top-1/2 h-28 w-28 -translate-y-1/2"
+          />
+          <span className="min-w-0 truncate text-center font-display text-[clamp(1.05rem,1.45vw,1.26rem)] font-bold leading-tight">
+            {text || ' '}
+          </span>
+        </span>
+      );
+    }
+    if (fullImage) {
+      return (
+        <span className="flex aspect-square w-full items-center justify-center p-3">
+          <SignedImg
+            path={fullImage}
+            className="h-full w-full object-contain drop-shadow-[0_10px_16px_rgba(124,58,237,0.18)]"
+            placeholderClassName="h-full w-full"
+          />
+        </span>
+      );
+    }
+    return (
+      <span className="flex w-full min-w-0 items-center justify-center px-8">
+        <span className="min-w-0 truncate text-center font-display text-[clamp(1rem,1.38vw,1.2rem)] font-bold leading-tight">
+          {text || ' '}
+        </span>
+      </span>
+    );
+  };
+  const matchedRightValues = Object.values(matches);
+  const isFullImageOnly = (s: any) => Boolean(readSideFullImage(s) && !readSideMiniImage(s));
+  const imageOnlyCard = 'px-3 py-2';
+  const cardBase = 'relative h-[4.55rem] overflow-visible rounded-[1.05rem] border-2 px-4 py-2.5 text-purple-800 shadow-[0_7px_18px_rgba(124,58,237,0.10)] transition-colors duration-200 focus:outline-none focus:ring-4 focus:ring-purple-200/70 dark:text-purple-100';
+  const cardLive = 'border-purple-100 bg-white hover:-translate-y-0.5 hover:border-purple-300 hover:shadow-[0_11px_24px_rgba(124,58,237,0.15)] dark:border-purple-700 dark:bg-[#2b1a3d]';
+  const cardSelected = 'border-purple-300 bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white shadow-[0_14px_28px_rgba(168,85,247,0.25)] ring-4 ring-purple-200/70';
+  const cardDone = 'border-emerald-200 bg-emerald-50 text-emerald-700 opacity-80 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200';
+  const cardWrong = 'border-rose-300 bg-rose-50 text-rose-600 animate-pulse dark:border-rose-700 dark:bg-rose-950 dark:text-rose-200';
+  const leftDot = 'after:absolute after:right-[-0.45rem] after:top-1/2 after:z-20 after:hidden after:h-3 after:w-3 after:-translate-y-1/2 after:rounded-full after:bg-purple-400 after:shadow-[0_0_0_4px_rgba(196,181,253,0.18)] sm:after:block';
+  const rightDot = 'before:absolute before:left-[-0.45rem] before:top-1/2 before:z-20 before:hidden before:h-3 before:w-3 before:-translate-y-1/2 before:rounded-full before:bg-purple-400 before:shadow-[0_0_0_4px_rgba(196,181,253,0.18)] sm:before:block';
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto flex h-full w-full max-w-5xl flex-col justify-center space-y-[clamp(0.7rem,1.45vh,1.05rem)]">
       <AnimatePresence>
         {done && (
           <motion.div
@@ -1131,75 +1247,93 @@ function MatchingTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
           </motion.div>
         )}
       </AnimatePresence>
-      <div ref={boardRef} className="relative grid gap-4 sm:grid-cols-2">
-      <svg className="pointer-events-none absolute inset-0 z-0 h-full w-full overflow-visible" aria-hidden="true">
-        <defs>
-          <linearGradient id="matching-line" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#f472b6" />
-            <stop offset="100%" stopColor="#a855f7" />
-          </linearGradient>
-          <filter id="matching-line-shadow" x="-20%" y="-80%" width="140%" height="260%">
-            <feDropShadow dx="0" dy="8" stdDeviation="8" floodColor="#c084fc" floodOpacity="0.35" />
-          </filter>
-        </defs>
-        {lines.map(line => {
-          const mid = Math.max(32, Math.abs(line.x2 - line.x1) / 2);
-          return (
-            <g key={`${line.left}-${line.right}`}>
-              <motion.path
-                initial={{ pathLength: 0, opacity: 0 }}
-                animate={{ pathLength: 1, opacity: 1 }}
-                transition={{ duration: 0.35, ease: 'easeOut' }}
-                d={`M ${line.x1} ${line.y1} C ${line.x1 + mid} ${line.y1}, ${line.x2 - mid} ${line.y2}, ${line.x2} ${line.y2}`}
-                fill="none"
-                filter="url(#matching-line-shadow)"
-                stroke="url(#matching-line)"
-                strokeLinecap="round"
-                strokeWidth="6"
-              />
-              <motion.circle initial={{ scale: 0 }} animate={{ scale: 1 }} cx={line.x1} cy={line.y1} r="7" fill="#f472b6" />
-              <motion.circle initial={{ scale: 0 }} animate={{ scale: 1 }} cx={line.x2} cy={line.y2} r="7" fill="#a855f7" />
-            </g>
-          );
-        })}
-      </svg>
-      <div className="relative z-10 space-y-2">
-        <div className="text-xs font-body font-800 uppercase tracking-wider text-purple-400">A</div>
-        {pairs.map((p: any, i: number) => (
-          <motion.button key={i} layout disabled={matches[i] !== undefined}
-            animate={wrongLeft === i ? { x: [0, -6, 6, -4, 4, 0] } : { x: 0 }}
-            transition={{ duration: 0.35 }}
-            ref={el => { leftRefs.current[i] = el; }}
-            onClick={() => { setSelectedLeft(i); onEvent('choice_selected', { mechanic: 'matching', side: 'left', index: i }); }}
-            className={`${tileBase} w-full flex items-center justify-center gap-3 ${
-              matches[i] !== undefined ? doneTile :
-              wrongLeft === i ? wrongTile :
-              selectedLeft === i ? selectedTile : liveTile
-            }`}>
-            {matches[i] !== undefined && <CheckCircle2 className="h-5 w-5 shrink-0" />}
-            <Side s={p.left} />
-          </motion.button>
-        ))}
+      <div ref={boardRef} className="relative grid gap-x-[clamp(2.7rem,7vw,5rem)] gap-y-4 sm:grid-cols-2">
+        <svg className="pointer-events-none absolute inset-0 z-0 hidden h-full w-full overflow-visible sm:block" aria-hidden="true">
+          <defs>
+            <linearGradient id="matching-line" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#8b5cf6" />
+              <stop offset="55%" stopColor="#d946ef" />
+              <stop offset="100%" stopColor="#f472b6" />
+            </linearGradient>
+            <filter id="matching-line-shadow" x="-20%" y="-80%" width="140%" height="260%">
+              <feDropShadow dx="0" dy="6" stdDeviation="7" floodColor="#c084fc" floodOpacity="0.28" />
+            </filter>
+          </defs>
+          {lines.map(line => {
+            const mid = Math.max(36, Math.abs(line.x2 - line.x1) / 2);
+            return (
+              <g key={`${line.left}-${line.right}`}>
+                <motion.path
+                  initial={{ pathLength: 0, opacity: 0 }}
+                  animate={{ pathLength: 1, opacity: 1 }}
+                  transition={{ duration: 0.35, ease: 'easeOut' }}
+                  d={`M ${line.x1} ${line.y1} C ${line.x1 + mid} ${line.y1}, ${line.x2 - mid} ${line.y2}, ${line.x2} ${line.y2}`}
+                  fill="none"
+                  filter="url(#matching-line-shadow)"
+                  stroke="url(#matching-line)"
+                  strokeLinecap="round"
+                  strokeWidth="5"
+                />
+                <motion.circle initial={{ scale: 0 }} animate={{ scale: 1 }} cx={line.x1} cy={line.y1} r="7" fill="#8b5cf6" />
+                <motion.circle initial={{ scale: 0 }} animate={{ scale: 1 }} cx={line.x2} cy={line.y2} r="7" fill="#f472b6" />
+              </g>
+            );
+          })}
+        </svg>
+        <div className="relative z-20 space-y-[clamp(0.55rem,1.05vh,0.8rem)]">
+          <div className="pl-4 font-body text-xs font-900 uppercase tracking-wider text-purple-400">A</div>
+          {pairs.map((p: any, i: number) => (
+            <motion.button key={i} disabled={matches[i] !== undefined}
+              animate={wrongLeft === i ? { x: [0, -6, 6, -4, 4, 0] } : { x: 0 }}
+              transition={{ duration: 0.35 }}
+              ref={el => { leftRefs.current[i] = el; }}
+              onClick={() => { setSelectedLeft(i); onEvent('choice_selected', { mechanic: 'matching', side: 'left', index: i }); }}
+              className={`${cardBase} ${leftDot} w-full ${isFullImageOnly(p.left) ? imageOnlyCard : ''} ${
+                matches[i] !== undefined ? cardDone :
+                wrongLeft === i ? cardWrong :
+                selectedLeft === i ? cardSelected : cardLive
+              }`}>
+              {matches[i] !== undefined && <CheckCircle2 className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-emerald-500" />}
+              {renderSide(p.left)}
+            </motion.button>
+          ))}
+        </div>
+        <div className="relative z-20 space-y-[clamp(0.55rem,1.05vh,0.8rem)]">
+          <div className="pl-4 font-body text-xs font-900 uppercase tracking-wider text-purple-400">B</div>
+          {rights.map((rightIdx: number) => (
+            <motion.button key={rightIdx} disabled={matchedRightValues.includes(rightIdx)}
+              animate={wrong === rightIdx ? { x: [0, 6, -6, 4, -4, 0] } : { x: 0 }}
+              transition={{ duration: 0.35 }}
+              ref={el => { rightRefs.current[rightIdx] = el; }}
+              onClick={() => clickRight(rightIdx)}
+              className={`${cardBase} ${rightDot} w-full ${isFullImageOnly(pairs[rightIdx]?.right) ? imageOnlyCard : ''} ${
+                matchedRightValues.includes(rightIdx) ? cardDone :
+                wrong === rightIdx ? cardWrong : cardLive
+              }`}>
+              {wrong === rightIdx && <XCircle className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-rose-500" />}
+              {matchedRightValues.includes(rightIdx) && <CheckCircle2 className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-emerald-500" />}
+              {renderSide(pairs[rightIdx]?.right)}
+            </motion.button>
+          ))}
+        </div>
       </div>
-      <div className="relative z-10 space-y-2">
-        <div className="text-xs font-body font-800 uppercase tracking-wider text-pink-400">B</div>
-        {rights.map((rightIdx: number) => (
-          <motion.button key={rightIdx} layout disabled={Object.values(matches).includes(rightIdx)}
-            animate={wrong === rightIdx ? { x: [0, 6, -6, 4, -4, 0] } : { x: 0 }}
-            transition={{ duration: 0.35 }}
-            ref={el => { rightRefs.current[rightIdx] = el; }}
-            onClick={() => clickRight(rightIdx)}
-            className={`${tileBase} w-full flex items-center justify-center gap-3 ${
-              Object.values(matches).includes(rightIdx) ? doneTile :
-              wrong === rightIdx ? wrongTile : liveTile
-            }`}>
-            {wrong === rightIdx && <XCircle className="h-5 w-5 shrink-0" />}
-            {Object.values(matches).includes(rightIdx) && <CheckCircle2 className="h-5 w-5 shrink-0" />}
-            <Side s={pairs[rightIdx]?.right} />
-          </motion.button>
-        ))}
-      </div>
-      </div>
+      {showHint && <TaskHintBubble hint={String(payload?.hint || '').trim()} label={copy.hintAnswer} />}
+      <TaskActionBar
+        copy={copy}
+        onHint={() => {
+          setShowHint(true);
+          onEvent('hint_requested', { mechanic: 'matching' });
+        }}
+        onReset={() => {
+          setSelectedLeft(null);
+          setMatches({});
+          setWrong(null);
+          setWrongLeft(null);
+          setShowHint(false);
+          onEvent('reset_requested', { mechanic: 'matching' });
+        }}
+        resetDisabled={Object.keys(matches).length === 0 && selectedLeft === null && !showHint}
+      />
     </div>
   );
 }
@@ -1212,6 +1346,7 @@ function WordLegoTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
   const [selectedLeft, setSelectedLeft] = useState<number | null>(null);
   const [built, setBuilt] = useState<{ left: number; right: number }[]>([]);
   const [wrong, setWrong] = useState<number | null>(null);
+  const [showHint, setShowHint] = useState(false);
   const boardRef = useRef<HTMLDivElement | null>(null);
   const leftRefs = useRef<Record<number, HTMLButtonElement | null>>({});
   const rightRefs = useRef<Record<number, HTMLButtonElement | null>>({});
@@ -1242,9 +1377,9 @@ function WordLegoTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
         return [{
           left,
           right,
-          x1: l.right - boardRect.left - 8,
+          x1: l.right - boardRect.left + 1,
           y1: l.top + l.height / 2 - boardRect.top,
-          x2: r.left - boardRect.left + 8,
+          x2: r.left - boardRect.left - 1,
           y2: r.top + r.height / 2 - boardRect.top,
         }];
       });
@@ -1321,8 +1456,8 @@ function WordLegoTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
                 }`}
               >
                 <span>{asText(p.left)}</span>
-                <span className="absolute right-3 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-[0_3px_8px_rgba(139,92,246,0.22)] ring-2 ring-purple-100">
-                  <span className={`h-2.5 w-2.5 rounded-full ${usedLefts.has(i) ? 'bg-emerald-400' : selectedLeft === i ? 'bg-violet-500' : 'bg-violet-400'}`} />
+                <span className="absolute right-[-0.45rem] top-1/2 z-20 flex h-3 w-3 -translate-y-1/2 rounded-full bg-violet-500 shadow-[0_0_0_4px_rgba(196,181,253,0.18)]">
+                  <span className={`absolute inset-0 rounded-full ${selectedLeft === i ? 'bg-violet-600' : usedLefts.has(i) ? 'bg-violet-400' : 'bg-violet-500'}`} />
                 </span>
               </button>
             ))}
@@ -1345,8 +1480,8 @@ function WordLegoTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
                         : 'border-pink-100 hover:-translate-y-0.5 hover:border-pink-300 hover:shadow-[0_12px_24px_rgba(244,114,182,0.16)]'
                 }`}
               >
-                <span className="absolute left-3 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-[0_3px_8px_rgba(244,114,182,0.22)] ring-2 ring-pink-100">
-                  <span className={`h-2.5 w-2.5 rounded-full ${usedRights.has(idx) ? 'bg-emerald-400' : wrong === idx ? 'bg-rose-400' : 'bg-pink-400'}`} />
+                <span className="absolute left-[-0.45rem] top-1/2 z-20 flex h-3 w-3 -translate-y-1/2 rounded-full bg-pink-500 shadow-[0_0_0_4px_rgba(244,114,182,0.16)]">
+                  <span className={`absolute inset-0 rounded-full ${wrong === idx ? 'bg-rose-400' : usedRights.has(idx) ? 'bg-pink-400' : 'bg-pink-500'}`} />
                 </span>
                 <span>{asText(pairs[idx]?.right)}</span>
               </button>
@@ -1354,21 +1489,22 @@ function WordLegoTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
           </div>
         </div>
       </div>
-      <div className="mt-[clamp(0.75rem,1.6vh,1.2rem)] flex items-center justify-between gap-3 px-[clamp(0.2rem,1.2vw,1.45rem)]">
-        <button type="button" className="inline-flex min-h-[2.35rem] items-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:border-yellow-200">
-          <span className="text-lg leading-none">💡</span> {copy.hintAnswer}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setSelectedLeft(null);
-            setWrong(null);
-          }}
-          className="inline-flex min-h-[2.35rem] items-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:border-violet-200"
-        >
-          <RotateCcw className="h-4 w-4 text-violet-500" /> {lang === 'ru' ? 'Сбросить' : copy.clear}
-        </button>
-      </div>
+      {showHint && <TaskHintBubble hint={String(payload?.hint || '').trim()} label={copy.hintAnswer} />}
+      <TaskActionBar
+        copy={copy}
+        onHint={() => {
+          setShowHint(true);
+          onEvent('hint_requested', { mechanic: 'word_lego' });
+        }}
+        onReset={() => {
+          setSelectedLeft(null);
+          setBuilt([]);
+          setWrong(null);
+          setShowHint(false);
+          onEvent('reset_requested', { mechanic: 'word_lego' });
+        }}
+        resetDisabled={built.length === 0 && selectedLeft === null && !showHint}
+      />
     </div>
   );
 }
@@ -1381,6 +1517,8 @@ function FillLettersTask({ payload, onDone, onEvent, lang }: { payload: any; onD
   const parts = text.split('___');
   const [values, setValues] = useState<string[]>(Array(answers.length).fill(''));
   const [checked, setChecked] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+  const hintText = String(payload?.hint || '').trim();
 
   const check = () => {
     playButtonSound('check');
@@ -1389,32 +1527,83 @@ function FillLettersTask({ payload, onDone, onEvent, lang }: { payload: any; onD
     onEvent(ok ? 'answer_correct' : 'answer_wrong', { mechanic: 'fill_letters', values, answers });
     if (ok) setTimeout(onDone, 600);
   };
+  const reset = () => {
+    setValues(Array(answers.length).fill(''));
+    setChecked(false);
+    setShowHint(false);
+    onEvent('reset_requested', { mechanic: 'fill_letters' });
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-3xl border border-white bg-white p-5 text-lg leading-loose text-purple-800 shadow-sm dark:border-purple-800 dark:bg-[#241632] dark:text-purple-100">
-        {parts.map((part, i) => (
-          <span key={i}>
-            {part}
-            {i < parts.length - 1 && (
-              <input type="text" value={values[i] || ''}
-                onChange={e => { const n = [...values]; n[i] = e.target.value; setValues(n); setChecked(false); }}
-                className={`mx-1 inline-block w-24 rounded-xl border-2 px-3 py-1 text-center font-body font-800 outline-none transition ${
-                  checked
-                    ? (values[i]?.trim().toLowerCase() === (answers[i]||'').toLowerCase() ? doneTile : wrongTile)
-                    : 'bg-yellow-50 border-yellow-200 text-amber-700 focus:border-yellow-400 focus:ring-4 focus:ring-yellow-100'
-                }`} />
-            )}
-          </span>
-        ))}
+    <div className="mx-auto flex h-full w-full max-w-5xl flex-col justify-center">
+      <div className="relative p-0">
+        <img
+          src="/ui/fill-blank-tape.png"
+          alt=""
+          className="pointer-events-none absolute -left-20 -top-16 z-10 w-[clamp(10rem,16vw,13.5rem)] -rotate-12 object-contain drop-shadow-[0_12px_18px_rgba(139,92,246,0.18)]"
+        />
+        <div className="relative overflow-hidden rounded-[1.55rem] border-2 border-dashed border-pink-200/90 bg-gradient-to-br from-[#fff8ec] via-[#fffaf5] to-[#fff3f8] px-[clamp(1.2rem,3.2vw,3rem)] py-[clamp(1.8rem,4.8vh,3.6rem)] shadow-[0_10px_24px_rgba(236,72,153,0.10)] dark:border-purple-700 dark:from-[#2d2136] dark:via-[#291d34] dark:to-[#331b38]">
+          <img
+            src="/ui/fill-blank-notebook.png"
+            alt=""
+            className="pointer-events-none absolute -bottom-12 -right-24 hidden w-[clamp(22rem,38vw,33rem)] object-contain drop-shadow-[0_16px_24px_rgba(139,92,246,0.16)] lg:block"
+          />
+
+          <div className="relative z-10 max-w-[42rem] lg:max-w-[calc(100%_-_21rem)]">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-4 font-display text-[clamp(1.7rem,3.4vw,2.75rem)] font-semibold leading-tight text-indigo-900 dark:text-purple-100">
+              {parts.map((part, i) => (
+                <span key={i} className="contents">
+                  {part && <span>{part}</span>}
+                  {i < parts.length - 1 && (
+                    <input
+                      type="text"
+                      value={values[i] || ''}
+                      onChange={e => { const n = [...values]; n[i] = e.target.value; setValues(n); setChecked(false); }}
+                      onKeyDown={e => { if (e.key === 'Enter') check(); }}
+                      className={`inline-flex h-[clamp(3.4rem,7.4vh,4.55rem)] w-[clamp(8rem,15vw,11rem)] rounded-[1.1rem] border-2 bg-white/85 px-4 text-center font-display text-[clamp(1.4rem,2.8vw,2.25rem)] font-semibold outline-none shadow-[0_8px_16px_rgba(251,191,36,0.12)] transition focus:ring-4 ${
+                        checked
+                          ? (values[i]?.trim().toLowerCase() === (answers[i]||'').toLowerCase()
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700 focus:ring-emerald-100'
+                            : 'border-rose-300 bg-rose-50 text-rose-600 focus:ring-rose-100')
+                          : 'border-yellow-300 text-amber-700 focus:border-yellow-400 focus:ring-yellow-100'
+                      }`}
+                    />
+                  )}
+                </span>
+              ))}
+            </div>
+
+            <div className="my-[clamp(1.35rem,3vh,2rem)] h-px w-full max-w-[34rem] border-t-2 border-dashed border-pink-300/75" />
+
+            {showHint && <TaskHintBubble hint={hintText} label={copy.hintAnswer} className="mx-0" />}
+
+            <button
+              type="button"
+              onClick={check}
+              className="relative mt-[clamp(1.35rem,3vh,2rem)] inline-flex min-h-[clamp(3rem,6.2vh,4rem)] items-center justify-center rounded-[1.2rem] bg-gradient-to-r from-pink-300 via-purple-300 to-violet-300 px-[clamp(2rem,4.2vw,3.8rem)] font-display text-[clamp(1.08rem,1.8vw,1.45rem)] font-semibold text-white shadow-[0_12px_24px_rgba(168,85,247,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(168,85,247,0.24)]"
+            >
+              {copy.check}
+              <img src="/ui/fill-blank-wand.png" alt="" className="pointer-events-none absolute -bottom-12 -right-16 h-[9.5rem] w-[9.5rem] rotate-12 object-contain" />
+            </button>
+          </div>
+        </div>
       </div>
-      <button onClick={check} className="rounded-2xl bg-gradient-to-r from-pink-400 to-purple-400 px-5 py-2.5 font-body font-800 text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl">{copy.check}</button>
+      <TaskActionBar
+        copy={copy}
+        onHint={() => {
+          setShowHint(true);
+          onEvent('hint_requested', { mechanic: 'fill_letters' });
+        }}
+        onReset={reset}
+        resetDisabled={!values.some(Boolean) && !checked && !showHint}
+      />
     </div>
   );
 }
 
 // ==================== ANAGRAM ====================
 function shuffleStr(s: string) {
+  if (s.length <= 1) return s;
   const arr = s.split('');
   for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; }
   const joined = arr.join('');
@@ -1426,6 +1615,7 @@ function AnagramTask({ payload, onDone, onEvent, lang }: { payload: any; onDone:
   const [tiles, setTiles] = useState<{ ch: string; used: boolean }[]>([]);
   const [picked, setPicked] = useState<number[]>([]);
   const [wrong, setWrong] = useState(false);
+  const [showHint, setShowHint] = useState(false);
 
   useEffect(() => {
     setTiles(shuffleStr(answer).split('').map(ch => ({ ch, used: false })));
@@ -1447,6 +1637,21 @@ function AnagramTask({ payload, onDone, onEvent, lang }: { payload: any; onDone:
     setTiles(t => t.map((tl, idx) => idx === last ? { ...tl, used: false } : tl));
     setPicked(p => p.slice(0, -1));
   };
+  const reset = () => {
+    setTiles(shuffleStr(answer).split('').map(ch => ({ ch, used: false })));
+    setPicked([]);
+    setWrong(false);
+    setShowHint(false);
+    onEvent('reset_requested', { mechanic: 'anagram_unscramble' });
+  };
+  const firstLetterHint = {
+    ru: 'Первая буква',
+    en: 'First letter',
+    ua: 'Перша літера',
+  }[lang] || 'Первая буква';
+  const hintText = String(payload?.hint || '').trim()
+    || (answer ? `${firstLetterHint}: ${answer[0]?.toUpperCase()}${' _'.repeat(Math.max(0, answer.length - 1))}` : '');
+  const answerDisplay = built.padEnd(answer.length, '?').split('');
 
   useEffect(() => {
     if (built.length === answer.length && built.length > 0) {
@@ -1461,22 +1666,95 @@ function AnagramTask({ payload, onDone, onEvent, lang }: { payload: any; onDone:
     }
   }, [built]);
 
+  if (!answer) {
+    return (
+      <div className="mx-auto flex h-full w-full max-w-4xl items-center justify-center rounded-[1.7rem] border-2 border-dashed border-purple-200 bg-purple-50/70 p-8 text-center font-display text-lg font-bold text-purple-600">
+        {copy.addWords}
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4 text-center">
-      <div className={`inline-block min-w-[220px] rounded-3xl border-2 px-6 py-4 font-mono text-2xl font-black tracking-widest shadow-sm ${wrong ? wrongTile : 'bg-white border-white text-purple-700 dark:border-purple-800 dark:bg-[#241632] dark:text-purple-100'}`}>
-        {built || '?'.repeat(answer.length)}
+    <div className="mx-auto flex h-full w-full max-w-6xl flex-col justify-center">
+      <div className="relative min-h-[clamp(22rem,47dvh,29rem)] overflow-visible rounded-[2rem] border-2 border-dashed border-purple-200/80 bg-gradient-to-br from-white via-[#fff8ff] to-[#f8f3ff] px-[clamp(1rem,2.8vw,2.6rem)] py-[clamp(1.05rem,2.5vh,2rem)] shadow-inner shadow-purple-100/70">
+        <img src="/ui/anagram-tape-purple.png" alt="" draggable={false} className="pointer-events-none absolute -left-[clamp(1.05rem,1.58vw,1.42rem)] -top-[clamp(0.72rem,1.16vw,1.05rem)] z-30 w-[clamp(6.25rem,8.35vw,7.75rem)] -rotate-[25deg] select-none object-contain drop-shadow-[0_12px_18px_rgba(124,58,237,0.18)]" />
+        <img src="/ui/anagram-cloud.png" alt="" draggable={false} className="pointer-events-none absolute bottom-[clamp(0.05rem,0.26vw,0.22rem)] left-[clamp(0.65rem,1vw,0.92rem)] z-10 w-[clamp(5.15rem,7.2vw,6.75rem)] select-none object-contain drop-shadow-[0_10px_18px_rgba(125,180,255,0.20)]" />
+        <img src="/ui/anagram-star-blue.png" alt="" draggable={false} className="pointer-events-none absolute left-[15%] top-[28%] z-10 w-[clamp(2.8rem,4.25vw,3.95rem)] select-none object-contain drop-shadow-[0_8px_14px_rgba(124,58,237,0.18)]" />
+        <img src="/ui/anagram-star-pink.png" alt="" draggable={false} className="pointer-events-none absolute right-[8%] top-[16%] z-10 w-[clamp(2.95rem,4.5vw,4.2rem)] rotate-12 select-none object-contain drop-shadow-[0_10px_18px_rgba(236,72,153,0.20)]" />
+
+        <div className="relative z-20 flex h-full min-h-[inherit] -translate-y-[clamp(1.15rem,3.1vh,2.05rem)] flex-col items-center justify-center gap-[clamp(0.9rem,2vh,1.35rem)] text-center">
+          <div className={`relative flex aspect-[1350/600] w-[min(100%,clamp(16.2rem,24.2vw,21.5rem))] items-center justify-center overflow-visible transition ${wrong ? 'animate-pulse' : ''}`}>
+            <img src="/ui/anagram-answer-panel.png" alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain" />
+            <div className={`relative z-10 flex max-w-[78%] items-center justify-center gap-[clamp(0.18rem,0.54vw,0.42rem)] font-display text-[clamp(1.55rem,3.2vw,2.55rem)] font-black leading-none tracking-[0.12em] ${wrong ? 'text-rose-500' : 'text-purple-800'}`}>
+              {answerDisplay.map((ch, index) => (
+                <span key={`${ch}-${index}`} className={ch === '?' ? 'text-purple-700' : 'text-purple-800'}>
+                  {ch}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex w-full flex-wrap items-center justify-center gap-[clamp(0.48rem,1vw,0.82rem)]">
+            {tiles.map((tl, i) => (
+              <motion.button
+                key={`${tl.ch}-${i}`}
+                type="button"
+                whileHover={!tl.used ? { y: -4 } : undefined}
+                whileTap={!tl.used ? { scale: 0.95 } : undefined}
+                onClick={() => pick(i)}
+                disabled={tl.used}
+                className={`flex h-[clamp(3rem,5.5vw,4.25rem)] w-[clamp(3rem,5.5vw,4.25rem)] items-center justify-center rounded-[0.78rem] border-2 font-display text-[clamp(1.55rem,3vw,2.45rem)] font-black leading-none shadow-[0_8px_0_rgba(124,58,237,0.16),0_13px_22px_rgba(124,58,237,0.14)] transition focus:outline-none focus:ring-4 focus:ring-purple-200/70 ${
+                  tl.used
+                    ? 'cursor-not-allowed border-purple-100 bg-purple-50/45 text-purple-200 shadow-none'
+                    : 'border-white bg-gradient-to-br from-white via-[#fff9f5] to-[#f7edff] text-purple-800 hover:border-pink-200'
+                }`}
+              >
+                {tl.ch.toUpperCase()}
+              </motion.button>
+            ))}
+          </div>
+
+          <AnimatePresence>
+            {showHint && (
+              <TaskHintBubble
+                hint={hintText}
+                label={copy.hintAnswer}
+                className="my-0 min-h-[2.75rem] max-w-[31rem] border-[#d8c4ff]/80 bg-gradient-to-r from-[#efe4ff]/90 via-[#fbf7ff]/95 to-[#eadcff]/90 py-1 pl-3 pr-5 text-[clamp(0.78rem,1.02vw,0.92rem)] text-purple-800 shadow-[0_7px_16px_rgba(168,85,247,0.10)]"
+                iconClassName="-my-2 h-14 w-14"
+              />
+            )}
+          </AnimatePresence>
+
+          <div className="grid w-full max-w-[43rem] grid-cols-1 gap-2 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => {
+                setShowHint(true);
+                onEvent('hint_requested', { mechanic: 'anagram_unscramble' });
+              }}
+              className="inline-flex min-h-[2.75rem] items-center justify-center gap-2 rounded-full border border-yellow-200 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:bg-yellow-50"
+            >
+              <Lightbulb className="h-4 w-4 text-yellow-500" /> {copy.hintAnswer}
+            </button>
+            <button
+              type="button"
+              onClick={reset}
+              disabled={picked.length === 0 && !wrong && !showHint}
+              className="inline-flex min-h-[2.75rem] items-center justify-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <RotateCcw className="h-4 w-4 text-violet-500" /> {copy.reset}
+            </button>
+            <button
+              type="button"
+              onClick={undo}
+              disabled={picked.length === 0}
+              className="inline-flex min-h-[2.75rem] items-center justify-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <Undo2 className="h-4 w-4 text-violet-500" /> {copy.undoLast}
+            </button>
+          </div>
+        </div>
       </div>
-      <div className="flex flex-wrap gap-2 justify-center">
-        {tiles.map((tl, i) => (
-          <button key={i} onClick={() => pick(i)} disabled={tl.used}
-            className={`h-12 w-12 rounded-2xl border-2 font-mono text-xl font-black transition ${tl.used ? 'border-gray-100 bg-gray-100 text-gray-300 dark:border-purple-900 dark:bg-[#1b1128] dark:text-purple-800' : 'border-white bg-gradient-to-br from-yellow-100 via-pink-100 to-purple-100 text-purple-700 shadow-md hover:-translate-y-1 hover:shadow-lg dark:border-purple-700 dark:from-purple-800 dark:via-fuchsia-800 dark:to-pink-800 dark:text-white'}`}>
-            {tl.ch}
-          </button>
-        ))}
-      </div>
-      <button onClick={undo} className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-body font-700 text-purple-500 shadow-sm transition hover:bg-white hover:text-purple-700 dark:bg-[#2b1a3d] dark:text-purple-200">
-        <RotateCcw className="h-4 w-4" /> {copy.undoLast}
-      </button>
     </div>
   );
 }
@@ -1487,6 +1765,7 @@ function OddOneOutTask({ payload, onDone, onEvent, lang }: { payload: any; onDon
   const items: Array<{ text?: string; image?: string; is_odd?: boolean }> = payload?.items || [];
   const [wrong, setWrong] = useState<number | null>(null);
   const [correct, setCorrect] = useState<number | null>(null);
+  const [showHint, setShowHint] = useState(false);
 
   const pick = (i: number) => {
     onEvent('choice_selected', { mechanic: 'odd_one_out', index: i });
@@ -1506,27 +1785,76 @@ function OddOneOutTask({ payload, onDone, onEvent, lang }: { payload: any; onDon
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {items.map((item, i) => (
-        <button
-          key={i}
-          onClick={() => pick(i)}
-          className={`min-h-28 rounded-3xl border-2 p-4 text-center font-body text-lg font-900 shadow-sm transition hover:-translate-y-1 hover:shadow-xl ${
-            correct === i ? doneTile : wrong === i ? wrongTile : liveTile
-          }`}
-        >
-          {item.image && <SignedImg path={item.image} className="mx-auto mb-2 h-20 w-20 rounded-2xl object-cover" />}
-          <span>{item.text || `${copy.option} ${i + 1}`}</span>
-        </button>
-      ))}
+    <div className="mx-auto flex h-full w-full max-w-5xl flex-col justify-center">
+      <div className="grid w-full gap-[clamp(0.9rem,1.8vw,1.4rem)] sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((item, i) => (
+          <button
+            key={i}
+            onClick={() => pick(i)}
+            className={`flex h-[clamp(12.5rem,24vh,15.25rem)] flex-col items-center justify-between overflow-hidden rounded-[1.35rem] border-2 px-5 pb-5 pt-4 text-center font-body text-lg font-900 shadow-[0_8px_20px_rgba(139,92,246,0.10)] transition hover:-translate-y-1 hover:shadow-xl ${
+              correct === i ? doneTile : wrong === i ? wrongTile : liveTile
+            }`}
+          >
+            <span className="flex h-[calc(100%-2.4rem)] w-full items-center justify-center">
+              {item.image && (
+                <SignedImg
+                  path={item.image}
+                  className="h-[240%] max-h-[24rem] w-[240%] object-contain drop-shadow-[0_10px_14px_rgba(124,58,237,0.14)]"
+                  placeholderClassName="h-[240%] max-h-[24rem] w-[240%]"
+                />
+              )}
+            </span>
+            <span className="min-h-[1.9rem] shrink-0 font-display text-[clamp(1.12rem,1.55vw,1.35rem)] font-bold leading-tight text-purple-700 dark:text-purple-100">{item.text || `${copy.option} ${i + 1}`}</span>
+          </button>
+        ))}
+      </div>
+      {showHint && <TaskHintBubble hint={String(payload?.hint || '').trim()} label={copy.hintAnswer} />}
+      <TaskActionBar
+        copy={copy}
+        onHint={() => {
+          setShowHint(true);
+          onEvent('hint_requested', { mechanic: 'odd_one_out' });
+        }}
+        onReset={() => {
+          setWrong(null);
+          setCorrect(null);
+          setShowHint(false);
+          onEvent('reset_requested', { mechanic: 'odd_one_out' });
+        }}
+        resetDisabled={wrong === null && correct === null && !showHint}
+      />
     </div>
   );
 }
 
 // ==================== CATEGORY SORTING ====================
+function categoryCardAssetForName(name: string) {
+  const normalized = name.toLowerCase();
+  if (normalized.includes('игруш') || normalized.includes('toy')) return '/ui/category-toys-card.png';
+  if (normalized.includes('еда') || normalized.includes('food') || normalized.includes('їжа')) return '/ui/category-food-card.png';
+  return null;
+}
+
+function setCardDragPreview(event: React.DragEvent<HTMLElement>) {
+  const source = event.currentTarget;
+  const rect = source.getBoundingClientRect();
+  const clone = source.cloneNode(true) as HTMLElement;
+  clone.style.position = 'fixed';
+  clone.style.left = '-9999px';
+  clone.style.top = '-9999px';
+  clone.style.width = `${rect.width}px`;
+  clone.style.height = `${rect.height}px`;
+  clone.style.pointerEvents = 'none';
+  clone.style.opacity = '1';
+  clone.style.transform = 'none';
+  document.body.appendChild(clone);
+  event.dataTransfer.setDragImage(clone, rect.width / 2, rect.height / 2);
+  window.setTimeout(() => clone.remove(), 0);
+}
+
 function CategorySortingTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
   const copy = taskCopy[lang] || taskCopy.ru;
-  const categories: Array<{ name: string; items: Array<{ text?: string; image?: string }> }> = payload?.categories || [];
+  const categories: Array<{ name: string; image?: string; cardImage?: string; items: Array<{ text?: string; image?: string }> }> = payload?.categories || [];
   const allItems = useMemo(() => categories.flatMap((cat, categoryIndex) =>
     (cat.items || []).map((item, itemIndex) => ({
       ...item,
@@ -1535,69 +1863,203 @@ function CategorySortingTask({ payload, onDone, onEvent, lang }: { payload: any;
     })),
   ), [categories]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
   const [placed, setPlaced] = useState<Set<string>>(new Set());
   const [wrongCategory, setWrongCategory] = useState<number | null>(null);
+  const [showHint, setShowHint] = useState(false);
   const selected = allItems.find(item => item.id === selectedId);
+  const availableItems = allItems.filter(item => !placed.has(item.id));
 
   useEffect(() => {
     if (allItems.length > 0 && placed.size === allItems.length) setTimeout(onDone, 700);
   }, [placed.size, allItems.length]);
 
-  const chooseCategory = (categoryIndex: number) => {
-    if (!selected) return;
-    if (selected.categoryIndex === categoryIndex) {
-      onEvent('answer_correct', { mechanic: 'category_sorting', item: selected.text, category: categories[categoryIndex]?.name });
-      setPlaced(prev => new Set([...prev, selected.id]));
+  const chooseCategory = (categoryIndex: number, itemId = selectedId) => {
+    const item = allItems.find(entry => entry.id === itemId);
+    if (!item || placed.has(item.id)) return;
+    if (item.categoryIndex === categoryIndex) {
+      onEvent('answer_correct', { mechanic: 'category_sorting', item: item.text, category: categories[categoryIndex]?.name });
+      setPlaced(prev => new Set([...prev, item.id]));
       setSelectedId(null);
+      setDraggingId(null);
       return;
     }
-    onEvent('answer_wrong', { mechanic: 'category_sorting', item: selected.text, category: categories[categoryIndex]?.name, expected: categories[selected.categoryIndex]?.name });
+    onEvent('answer_wrong', { mechanic: 'category_sorting', item: item.text, category: categories[categoryIndex]?.name, expected: categories[item.categoryIndex]?.name });
     setWrongCategory(categoryIndex);
     setTimeout(() => setWrongCategory(null), 500);
   };
+  const reset = () => {
+    setSelectedId(null);
+    setDraggingId(null);
+    setPlaced(new Set());
+    setWrongCategory(null);
+    setShowHint(false);
+    onEvent('reset_requested', { mechanic: 'category_sorting' });
+  };
+  const categoryStyles = [
+    {
+      shell: 'border-violet-200/90 bg-violet-50/70 shadow-violet-100/70 dark:border-violet-700 dark:bg-violet-950/30',
+      inner: 'border-violet-300/80 text-violet-500',
+      title: 'text-violet-700 dark:text-violet-100',
+      tape: 'from-violet-200 to-indigo-200 border-violet-300',
+    },
+    {
+      shell: 'border-pink-200/90 bg-pink-50/70 shadow-pink-100/70 dark:border-pink-700 dark:bg-pink-950/30',
+      inner: 'border-pink-300/80 text-pink-500',
+      title: 'text-pink-600 dark:text-pink-100',
+      tape: 'from-pink-200 to-rose-200 border-pink-300',
+    },
+    {
+      shell: 'border-sky-200/90 bg-sky-50/70 shadow-sky-100/70 dark:border-sky-700 dark:bg-sky-950/30',
+      inner: 'border-sky-300/80 text-sky-500',
+      title: 'text-sky-700 dark:text-sky-100',
+      tape: 'from-sky-200 to-cyan-200 border-sky-300',
+    },
+  ];
 
   if (categories.length === 0 || allItems.length === 0) {
     return <p className="text-center text-purple-500 dark:text-purple-200">{copy.addCategories}</p>;
   }
 
   return (
-    <div className="space-y-5">
-      <div>
-        <div className="mb-2 text-xs font-body font-800 uppercase tracking-wider text-purple-400">{copy.chooseCard}</div>
-        <div className="flex flex-wrap gap-2">
-          {allItems.map(item => (
-            <button
+    <div className="flex h-full min-h-0 flex-col gap-[clamp(0.55rem,1.2vh,0.85rem)]">
+      <div className="shrink-0">
+        <div className="mb-2 flex items-center gap-2 font-body text-xs font-black uppercase tracking-wider text-purple-400">
+          {copy.chooseCard}
+        </div>
+        <div className="mx-auto grid w-full max-w-[37rem] grid-cols-2 gap-[clamp(0.5rem,0.85vw,0.7rem)] sm:grid-cols-4">
+          {availableItems.map(item => (
+            <motion.button
               key={item.id}
-              disabled={placed.has(item.id)}
+              layout
+              draggable
+              onDragStart={event => {
+                event.dataTransfer.setData('text/category-item', item.id);
+                event.dataTransfer.effectAllowed = 'move';
+                setCardDragPreview(event);
+                setDraggingId(item.id);
+                setSelectedId(item.id);
+                onEvent('choice_selected', { mechanic: 'category_sorting', item: item.text, source: 'drag' });
+              }}
+              onDragEnd={() => setDraggingId(null)}
               onClick={() => {
                 setSelectedId(item.id);
-                onEvent('choice_selected', { mechanic: 'category_sorting', item: item.text });
+                onEvent('choice_selected', { mechanic: 'category_sorting', item: item.text, source: 'click' });
               }}
-              className={`${tileBase} ${placed.has(item.id) ? doneTile : selectedId === item.id ? selectedTile : liveTile}`}
+              className={`flex aspect-square min-h-0 w-full flex-col items-center justify-end overflow-hidden rounded-[1rem] border-2 bg-white/90 px-2.5 pb-2.5 pt-1.5 text-center shadow-[0_10px_22px_rgba(168,85,247,0.10)] transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-pink-100 ${
+                selectedId === item.id
+                  ? 'border-pink-300 ring-4 ring-pink-100'
+                  : 'border-purple-100 hover:-translate-y-0.5 hover:border-pink-200 hover:shadow-[0_14px_26px_rgba(168,85,247,0.14)]'
+              } ${draggingId === item.id ? 'opacity-70 scale-[0.98]' : ''}`}
             >
-              {item.text}
-            </button>
+              {item.image ? (
+                <SignedImg
+                  path={item.image}
+                  className="mb-1 h-[clamp(4.85rem,7vw,6.1rem)] w-[142%] max-w-none scale-[1.22] object-contain drop-shadow-[0_8px_10px_rgba(124,58,237,0.12)]"
+                  placeholderClassName="mb-1 h-[clamp(4.85rem,7vw,6.1rem)] w-full rounded-xl"
+                  draggable={false}
+                />
+              ) : (
+                <span className="mb-1 grid h-[clamp(4.85rem,7vw,6.1rem)] w-[82%] place-items-center rounded-xl bg-purple-50 text-2xl text-purple-200">
+                  <ImageIcon className="h-8 w-8" />
+                </span>
+              )}
+              <span className="font-display text-[clamp(0.92rem,1.25vw,1.12rem)] font-bold leading-tight text-indigo-800 dark:text-purple-100">{item.text}</span>
+            </motion.button>
           ))}
         </div>
       </div>
-      <div>
-        <div className="mb-2 text-xs font-body font-800 uppercase tracking-wider text-pink-400">{copy.sendToCategory}</div>
-        <div className="grid gap-3 sm:grid-cols-2">
+      <div className="-mt-[clamp(0.1rem,0.65vh,0.45rem)] flex min-h-0 flex-1 flex-col">
+        <div className="mb-1 flex items-center gap-2 font-body text-xs font-black uppercase tracking-wider text-pink-400">
+          {copy.sendToCategory}
+        </div>
+        <div className="mx-auto grid w-full max-w-[48rem] flex-1 content-start gap-x-[clamp(0.6rem,1.15vw,0.9rem)] pt-[clamp(0.25rem,0.8vh,0.55rem)] sm:grid-cols-2">
           {categories.map((cat, i) => (
-            <button
-              key={i}
-              onClick={() => chooseCategory(i)}
-              disabled={!selected}
-              className={`rounded-3xl border-2 p-4 text-left font-body font-900 shadow-sm transition hover:-translate-y-0.5 disabled:opacity-60 ${
-                wrongCategory === i ? wrongTile : 'border-purple-100 bg-white text-purple-700 dark:border-purple-700 dark:bg-[#2b1a3d] dark:text-purple-100'
-              }`}
-            >
-              <div className="text-lg">{cat.name}</div>
-              <div className="mt-1 text-xs text-purple-300">{placed.size}/{allItems.length}</div>
-            </button>
+            (() => {
+              const categoryCardAsset = cat.cardImage || categoryCardAssetForName(cat.name);
+              const sharedProps = {
+                onClick: () => chooseCategory(i),
+                onDragOver: (event: React.DragEvent<HTMLButtonElement>) => event.preventDefault(),
+                onDrop: (event: React.DragEvent<HTMLButtonElement>) => {
+                  event.preventDefault();
+                  chooseCategory(i, event.dataTransfer.getData('text/category-item') || draggingId);
+                },
+                disabled: !selectedId && !draggingId,
+              };
+
+              if (categoryCardAsset) {
+                const categoryPositionClass = i % 2 === 0
+                  ? 'sm:justify-self-end sm:-translate-y-[clamp(0.25rem,0.55vh,0.45rem)]'
+                  : 'sm:justify-self-start sm:-translate-y-[clamp(0.78rem,1.55vh,1.2rem)]';
+                const categorySizeClass = i % 2 === 0
+                  ? 'w-[112%] scale-[1.02] sm:scale-[1.06]'
+                  : 'w-[107%] scale-[0.98] sm:scale-[1.01]';
+                return (
+                  <button
+                    key={i}
+                    {...sharedProps}
+                    className={`group relative aspect-[1260/760] h-[clamp(14rem,26vh,16.8rem)] max-w-none origin-bottom translate-y-[clamp(0.4rem,1vh,0.72rem)] overflow-visible rounded-[1.4rem] bg-transparent p-0 text-left transition-[filter,opacity] duration-200 ease-out hover:brightness-[1.04] hover:saturate-[1.07] disabled:opacity-75 ${categorySizeClass} ${categoryPositionClass} ${
+                      wrongCategory === i ? 'animate-pulse ring-4 ring-rose-200' : ''
+                    }`}
+                  >
+                    <img
+                      src={categoryCardAsset}
+                      alt=""
+                      className="pointer-events-none absolute inset-0 h-full w-full object-contain transition-transform duration-200 ease-out group-hover:scale-[1.018]"
+                    />
+                    <span className="sr-only">{cat.name}</span>
+                  </button>
+                );
+              }
+
+              return (
+                <button
+                  key={i}
+                  {...sharedProps}
+                  className={`relative min-h-[clamp(10rem,21vh,12.5rem)] overflow-visible rounded-[1.35rem] border-2 p-4 text-left shadow-lg transition hover:-translate-y-0.5 disabled:opacity-70 ${
+                    wrongCategory === i ? wrongTile : categoryStyles[i % categoryStyles.length].shell
+                  }`}
+                >
+                  <span className={`pointer-events-none absolute left-1/2 top-[-0.85rem] h-8 w-20 -translate-x-1/2 rotate-1 rounded-md border bg-gradient-to-r opacity-90 shadow-sm ${categoryStyles[i % categoryStyles.length].tape}`} />
+                  {cat.image && (
+                    <SignedImg
+                      path={cat.image}
+                      className="pointer-events-none absolute left-5 top-7 h-[clamp(4.6rem,10vh,6.5rem)] w-[clamp(4.6rem,10vh,6.5rem)] object-contain drop-shadow-[0_10px_14px_rgba(124,58,237,0.12)]"
+                      placeholderClassName="pointer-events-none absolute left-5 top-7 h-[clamp(4.6rem,10vh,6.5rem)] w-[clamp(4.6rem,10vh,6.5rem)] rounded-xl"
+                    />
+                  )}
+                  <div className={`mb-4 text-center font-display text-[clamp(1.25rem,2.3vw,1.8rem)] font-bold ${categoryStyles[i % categoryStyles.length].title}`}>
+                    {cat.name}
+                  </div>
+                  <div className={`ml-auto flex min-h-[clamp(5.6rem,12vh,7.2rem)] w-[72%] flex-col items-center justify-center rounded-[1.1rem] border-2 border-dashed bg-white/72 px-4 text-center font-display text-[clamp(1rem,1.45vw,1.22rem)] font-medium leading-tight ${categoryStyles[i % categoryStyles.length].inner}`}>
+                    <span>{copy.sendToCategory}</span>
+                  </div>
+                </button>
+              );
+            })()
           ))}
         </div>
       </div>
+      <TaskActionBar
+        copy={copy}
+        className="translate-y-[clamp(0.22rem,0.58vh,0.45rem)]"
+        resetClassName="translate-y-[clamp(0.24rem,0.62vh,0.48rem)]"
+        centerContent={showHint ? (
+          <div className="mx-3 flex flex-1 translate-y-[clamp(0.95rem,2.15vh,1.55rem)] justify-center">
+            <TaskHintBubble
+              hint={String(payload?.hint || '').trim()}
+              label={copy.hintAnswer}
+              className="mx-0 max-w-[25rem] flex-1"
+            />
+          </div>
+        ) : null}
+        onHint={() => {
+          setShowHint(true);
+          onEvent('hint_requested', { mechanic: 'category_sorting' });
+        }}
+        onReset={reset}
+        resetDisabled={placed.size === 0 && selectedId === null && !showHint}
+      />
     </div>
   );
 }
@@ -1792,16 +2254,80 @@ function WordSearchTask({ payload, onDone, onEvent, lang }: { payload: any; onDo
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap justify-center gap-2">
-        {words.map(word => (
-          <span key={word} className={`rounded-2xl px-3 py-1 text-sm font-body font-900 ${found.has(word) ? 'bg-emerald-100 text-emerald-700 line-through' : 'bg-purple-50 text-purple-500 dark:bg-[#2b1a3d] dark:text-purple-200'}`}>
-            {word}
-          </span>
-        ))}
+    <div className="relative mx-auto grid h-full min-h-0 w-full max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] items-center justify-items-center gap-[clamp(0.3rem,0.62vh,0.46rem)] overflow-hidden px-2 pb-[clamp(0.45rem,0.95vh,0.7rem)] pt-[clamp(0.05rem,0.45vh,0.22rem)]">
+      <img
+        src="/ui/word-search-star-yellow.png"
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        className="pointer-events-none absolute left-[6%] top-[22%] hidden h-11 w-11 -rotate-12 object-contain opacity-95 lg:block"
+      />
+      <img
+        src="/ui/word-search-star-yellow.png"
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        className="pointer-events-none absolute right-[5%] top-[28%] hidden h-10 w-10 rotate-12 object-contain opacity-95 lg:block"
+      />
+      <img
+        src="/ui/word-search-star-blue.png"
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        className="pointer-events-none absolute left-[15%] bottom-[18%] hidden h-11 w-11 -rotate-6 object-contain opacity-85 drop-shadow-[0_12px_18px_rgba(129,140,248,0.20)] lg:block"
+      />
+      <img
+        src="/ui/word-search-star-blue.png"
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        className="pointer-events-none absolute right-[14%] bottom-[16%] hidden h-9 w-9 rotate-12 object-contain opacity-82 drop-shadow-[0_12px_18px_rgba(129,140,248,0.18)] lg:block"
+      />
+      <img
+        src="/ui/word-search-star-pink.png"
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        className="pointer-events-none absolute left-[12%] top-[42%] hidden h-10 w-10 rotate-12 object-contain opacity-82 drop-shadow-[0_12px_18px_rgba(244,114,182,0.18)] lg:block"
+      />
+      <img
+        src="/ui/word-search-star-pink.png"
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        className="pointer-events-none absolute right-[12%] top-[50%] hidden h-12 w-12 -rotate-12 object-contain opacity-82 drop-shadow-[0_12px_18px_rgba(244,114,182,0.18)] lg:block"
+      />
+
+      <div className="relative z-10 flex shrink-0 flex-wrap justify-center gap-[clamp(0.38rem,0.72vw,0.56rem)]">
+        {words.map((word, index) => {
+          const done = found.has(word);
+          const chipTones = [
+            'border-yellow-200 bg-yellow-50 text-purple-700 shadow-yellow-100/60',
+            'border-pink-200 bg-pink-50 text-purple-700 shadow-pink-100/60',
+            'border-purple-200 bg-purple-50 text-purple-700 shadow-purple-100/60',
+            'border-sky-200 bg-sky-50 text-purple-700 shadow-sky-100/60',
+          ];
+          return (
+            <span
+              key={word}
+              className={`inline-flex min-h-[1.95rem] min-w-[4.65rem] items-center justify-center rounded-full border px-4 py-1 font-display text-sm font-semibold uppercase tracking-wide shadow-sm transition ${
+                done
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 line-through opacity-85'
+                  : chipTones[index % chipTones.length]
+              }`}
+            >
+              {word}
+            </span>
+          );
+        })}
       </div>
-      <div className={`mx-auto grid max-w-[min(92vw,560px)] gap-1 rounded-3xl border-2 bg-white p-3 shadow-sm dark:bg-[#241632] ${wrong ? 'border-rose-300' : 'border-purple-100 dark:border-purple-700'}`}
-        style={{ gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` }}>
+
+      <div
+        className={`relative z-10 grid w-full max-w-[min(82vw,21.6rem)] self-center rounded-[1.25rem] border-2 bg-white/92 p-[clamp(0.27rem,0.56vw,0.4rem)] shadow-[0_12px_28px_rgba(168,85,247,0.12)] backdrop-blur dark:bg-[#241632] ${
+          wrong ? 'animate-pulse border-rose-300' : 'border-purple-100 dark:border-purple-700'
+        }`}
+        style={{ gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` }}
+      >
         {grid.flatMap((row, rowIndex) => row.map((letter, colIndex) => {
           const key = `${rowIndex}-${colIndex}`;
           const isSelected = selectedKeys.has(key);
@@ -1809,11 +2335,14 @@ function WordSearchTask({ payload, onDone, onEvent, lang }: { payload: any; onDo
           return (
             <button
               key={key}
+              type="button"
               onClick={() => selectCell(rowIndex, colIndex)}
-              className={`aspect-square rounded-xl font-mono text-sm font-black transition sm:text-base ${
-                isFound ? 'bg-emerald-100 text-emerald-700' :
-                isSelected ? 'bg-gradient-to-br from-pink-400 to-purple-400 text-white shadow-md' :
-                'bg-purple-50 text-purple-700 hover:bg-pink-100 dark:bg-[#2b1a3d] dark:text-purple-100 dark:hover:bg-[#3a2451]'
+              className={`aspect-square rounded-[0.66rem] border font-display text-[clamp(0.64rem,1vw,0.84rem)] font-bold leading-none shadow-[0_4px_9px_rgba(124,58,237,0.06)] transition duration-150 focus:outline-none focus:ring-4 focus:ring-purple-200/70 ${
+                isFound
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-emerald-100/60'
+                  : isSelected
+                    ? 'border-transparent bg-gradient-to-br from-pink-400 via-purple-500 to-violet-500 text-white shadow-[0_9px_18px_rgba(168,85,247,0.28)]'
+                    : 'border-purple-100 bg-white text-purple-700 hover:-translate-y-0.5 hover:border-pink-200 hover:bg-pink-50 dark:border-purple-700 dark:bg-[#2b1a3d] dark:text-purple-100 dark:hover:bg-[#3a2451]'
               }`}
             >
               {letter}
@@ -1821,14 +2350,26 @@ function WordSearchTask({ payload, onDone, onEvent, lang }: { payload: any; onDo
           );
         }))}
       </div>
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        <span className="min-w-32 rounded-2xl bg-white px-4 py-2 text-center font-mono font-black text-purple-700 shadow-sm dark:bg-[#2b1a3d] dark:text-purple-100">
+
+      <div className="relative z-20 flex min-h-[2.65rem] shrink-0 flex-wrap items-center justify-center gap-[clamp(0.42rem,0.78vw,0.62rem)]">
+        <span className="inline-flex min-h-[2.25rem] min-w-[5.65rem] items-center justify-center rounded-full border border-purple-100 bg-white px-5 py-1.5 text-center font-display text-base font-bold tracking-[0.2em] text-purple-700 shadow-[0_8px_18px_rgba(168,85,247,0.08)] dark:border-purple-700 dark:bg-[#2b1a3d] dark:text-purple-100">
           {selectedWord || '...'}
         </span>
-        <button onClick={check} disabled={selected.length === 0} className="rounded-2xl bg-gradient-to-r from-pink-400 to-purple-400 px-5 py-2.5 font-body font-800 text-white shadow-lg transition hover:-translate-y-0.5 disabled:opacity-50">
+        <button
+          type="button"
+          onClick={check}
+          disabled={selected.length === 0}
+          className="inline-flex min-h-[2.25rem] items-center justify-center gap-2 rounded-full bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 px-6 py-1.5 font-display text-base font-semibold text-white shadow-[0_10px_20px_rgba(168,85,247,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(168,85,247,0.30)] disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          <img src="/ui/reward-star.png" alt="" draggable={false} className="h-6 w-6 object-contain" />
           {copy.check}
         </button>
-        <button onClick={() => setSelected([])} className="rounded-2xl bg-white px-4 py-2 text-sm font-body font-800 text-purple-500 shadow-sm transition hover:bg-purple-50 dark:bg-[#2b1a3d] dark:text-purple-200">
+        <button
+          type="button"
+          onClick={() => setSelected([])}
+          className="inline-flex min-h-[2.25rem] items-center justify-center gap-2 rounded-full border border-purple-100 bg-white px-6 py-1.5 font-display text-base font-semibold text-purple-700 shadow-[0_8px_18px_rgba(168,85,247,0.08)] transition hover:-translate-y-0.5 hover:border-purple-200 hover:bg-purple-50 dark:border-purple-700 dark:bg-[#2b1a3d] dark:text-purple-100"
+        >
+          <RotateCcw className="h-5 w-5 text-violet-500" />
           {copy.clear}
         </button>
       </div>

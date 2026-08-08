@@ -110,9 +110,6 @@ export default function Home({ lang }: HomeProps) {
           >
             <span className="bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 bg-clip-text text-transparent">Veto</span>
             <span className="bg-gradient-to-r from-blue-400 via-teal-400 to-purple-400 bg-clip-text text-transparent">school</span>
-            <span className="block font-body font-700 text-purple-500 mt-3" style={{ fontSize: 'clamp(1.1rem, 2.6vw, 1.75rem)', lineHeight: 1.3 }}>
-              Online English school for kids ages 5–12
-            </span>
           </motion.h1>
 
 
@@ -178,12 +175,6 @@ export default function Home({ lang }: HomeProps) {
           </motion.div>
         </div>
 
-        {/* Scroll indicator */}
-        <motion.div className="absolute bottom-8 left-1/2 -translate-x-1/2" animate={{ y: [0, 10, 0] }} transition={{ duration: 2, repeat: Infinity }}>
-          <div className="w-6 h-10 rounded-full border-2 border-purple-300 flex items-start justify-center pt-2">
-            <div className="w-1.5 h-3 bg-purple-300 rounded-full animate-bounce" />
-          </div>
-        </motion.div>
       </section>
 
       {/* ===== ABOUT ===== */}
