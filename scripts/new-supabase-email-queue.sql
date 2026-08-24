@@ -1,5 +1,6 @@
 -- Email infrastructure for the NEW external Supabase project (SendPulse transport).
--- Replace <NEW_PROJECT_REF> and <SERVICE_ROLE_KEY> before running. Safe to re-run.
+-- Project ref: ggflcriakiudnejmiuwh. Replace <SERVICE_ROLE_KEY> before running. Safe to re-run.
+-- RUN THIS SCRIPT FIRST, then scripts/new-supabase-cron.sql.
 -- Run AFTER the public schema (email_send_state, email_send_log, RPC wrappers,
 -- see supabase/migrations/20260805032106_email_infra.sql) exists in the new project.
 
@@ -45,7 +46,7 @@ BEGIN
   END IF;
 
   PERFORM net.http_post(
-    url := 'https://<NEW_PROJECT_REF>.supabase.co/functions/v1/process-email-queue',
+    url := 'https://ggflcriakiudnejmiuwh.supabase.co/functions/v1/process-email-queue',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer ' || (
@@ -76,7 +77,7 @@ BEGIN
 
   BEGIN
     PERFORM net.http_post(
-      url := 'https://<NEW_PROJECT_REF>.supabase.co/functions/v1/process-email-queue',
+      url := 'https://ggflcriakiudnejmiuwh.supabase.co/functions/v1/process-email-queue',
       headers := jsonb_build_object(
         'Content-Type', 'application/json',
         'Authorization', 'Bearer ' || (

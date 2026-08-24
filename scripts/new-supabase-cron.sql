@@ -1,6 +1,6 @@
 -- Cron configuration for the NEW external Supabase project.
--- Replace <NEW_PROJECT_REF> before running, and set real secret values.
--- Run in the new project's SQL editor. Safe to re-run.
+-- Project ref: ggflcriakiudnejmiuwh. Replace <TELEGRAM_CRON_SECRET> / <SERVICE_ROLE_KEY> placeholders.
+-- Run in the new project's SQL editor AFTER scripts/new-supabase-email-queue.sql. Safe to re-run.
 
 CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
@@ -24,7 +24,7 @@ SELECT cron.schedule(
   '* * * * *',
   $$
   SELECT net.http_post(
-    url := 'https://<NEW_PROJECT_REF>.supabase.co/functions/v1/telegram-notifications',
+    url := 'https://ggflcriakiudnejmiuwh.supabase.co/functions/v1/telegram-notifications',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'x-cron-secret', (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'telegram_cron_secret')
@@ -35,13 +35,14 @@ SELECT cron.schedule(
 );
 
 -- 3. Email queue dispatcher --------------------------------------------------
--- public.email_queue_dispatch() and public.email_queue_wake() came from the
--- backup with the OLD project URL baked into their bodies. Re-create both with
--- the new ref (bodies are otherwise unchanged) — see
--- supabase/migrations/20260805032106_email_infra.sql for the originals, and
--- replace every occurrence of the old *.supabase.co host with:
---   https://<NEW_PROJECT_REF>.supabase.co/functions/v1/process-email-queue
+-- Already created by scripts/new-supabase-email-queue.sql (functions
+-- public.email_queue_dispatch() / public.email_queue_wake() plus the wake
+-- triggers, all pointing at
+--   https://ggflcriakiudnejmiuwh.supabase.co/functions/v1/process-email-queue
+-- The 'process-email-queue' cron job is self-arming: the wake trigger schedules
+-- it on enqueue and the dispatcher unschedules it when both queues drain.
 --
--- Verify afterwards:
+-- 4. Verify -------------------------------------------------------------------
 --   SELECT jobname, schedule FROM cron.job;
 --   SELECT prosrc FROM pg_proc WHERE proname IN ('email_queue_dispatch','email_queue_wake');
+--   SELECT name FROM vault.decrypted_secrets;
