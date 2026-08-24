@@ -1,6 +1,6 @@
 -- Cron configuration for the NEW external Supabase project.
--- Replace ggflcriakiudnejmiuwh before running, and set real secret values.
--- Run in the new project's SQL editor. Safe to re-run.
+-- Project ref: ggflcriakiudnejmiuwh. Replace <TELEGRAM_CRON_SECRET> / <SERVICE_ROLE_KEY> placeholders.
+-- Run in the new project's SQL editor AFTER scripts/new-supabase-email-queue.sql. Safe to re-run.
 
 CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
