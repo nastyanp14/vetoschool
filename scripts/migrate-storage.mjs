@@ -56,7 +56,9 @@ if (usingAdminSession && !(OLD_ANON_KEY && OLD_ADMIN_EMAIL && OLD_ADMIN_PASSWORD
   process.exit(1);
 }
 
-const source = createClient(OLD_URL, OLD_KEY || OLD_ANON_KEY, { auth: { persistSession: false } });
+const source = createClient(OLD_URL, OLD_KEY || OLD_ANON_KEY, {
+  auth: { persistSession: false, autoRefreshToken: true },
+});
 const target = createClient(NEW_URL, NEW_KEY, { auth: { persistSession: false } });
 
 if (usingAdminSession) {
