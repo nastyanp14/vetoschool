@@ -252,25 +252,17 @@ Deno.serve(async (req) => {
       }
 
       try {
-        await sendLovableEmail(
+        // Transport only: subject/html/text/from come straight from the queued
+        // payload, so templates, languages and content stay unchanged.
+        await sendSendPulseEmail(
           {
-            run_id: payload.run_id,
-            to: payload.to,
-            from: payload.from,
-            sender_domain: payload.sender_domain,
-            subject: payload.subject,
-            html: payload.html,
-            text: payload.text,
-            purpose: payload.purpose,
-            label: payload.label,
-            idempotency_key: payload.idempotency_key,
-            unsubscribe_token: payload.unsubscribe_token,
-            message_id: payload.message_id,
+            to: payload.to as string,
+            from: payload.from as string | undefined,
+            subject: payload.subject as string,
+            html: payload.html as string,
+            text: payload.text as string | undefined,
           },
-          // sendUrl is optional — when LOVABLE_SEND_URL is not set, the library
-          // falls back to the default Lovable API endpoint (https://api.lovable.dev).
-          // Set LOVABLE_SEND_URL as a Supabase secret to override (e.g. for local dev).
-          { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
+          sendpulseEnv
         )
 
         // Log success
