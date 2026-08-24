@@ -358,7 +358,11 @@ export default function Analytics({ lang, setLang }: { lang: Lang; setLang: (l: 
             <div className="w-20 h-20 rounded-3xl bg-white/25 flex items-center justify-center font-display font-black text-white text-4xl shadow-xl flex-shrink-0 overflow-hidden">
               {(() => {
                 const a = findAvatar((student as any).avatarId);
-                return a ? <span style={{ fontSize: '3rem', lineHeight: 1 }}>{a.emoji}</span> : student.name[0].toUpperCase();
+                return a
+                  ? a.imageSrc
+                    ? <img src={a.imageSrc} alt="" className="h-full w-full object-contain" />
+                    : <span style={{ fontSize: '3rem', lineHeight: 1 }}>{a.emoji}</span>
+                  : student.name[0].toUpperCase();
               })()}
             </div>
             <div className="flex-1">

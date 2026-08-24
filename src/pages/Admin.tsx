@@ -41,14 +41,18 @@ import {
 } from '../lib/adminSubscriptions';
 import { activeSubscriptionStatus, billingStatusClass, billingStatusLabel, hasConfirmedStripePayment } from '../lib/subscriptionStatus';
 
-// Small inline avatar that shows the equipped emoji avatar or the name initial
+// Small inline avatar that shows the equipped shop avatar or the name initial
 function UserAvatar({ user, size = 'md' }: { user: { name: string; avatarId?: string | null }; size?: 'sm' | 'md' | 'lg' }) {
   const a = findAvatar(user.avatarId);
   const cls = size === 'lg' ? 'w-14 h-14 text-2xl rounded-2xl' : size === 'sm' ? 'w-8 h-8 text-sm rounded-full' : 'w-9 h-9 text-sm rounded-full';
   const emojiSize = size === 'lg' ? '2rem' : size === 'sm' ? '1.25rem' : '1.4rem';
   return (
     <div className={`${cls} bg-gradient-to-br from-pink-300 to-purple-400 flex items-center justify-center font-display font-black text-white shadow-sm flex-shrink-0 overflow-hidden`}>
-      {a ? <span style={{ fontSize: emojiSize, lineHeight: 1 }}>{a.emoji}</span> : user.name[0].toUpperCase()}
+      {a
+        ? a.imageSrc
+          ? <img src={a.imageSrc} alt="" className="h-full w-full object-contain" />
+          : <span style={{ fontSize: emojiSize, lineHeight: 1 }}>{a.emoji}</span>
+        : user.name[0].toUpperCase()}
     </div>
   );
 }

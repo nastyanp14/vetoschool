@@ -1,10 +1,11 @@
-import { Dispatch, SetStateAction } from 'react';
+import { Dispatch, SetStateAction, useEffect, useState } from 'react';
 import { BookOpen, CalendarDays, ClipboardCheck, FileText, StickyNote, Star, Trash2 } from 'lucide-react';
 import { Lang } from '@/lib/i18n';
 import { TeacherDictionaryWord, TeacherGrade, TeacherHomework, TeacherLesson, TeacherNote, TeacherStudent } from '@/lib/teachers';
 import { formatLessonMoment, formatTeacherDate, gradeCategoryLabel, lessonStatusLabel, missingValue, studentStatusLabel } from '@/lib/teacherUi';
 import { TeacherAvatar } from './TeacherAvatar';
 import { TeacherEmptyState } from './TeacherEmptyState';
+import { signedUrlFor } from '@/lib/workbooks';
 
 export type TeacherStudentTab = 'overview' | 'schedule' | 'grades' | 'homework' | 'dictionary' | 'analytics' | 'notes';
 
@@ -110,6 +111,27 @@ function InfoRow({ label, value }: { label: string; value: string | number }) {
   );
 }
 
+function TeacherDictionaryVisual({ word }: { word: TeacherDictionaryWord }) {
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    if (!word.imageUrl) {
+      setImageSrc(null);
+      return;
+    }
+    if (/^(https?:|data:|blob:)/.test(word.imageUrl)) setImageSrc(word.imageUrl);
+    else signedUrlFor(word.imageUrl).then(url => { if (alive) setImageSrc(url); });
+    return () => { alive = false; };
+  }, [word.imageUrl]);
+
+  return (
+    <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-purple-50 text-2xl">
+      {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-contain p-1" /> : word.emoji}
+    </span>
+  );
+}
+
 export function TeacherStudentProfile({
   student,
   teacherName,
@@ -208,7 +230,7 @@ export function TeacherStudentProfile({
           homeworks.length ? <div className="space-y-3">{homeworks.map(item => <div key={item.id} className="rounded-2xl bg-white/65 p-4 font-body text-sm text-purple-600"><b>{item.title}</b><div className="text-xs text-purple-400">{formatTeacherDate(item.dueDate, lang, false)} · {item.teacherComment || missingValue[lang]}</div></div>)}</div> : <TeacherEmptyState icon={ClipboardCheck} title={copy.noHomework} description={copy.noHomeworkText} />
         )}
         {tab === 'dictionary' && (
-          words.length ? <div className="grid gap-3 sm:grid-cols-2">{words.map(word => <div key={word.id} className="rounded-2xl bg-white/65 p-4"><div className="flex items-start justify-between gap-3"><div><div className="font-display text-xl font-black text-purple-700">{word.emoji} {word.word}</div><div className="font-body text-sm text-purple-500">{word.translation}</div></div>{onDeleteDictionaryWord && <button type="button" onClick={() => onDeleteDictionaryWord(word)} className="rounded-full bg-red-100 p-2 text-red-500 transition hover:bg-red-200" aria-label={copy.deleteWord}><Trash2 className="h-4 w-4" /></button>}</div></div>)}</div> : <TeacherEmptyState icon={BookOpen} title={copy.noDictionary} description={copy.noDictionaryText} />
+          words.length ? <div className="grid gap-3 sm:grid-cols-2">{words.map(word => <div key={word.id} className="rounded-2xl bg-white/65 p-4"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-start gap-3"><TeacherDictionaryVisual word={word} /><div className="min-w-0"><div className="font-display text-xl font-black text-purple-700">{word.word}</div><div className="font-body text-sm text-purple-500">{word.translation}</div></div></div>{onDeleteDictionaryWord && <button type="button" onClick={() => onDeleteDictionaryWord(word)} className="rounded-full bg-red-100 p-2 text-red-500 transition hover:bg-red-200" aria-label={copy.deleteWord}><Trash2 className="h-4 w-4" /></button>}</div></div>)}</div> : <TeacherEmptyState icon={BookOpen} title={copy.noDictionary} description={copy.noDictionaryText} />
         )}
         {tab === 'analytics' && (
           <div className="grid gap-3 md:grid-cols-3">

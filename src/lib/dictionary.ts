@@ -9,6 +9,7 @@ export interface DictWord {
   translation: string;
   emoji: string;
   audioUrl?: string | null;
+  imageUrl?: string | null;
   createdAt?: string;
 }
 
@@ -22,6 +23,7 @@ function rowToWord(r: any): DictWord {
     translation: r.translation,
     emoji: r.emoji || '✨',
     audioUrl: r.audio_url || null,
+    imageUrl: r.image_url || null,
     createdAt: r.created_at,
   };
 }
@@ -45,14 +47,25 @@ export async function addDictWord(input: Omit<DictWord, 'id' | 'createdAt'>): Pr
     translation: input.translation,
     emoji: input.emoji || '✨',
     audio_url: input.audioUrl || null,
+    image_url: input.imageUrl || null,
   };
   let { data, error } = await (supabase as any)
     .from('dictionary_words')
     .insert(row)
     .select()
     .single();
+  if (error && /image_url|schema cache|column/i.test(error.message || '')) {
+    const { image_url, ...legacyRow } = row;
+    const retry = await (supabase as any)
+      .from('dictionary_words')
+      .insert(legacyRow)
+      .select()
+      .single();
+    data = retry.data;
+    error = retry.error;
+  }
   if (error && /audio_url|schema cache|column/i.test(error.message || '')) {
-    const { audio_url, ...legacyRow } = row;
+    const { audio_url, image_url, ...legacyRow } = row;
     const retry = await (supabase as any)
       .from('dictionary_words')
       .insert(legacyRow)

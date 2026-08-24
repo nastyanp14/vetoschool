@@ -59,7 +59,7 @@ export async function clearCelebration(userId: string) {
 }
 
 
-// ============== AVATAR CATALOG (emoji-based, playful) ==============
+// ============== AVATAR CATALOG ==============
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 
 export interface AvatarDef {
@@ -67,35 +67,61 @@ export interface AvatarDef {
   rarity: Rarity;
   cost: number;
   emoji: string;
+  imageSrc?: string;
   /** Display name (English fallback); for UI we use rarity color + emoji */
   name: string;
 }
 
 export const AVATARS: AvatarDef[] = [
-  // Common — 10★ (4)
-  { id: 'c-flower',     rarity: 'common', cost: 10,  emoji: '🌸', name: 'Flower' },
-  { id: 'c-strawberry', rarity: 'common', cost: 10,  emoji: '🍓', name: 'Strawberry' },
-  { id: 'c-cat',        rarity: 'common', cost: 10,  emoji: '🐱', name: 'Cat' },
-  { id: 'c-dog',        rarity: 'common', cost: 10,  emoji: '🐶', name: 'Dog' },
-  // Rare — 30★ (7)
-  { id: 'r-bunny',      rarity: 'rare',   cost: 30,  emoji: '🐰', name: 'Bunny' },
-  { id: 'r-bear',       rarity: 'rare',   cost: 30,  emoji: '🐻', name: 'Bear' },
-  { id: 'r-elephant',   rarity: 'rare',   cost: 30,  emoji: '🐘', name: 'Elephant' },
-  { id: 'r-giraffe',    rarity: 'rare',   cost: 30,  emoji: '🦒', name: 'Giraffe' },
-  { id: 'r-monkey',     rarity: 'rare',   cost: 30,  emoji: '🐵', name: 'Monkey' },
-  { id: 'r-fox',        rarity: 'rare',   cost: 30,  emoji: '🦊', name: 'Fox' },
-  { id: 'r-car',        rarity: 'rare',   cost: 30,  emoji: '🚗', name: 'Car' },
-  // Epic — 60★ (4)
-  { id: 'e-lion',       rarity: 'epic',   cost: 60,  emoji: '🦁', name: 'Lion' },
-  { id: 'e-tiger',      rarity: 'epic',   cost: 60,  emoji: '🐯', name: 'Tiger' },
-  { id: 'e-koala',      rarity: 'epic',   cost: 60,  emoji: '🐨', name: 'Koala' },
-  { id: 'e-elf',        rarity: 'epic',   cost: 60,  emoji: '🧝', name: 'Elf' },
-  // Legendary — 100★ (4)
-  { id: 'l-fairy',      rarity: 'legendary', cost: 100, emoji: '🧚', name: 'Fairy' },
-  { id: 'l-princess',   rarity: 'legendary', cost: 100, emoji: '👸', name: 'Princess' },
-  { id: 'l-hero',       rarity: 'legendary', cost: 100, emoji: '🦸', name: 'Superhero' },
-  { id: 'l-prince',     rarity: 'legendary', cost: 100, emoji: '🤴', name: 'Little Prince' },
+  // Common - 10 stars
+  ...[
+    ['c-flower', 24],
+    ['c-strawberry', 13],
+    ['c-cat', 5],
+    ['c-dog', 23],
+    ['c-15', 15],
+    ['c-14', 14],
+  ].map(([id, number]) => avatarDef(id, number, 'common', 10)),
+  // Rare - 30 stars
+  ...[
+    ['r-bunny', 4],
+    ['r-bear', 9],
+    ['r-elephant', 25],
+    ['r-giraffe', 1],
+    ['r-monkey', 2],
+    ['r-fox', 18],
+    ['r-car', 17],
+  ].map(([id, number]) => avatarDef(id, number, 'rare', 30)),
+  // Epic - 60 stars
+  ...[
+    ['e-lion', 8],
+    ['e-tiger', 16],
+    ['e-koala', 7],
+    ['e-elf', 10],
+    ['e-6', 6],
+    ['e-11', 11],
+    ['e-12', 12],
+  ].map(([id, number]) => avatarDef(id, number, 'epic', 60)),
+  // Legendary - 100 stars
+  ...[
+    ['l-fairy', 21],
+    ['l-princess', 22],
+    ['l-hero', 19],
+    ['l-prince', 3],
+    ['l-20', 20],
+  ].map(([id, number]) => avatarDef(id, number, 'legendary', 100)),
 ];
+
+function avatarDef(id: string | number, number: string | number, rarity: Rarity, cost: number): AvatarDef {
+  return {
+    id: String(id),
+    rarity,
+    cost,
+    emoji: '⭐',
+    imageSrc: `/shop/avatars-round/avatar-${number}.png`,
+    name: `Avatar ${number}`,
+  };
+}
 
 /** Background gradient (game-style) per rarity */
 export const RARITY_BG: Record<Rarity, string> = {
@@ -117,5 +143,5 @@ export function findAvatar(id: string | null | undefined): AvatarDef | undefined
   return AVATARS.find(a => a.id === id);
 }
 
-/** Legacy compatibility — some old code may still call avatarUrl(); return '' */
-export function avatarUrl(_a: AvatarDef): string { return ''; }
+/** Legacy compatibility - some old code may still call avatarUrl(). */
+export function avatarUrl(a: AvatarDef): string { return a.imageSrc || ''; }

@@ -871,7 +871,7 @@ function SpeakingEditor({ payload, onChange, lang }: { payload: SpeakingPayload;
       targetPlaceholder: 'elephant',
       targetHint: copy.speakingTargetHint,
       showPrompt: false,
-      showImage: false,
+      showImage: true,
     },
     read_sentence: {
       promptLabel: copy.speakingPrompt,
@@ -934,7 +934,7 @@ function SpeakingEditor({ payload, onChange, lang }: { payload: SpeakingPayload;
             mode: nextMode,
             prompt: '',
             target: '',
-            image: ['name_picture', 'describe_animal'].includes(nextMode) ? payload?.image : undefined,
+            image: ['repeat_word', 'name_picture', 'describe_animal'].includes(nextMode) ? payload?.image : undefined,
             seconds: nextMode === 'speak_20_seconds' ? 20 : 12,
           });
         }}>
@@ -982,11 +982,11 @@ function SpeakingEditor({ payload, onChange, lang }: { payload: SpeakingPayload;
             <label className="mb-2 block text-xs font-body font-700 text-purple-500">{copy.speakingImage}</label>
             {payload?.image ? (
               <div className="flex items-center gap-3">
-                <AssetImg path={payload.image} className="h-16 w-24 rounded-xl object-cover" />
+                <AssetImg path={payload.image} className="h-16 w-24 object-contain" />
                 <button type="button" onClick={() => update({ image: undefined })} className="rounded-xl bg-red-50 px-3 py-1.5 text-xs font-800 text-red-500">{copy.deletePhoto}</button>
               </div>
             ) : (
-              <UploadButton lang={lang} onUploaded={path => update({ image: path })} />
+              <UploadButton lang={lang} label={copy.speakingImage} onUploaded={path => update({ image: path })} />
             )}
           </div>
         )}
@@ -1340,7 +1340,7 @@ function MiniShopEditor({ payload, onChange, lang }: { payload: any; onChange: (
           />
           {item.image ? (
             <div className="relative w-fit">
-              <AssetImg path={item.image} className="h-10 w-10 rounded-xl object-cover" />
+              <AssetImg path={item.image} className="h-10 w-10 object-contain" />
               <button onClick={() => updateItems(items.map((it, idx) => idx === i ? { ...it, image: undefined } : it))} className="absolute -right-1 -top-1 rounded-full bg-white p-0.5 shadow">
                 <X className="h-3 w-3 text-red-500" />
               </button>

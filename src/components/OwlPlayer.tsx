@@ -340,10 +340,24 @@ export default function OwlPlayer({ state, onStateComplete, className = '' }: Ow
   }, [state, transitionToSource]);
 
   const owlMediaClass = 'h-full w-full origin-bottom bg-transparent object-contain object-bottom translate-x-[7%] translate-y-[13%] scale-[1.46] md:translate-x-[10%] md:translate-y-[17%] md:scale-[1.54]';
+  const showDarkThinkingEffect = state === 'thinking';
+  const showDarkFinishEffect = state === 'finishPerfect';
 
   return (
     <div className={`relative flex w-full items-end justify-center overflow-visible bg-transparent ${className}`}>
       <div className="relative h-full w-full overflow-visible bg-transparent">
+        {showDarkThinkingEffect && (
+          <div className="pointer-events-none absolute left-[48%] top-[7%] z-20 hidden h-[clamp(5.5rem,10vw,8.5rem)] w-[clamp(5.5rem,10vw,8.5rem)] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(250,204,21,0.72)_0%,rgba(250,204,21,0.34)_31%,rgba(168,85,247,0.18)_55%,rgba(168,85,247,0)_73%)] blur-[1px] dark:block animate-pulse" />
+        )}
+        {showDarkFinishEffect && (
+          <div className="pointer-events-none absolute inset-0 z-20 hidden dark:block" aria-hidden="true">
+            <img src="/ui/reward-star.png" alt="" draggable={false} className="absolute left-[22%] top-[18%] h-[clamp(2.1rem,4.2vw,3.7rem)] w-[clamp(2.1rem,4.2vw,3.7rem)] animate-bounce object-contain drop-shadow-[0_0_22px_rgba(250,204,21,0.75)]" />
+            <img src="/ui/reward-star.png" alt="" draggable={false} className="absolute right-[18%] top-[24%] h-[clamp(1.65rem,3.2vw,2.9rem)] w-[clamp(1.65rem,3.2vw,2.9rem)] animate-pulse object-contain drop-shadow-[0_0_20px_rgba(250,204,21,0.7)]" />
+            <img src="/ui/reward-star.png" alt="" draggable={false} className="absolute right-[28%] top-[8%] h-[clamp(1.35rem,2.65vw,2.35rem)] w-[clamp(1.35rem,2.65vw,2.35rem)] animate-bounce object-contain drop-shadow-[0_0_18px_rgba(250,204,21,0.68)] delay-300" />
+            <span className="absolute left-[34%] top-[31%] h-3 w-3 rounded-full bg-fuchsia-200 shadow-[0_0_18px_rgba(232,121,249,0.95)] animate-ping" />
+            <span className="absolute right-[34%] top-[42%] h-2.5 w-2.5 rounded-full bg-sky-200 shadow-[0_0_18px_rgba(125,211,252,0.9)] animate-ping delay-500" />
+          </div>
+        )}
         <video
           ref={node => {
             videoRefs.current[0] = node as OwlVideoElement | null;

@@ -207,6 +207,7 @@ export interface TeacherDictionaryWord {
   translation: string;
   emoji: string;
   audioUrl: string | null;
+  imageUrl: string | null;
   createdAt: string;
 }
 
@@ -603,6 +604,7 @@ function rowToDictionary(row: any): TeacherDictionaryWord {
     translation: row.translation,
     emoji: row.emoji || '✨',
     audioUrl: row.audio_url ?? null,
+    imageUrl: row.image_url ?? null,
     createdAt: row.created_at,
   };
 }
@@ -1838,7 +1840,7 @@ export async function saveGrade(input: { teacherId: string; studentId: string; g
 }
 
 
-export async function assignDictionaryWords(input: { studentIds: string[]; lesson?: string; category?: string; word: string; translation: string; emoji?: string; audioUrl?: string }) {
+export async function assignDictionaryWords(input: { studentIds: string[]; lesson?: string; category?: string; word: string; translation: string; emoji?: string; audioUrl?: string; imageUrl?: string }) {
   const rows = Array.from(new Set(input.studentIds)).map(studentId => ({
     user_id: studentId,
     lesson: input.lesson || '',
@@ -1847,11 +1849,17 @@ export async function assignDictionaryWords(input: { studentIds: string[]; lesso
     translation: input.translation,
     emoji: input.emoji || '✨',
     audio_url: input.audioUrl || null,
+    image_url: input.imageUrl || null,
   }));
   if (!rows.length) return;
   let { error } = await (supabase as any).from('dictionary_words').insert(rows);
+  if (error && /image_url|schema cache|column/i.test(error.message || '')) {
+    const legacyRows = rows.map(({ image_url, ...row }) => row);
+    const retry = await (supabase as any).from('dictionary_words').insert(legacyRows);
+    error = retry.error;
+  }
   if (error && /audio_url|schema cache|column/i.test(error.message || '')) {
-    const legacyRows = rows.map(({ audio_url, ...row }) => row);
+    const legacyRows = rows.map(({ audio_url, image_url, ...row }) => row);
     const retry = await (supabase as any).from('dictionary_words').insert(legacyRows);
     error = retry.error;
   }
@@ -1866,6 +1874,7 @@ export async function updateTeacherDictionaryAssignments(input: {
   lesson?: string;
   emoji?: string;
   audioUrl?: string | null;
+  imageUrl?: string | null;
 }) {
   const uniqueIds = Array.from(new Set(input.ids.filter(Boolean)));
   if (!uniqueIds.length) return;
@@ -1876,10 +1885,16 @@ export async function updateTeacherDictionaryAssignments(input: {
     lesson: input.lesson?.trim() || '',
     emoji: input.emoji?.trim() || '✨',
     audio_url: input.audioUrl?.trim() || null,
+    image_url: input.imageUrl?.trim() || null,
   };
   let { error } = await (supabase as any).from('dictionary_words').update(row).in('id', uniqueIds);
+  if (error && /image_url|schema cache|column/i.test(error.message || '')) {
+    const { image_url, ...legacyRow } = row;
+    const retry = await (supabase as any).from('dictionary_words').update(legacyRow).in('id', uniqueIds);
+    error = retry.error;
+  }
   if (error && /audio_url|schema cache|column/i.test(error.message || '')) {
-    const { audio_url, ...legacyRow } = row;
+    const { audio_url, image_url, ...legacyRow } = row;
     const retry = await (supabase as any).from('dictionary_words').update(legacyRow).in('id', uniqueIds);
     error = retry.error;
   }

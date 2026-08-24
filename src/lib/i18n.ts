@@ -461,6 +461,10 @@ const ru = {
   dash_hw_due: 'Домашних заданий',
   dash_week: 'На этой неделе',
   dash_recent: '📚 Последние уроки',
+  dash_recent_start: 'Начало',
+  dash_recent_progress: 'В процессе',
+  dash_recent_locked: 'Заблокировано',
+  dash_recent_unlocked: 'Открыто',
   dash_progress: '📊 Мой прогресс',
 
   // Dashboard — modals & file
@@ -675,7 +679,7 @@ const ru = {
   admin_bonus_done: '✨ Начислено! Ученик получит салют ⭐',
 
   // Interactive lessons (RU)
-  dash_interactive: '🎮 Интерактив',
+  dash_interactive: 'Интерактив',
   map_empty_title: 'Карта пуста',
   map_empty_desc: 'Скоро здесь появятся интерактивные уроки.',
   wb_title: '📚 Конструктор воркбуков',
@@ -1140,6 +1144,10 @@ const en: typeof ru = {
   dash_hw_due: 'Homework',
   dash_week: 'This Week',
   dash_recent: '📚 Recent Lessons',
+  dash_recent_start: 'Start',
+  dash_recent_progress: 'In progress',
+  dash_recent_locked: 'Locked',
+  dash_recent_unlocked: 'Unlocked',
   dash_progress: '📊 My Progress',
   dash_download: 'Download',
   dash_no_file: 'No file attached',
@@ -1326,7 +1334,7 @@ const en: typeof ru = {
   admin_bonus_done: '✨ Sent! Student will see a star burst ⭐',
 
   // Interactive lessons (EN)
-  dash_interactive: '🎮 Interactive',
+  dash_interactive: 'Interactive',
   map_empty_title: 'The map is empty',
   map_empty_desc: 'Interactive lessons will appear here soon.',
   wb_title: '📚 Workbook Studio',
@@ -1791,6 +1799,10 @@ const ua: typeof ru = {
   dash_hw_due: 'Домашніх завдань',
   dash_week: 'Цього тижня',
   dash_recent: '📚 Останні уроки',
+  dash_recent_start: 'Початок',
+  dash_recent_progress: 'У процесі',
+  dash_recent_locked: 'Заблоковано',
+  dash_recent_unlocked: 'Відкрито',
   dash_progress: '📊 Мій прогрес',
   dash_download: 'Завантажити',
   dash_no_file: 'Файл не прикріплено',
@@ -1977,7 +1989,7 @@ const ua: typeof ru = {
   admin_bonus_done: '✨ Нараховано! Учень побачить салют ⭐',
 
   // Interactive lessons (UA)
-  dash_interactive: '🎮 Інтерактив',
+  dash_interactive: 'Інтерактив',
   map_empty_title: 'Карта порожня',
   map_empty_desc: 'Скоро тут з\'являться інтерактивні уроки.',
   wb_title: '📚 Конструктор воркбуків',

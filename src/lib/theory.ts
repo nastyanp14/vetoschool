@@ -70,6 +70,7 @@ export interface TheoryExampleItem {
   sentence: string;
   translation: string;
   note: string;
+  image?: string;
   audio?: string;
   audio_url?: string;
   audio_voice_id?: string;
@@ -89,6 +90,10 @@ export interface TheoryContent {
   eyebrow: string;
   title: string;
   subtitle: string;
+  planTitle?: string;
+  planSteps?: string[];
+  tipTitle?: string;
+  tipBody?: string;
   blocks: TheoryBlock[];
 }
 
@@ -96,6 +101,10 @@ export const emptyTheoryContent = (lessonTitle = ''): TheoryContent => ({
   eyebrow: 'VetoSchool Theory',
   title: lessonTitle,
   subtitle: '',
+  planTitle: '',
+  planSteps: [],
+  tipTitle: '',
+  tipBody: '',
   blocks: [],
 });
 
@@ -130,7 +139,7 @@ export function createTheoryBlock(type: TheoryBlock['type']): TheoryBlock {
   if (type === 'examples') {
     return {
       id: theoryId(), type, title: 'Примеры',
-      items: [{ id: theoryId(), sentence: '', translation: '', note: '' }],
+      items: [{ id: theoryId(), sentence: '', translation: '', note: '', image: '' }],
     };
   }
   return { id: theoryId(), type: 'text', title: 'Новая тема', body: '', style: 'paragraph' };

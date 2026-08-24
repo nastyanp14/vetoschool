@@ -1,7 +1,7 @@
-import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type ImgHTMLAttributes, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, BarChart3, BookOpen, CheckCircle2, Headphones, ImageIcon, Lightbulb, Mic, RotateCcw, Sparkles, Square, Undo2, Volume2, X, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BarChart3, BookOpen, CheckCircle2, ImageIcon, Lightbulb, Mic, RotateCcw, Sparkles, Square, Undo2, Volume2, X, XCircle } from 'lucide-react';
 import {
   Lesson, InteractiveTask, completeAssignedInteractiveContent, listTasks, markLessonComplete, signedUrlFor,
 } from '../lib/workbooks';
@@ -19,6 +19,11 @@ import OwlPlayer, { type OwlPlayerState } from './OwlPlayer';
 type TaskTelemetryPayload = Record<string, unknown>;
 type TaskTelemetry = (eventType: string, payload?: TaskTelemetryPayload) => void;
 const THINKING_OWL_DELAY_MS = 14000;
+const REWARD_STAR_SRC = '/ui/reward-star.png';
+const PROGRESS_STAR_SRC = '/ui/progress-star.png';
+const DARK_STAR_LARGE_SRC = '/ui/word-search-star-dark-large.png';
+const DARK_STAR_MEDIUM_SRC = '/ui/word-search-star-dark-medium.png';
+const DARK_STAR_SMALL_SRC = '/ui/word-search-star-dark-small.png';
 type SpeakingMode = 'repeat_word' | 'read_sentence' | 'name_picture' | 'answer_question' | 'describe_animal' | 'speak_20_seconds';
 type SpeechRecognitionResult = 'great' | 'almost' | 'retry' | 'sound';
 type SpeakingPayload = Partial<{ mode: SpeakingMode; target: string; prompt: string; seconds: number; image: string; audio: string }>;
@@ -41,6 +46,26 @@ type RoomStudentProfile = {
   avatarId: string | null;
 };
 
+function cx(...parts: Array<string | false | null | undefined>) {
+  return parts.filter(Boolean).join(' ');
+}
+
+function ThemedStarImage({
+  lightSrc = REWARD_STAR_SRC,
+  darkSrc = DARK_STAR_MEDIUM_SRC,
+  className,
+  lightClassName = 'dark:hidden',
+  darkClassName = 'hidden dark:block',
+  ...props
+}: ImgHTMLAttributes<HTMLImageElement> & { lightSrc?: string; darkSrc?: string; lightClassName?: string; darkClassName?: string }) {
+  return (
+    <>
+      <img {...props} src={lightSrc} className={cx(className, lightClassName)} />
+      <img {...props} src={darkSrc} className={cx(className, darkClassName)} />
+    </>
+  );
+}
+
 function getSpeechRecognitionConstructor() {
   return ((window as Window & {
     SpeechRecognition?: SpeechRecognitionConstructor;
@@ -53,9 +78,12 @@ function getSpeechRecognitionConstructor() {
 
 const tileBase = 'min-h-14 rounded-2xl border-2 px-4 py-3 font-body font-700 text-base shadow-sm transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-pink-200/70';
 const liveTile = 'bg-white/95 border-purple-100 text-purple-700 shadow-md shadow-purple-100/60 hover:-translate-y-0.5 hover:border-pink-300 hover:shadow-lg dark:bg-[#2b1a3d] dark:border-purple-700 dark:text-purple-100 dark:shadow-none dark:hover:border-pink-400';
-const selectedTile = 'bg-gradient-to-r from-pink-400 to-purple-400 border-white text-white shadow-xl ring-4 ring-pink-200/70 dark:border-purple-200 dark:ring-purple-500/30';
+const selectedTile = 'student-accent-gradient border-white text-white shadow-xl ring-4 ring-pink-200/70 dark:border-purple-200 dark:ring-purple-500/30';
 const doneTile = 'bg-emerald-50 border-emerald-200 text-emerald-700 opacity-75 dark:bg-emerald-950 dark:border-emerald-700 dark:text-emerald-200';
 const wrongTile = 'bg-rose-50 border-rose-300 text-rose-600 animate-pulse dark:bg-rose-950 dark:border-rose-700 dark:text-rose-200';
+const speakingActionGradient = 'linear-gradient(90deg, #EFA4DE 0%, #D7A9E9 45%, #B6BDF9 100%)';
+const masterProgressGradient = 'linear-gradient(90deg, #EFA4DE 0%, #D7A9E9 45%, #B6BDF9 100%)';
+const masterConnectionSelectedClass = 'border-transparent bg-[linear-gradient(90deg,#EFA4DE_0%,#D7A9E9_45%,#B6BDF9_100%)] text-white shadow-[0_14px_28px_rgba(183,189,249,0.25)] ring-4 ring-purple-200/70';
 
 function LessonProgress({ current, total }: { current: number; total: number }) {
   return (
@@ -63,7 +91,7 @@ function LessonProgress({ current, total }: { current: number; total: number }) 
       {Array.from({ length: total }).map((_, i) => (
         <span
           key={i}
-          className={`h-2 rounded-full transition-all ${i <= current ? 'w-8 bg-gradient-to-r from-pink-400 to-purple-400' : 'w-2 bg-purple-100 dark:bg-purple-800'}`}
+          className={`h-2 rounded-full transition-all ${i <= current ? 'student-accent-gradient w-8' : 'w-2 bg-purple-100 dark:bg-purple-800'}`}
         />
       ))}
     </div>
@@ -76,7 +104,7 @@ function StarRatingDisplay({ value, total = 5 }: { value: number; total?: number
       {Array.from({ length: total }).map((_, index) => (
         <img
           key={index}
-          src="/ui/reward-star.png"
+          src={REWARD_STAR_SRC}
           alt=""
           draggable={false}
           className={`h-[clamp(2.05rem,2.75vw,2.5rem)] w-[clamp(2.05rem,2.75vw,2.5rem)] select-none object-contain transition duration-300 ${index < value ? 'opacity-100' : 'opacity-25 grayscale'}`}
@@ -646,13 +674,13 @@ function CompletionCelebration({ stars, summary, showScore, copy, onExit }: { st
         label: copy.completionFirstTry,
         value: `${summary.firstTryCorrect}/${summary.totalQuestions}`,
         icon: <CheckCircle2 className="h-5 w-5" />,
-        iconClass: 'bg-emerald-100 text-emerald-500',
+        iconClass: 'bg-emerald-100 text-emerald-500 dark:bg-[#4b236b] dark:text-purple-100',
       },
       {
         label: copy.completionRetry,
         value: summary.retryAttempts,
         icon: <RotateCcw className="h-5 w-5" />,
-        iconClass: 'bg-sky-100 text-sky-500',
+        iconClass: 'bg-sky-100 text-sky-500 dark:bg-[#4b236b] dark:text-purple-100',
       },
     ]
     : [];
@@ -685,7 +713,7 @@ function CompletionCelebration({ stars, summary, showScore, copy, onExit }: { st
         <motion.div
           animate={{ scale: [1, 1.035, 1] }}
           transition={{ duration: 2.1, repeat: Infinity, ease: 'easeInOut' }}
-          className="relative mb-[clamp(0.35rem,0.9vh,0.65rem)] flex h-[clamp(5.25rem,9.2vw,7.1rem)] w-[clamp(5.25rem,9.2vw,7.1rem)] items-center justify-center rounded-[1.35rem] border border-purple-100 bg-gradient-to-br from-violet-100 via-purple-50 to-pink-100 shadow-[0_16px_36px_rgba(168,85,247,0.18)]"
+          className="relative mb-[clamp(0.35rem,0.9vh,0.65rem)] flex h-[clamp(5.25rem,9.2vw,7.1rem)] w-[clamp(5.25rem,9.2vw,7.1rem)] items-center justify-center rounded-[1.35rem] border border-purple-100 bg-gradient-to-br from-violet-100 via-purple-50 to-pink-100 shadow-[0_16px_36px_rgba(168,85,247,0.18)] dark:border-white/80 dark:from-white dark:via-white dark:to-white"
         >
           <motion.span
             className="absolute inset-[-0.65rem] rounded-[1.75rem] border border-yellow-200/50"
@@ -721,7 +749,7 @@ function CompletionCelebration({ stars, summary, showScore, copy, onExit }: { st
             {[1, 2, 3, 4, 5].map(value => (
               <img
                 key={value}
-                src="/ui/reward-star.png"
+                src={REWARD_STAR_SRC}
                 alt=""
                 draggable={false}
                 className={`h-[clamp(1.55rem,3.15vw,2.5rem)] w-[clamp(1.55rem,3.15vw,2.5rem)] select-none object-contain transition ${value <= rating ? 'opacity-100' : 'opacity-25 grayscale'}`}
@@ -755,7 +783,7 @@ function CompletionCelebration({ stars, summary, showScore, copy, onExit }: { st
 
         <button
           onClick={onExit}
-          className="mt-[clamp(1rem,2.4vh,1.65rem)] inline-flex min-h-[clamp(3.05rem,5.6vh,4rem)] items-center justify-center gap-4 rounded-[1.25rem] bg-gradient-to-r from-violet-400 via-purple-400 to-indigo-400 px-[clamp(2.25rem,4.8vw,4.1rem)] font-display text-[clamp(1.02rem,1.5vw,1.32rem)] font-semibold text-white shadow-[0_14px_28px_rgba(139,92,246,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(139,92,246,0.3)]"
+          className="student-accent-gradient mt-[clamp(1rem,2.4vh,1.65rem)] inline-flex min-h-[clamp(3.05rem,5.6vh,4rem)] items-center justify-center gap-4 rounded-[1.25rem] px-[clamp(2.25rem,4.8vw,4.1rem)] font-display text-[clamp(1.02rem,1.5vw,1.32rem)] font-semibold text-white shadow-[0_14px_28px_rgba(139,92,246,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(139,92,246,0.3)]"
         >
           {copy.toMap}
           <ArrowRight className="h-6 w-6" />
@@ -916,6 +944,7 @@ function SpeakingPracticeTask({ payload, onDone, onEvent, lang }: { payload: Spe
   const [recording, setRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [hint, setHint] = useState('');
+  const [hintRevealed, setHintRevealed] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [remaining, setRemaining] = useState(seconds);
   const [attempted, setAttempted] = useState(false);
@@ -931,12 +960,20 @@ function SpeakingPracticeTask({ payload, onDone, onEvent, lang }: { payload: Spe
         ? copy.soundPronunciation
         : copy.retryPronunciation;
   const showAnswer = Boolean(expectedText) && (!hidesAnswerInitially || score?.result === 'great');
+  const visibleAnswer = Boolean(expectedText) && (showAnswer || hintRevealed);
+  const pronunciationHint = score?.tricky
+    ? `${copy.trickyPart}: ${score.tricky}`
+    : (prompt || visiblePrompt || copy.defaultPrompt);
 
   useEffect(() => () => {
     recognitionRef.current?.stop?.();
     if (timerRef.current) window.clearInterval(timerRef.current);
     micStreamRef.current?.getTracks().forEach(track => track.stop());
   }, []);
+
+  useEffect(() => {
+    setHintRevealed(false);
+  }, [mode, expectedText]);
 
   useEffect(() => {
     let alive = true;
@@ -957,6 +994,26 @@ function SpeakingPracticeTask({ payload, onDone, onEvent, lang }: { payload: Spe
     timerRef.current = null;
     micStreamRef.current?.getTracks().forEach(track => track.stop());
     micStreamRef.current = null;
+  };
+
+  const playPromptAudio = () => {
+    const textToSpeak = expectedText || prompt || visiblePrompt;
+    if (audioUrl) {
+      const audioElement = new Audio(audioUrl);
+      audioElement.volume = 1;
+      audioElement.play().catch(() => undefined);
+      return;
+    }
+    speakText(textToSpeak, lang);
+  };
+
+  const resetTask = () => {
+    stop();
+    setTranscript('');
+    setHint('');
+    setHintRevealed(false);
+    setAttempted(false);
+    setRemaining(seconds);
   };
 
   const start = async () => {
@@ -1046,71 +1103,89 @@ function SpeakingPracticeTask({ payload, onDone, onEvent, lang }: { payload: Spe
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
-      <section className="overflow-hidden rounded-[2rem] border border-pink-100 bg-gradient-to-br from-white via-pink-50/70 to-sky-50 p-5 text-center shadow-xl shadow-purple-100/40 dark:border-purple-500/25 dark:from-[#251331] dark:via-[#211231] dark:to-[#102039] dark:shadow-none">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[1.4rem] bg-gradient-to-br from-pink-400 to-purple-500 text-white shadow-lg shadow-pink-200/50 dark:shadow-none">
-          <Mic className="h-8 w-8" />
+    <div className="mx-auto max-w-5xl space-y-2">
+      <section className="overflow-hidden rounded-[1.35rem] bg-gradient-to-br from-pink-50/80 via-white to-purple-50/85 px-2 pb-2 pt-5 text-center shadow-inner shadow-pink-100/50 dark:from-[#251331] dark:via-[#211231] dark:to-[#102039] sm:px-3 sm:pb-3 sm:pt-6">
+        <div className="relative px-3 py-2 dark:from-white/5 dark:via-white/5 dark:to-purple-500/10 sm:px-6">
+          <img src="/ui/word-search-star-pink.png" alt="" draggable={false} className="pointer-events-none absolute right-[3%] top-[8%] hidden h-10 w-10 rotate-12 select-none object-contain drop-shadow-[0_8px_14px_rgba(236,72,153,0.18)] sm:block dark:sm:hidden" />
+          <img src="/ui/speaking-star-dark-large.png" alt="" draggable={false} className="pointer-events-none absolute right-[3%] top-[8%] hidden h-14 w-14 rotate-12 select-none object-contain dark:sm:block" />
+          <img src="/ui/word-search-star-blue.png" alt="" draggable={false} className="pointer-events-none absolute right-[11%] top-[22%] hidden h-8 w-8 -rotate-12 select-none object-contain drop-shadow-[0_8px_14px_rgba(56,189,248,0.18)] sm:block dark:sm:hidden" />
+          <img src="/ui/speaking-star-dark-small.png" alt="" draggable={false} className="pointer-events-none absolute right-[11%] top-[22%] hidden h-12 w-12 -rotate-12 select-none object-contain dark:sm:block" />
+          <img src="/ui/word-search-star-yellow.png" alt="" draggable={false} className="pointer-events-none absolute right-[20%] top-[12%] hidden h-8 w-8 select-none object-contain drop-shadow-[0_8px_14px_rgba(250,204,21,0.18)] sm:block dark:sm:hidden" />
+          <img src="/ui/speaking-star-dark-wide.png" alt="" draggable={false} className="pointer-events-none absolute right-[20%] top-[12%] hidden h-12 w-12 select-none object-contain dark:sm:block" />
+          <button
+            type="button"
+            onClick={playPromptAudio}
+            className={`student-accent-gradient group relative mx-auto -mt-4 mb-1 flex h-16 w-16 -translate-y-2 items-center justify-center rounded-full text-white shadow-[0_12px_26px_rgba(168,85,247,0.25)] ring-4 ring-white/85 transition hover:-translate-y-3 hover:shadow-[0_16px_32px_rgba(168,85,247,0.30)] focus:outline-none focus:ring-pink-200/90 dark:ring-white/10 sm:h-[4.5rem] sm:w-[4.5rem] ${recording ? 'animate-pulse' : ''}`}
+            aria-label={copy.listen}
+          >
+            <span className="pointer-events-none absolute -left-8 top-1/2 h-8 w-4 -translate-y-1/2 rounded-l-full border-y-[4px] border-l-[4px] border-pink-200/80 opacity-80" />
+            <span className="pointer-events-none absolute -left-12 top-1/2 h-11 w-5 -translate-y-1/2 rounded-l-full border-y-[4px] border-l-[4px] border-pink-100/75 opacity-75" />
+            <span className="pointer-events-none absolute -right-8 top-1/2 h-8 w-4 -translate-y-1/2 rounded-r-full border-y-[4px] border-r-[4px] border-pink-200/80 opacity-80" />
+            <span className="pointer-events-none absolute -right-12 top-1/2 h-11 w-5 -translate-y-1/2 rounded-r-full border-y-[4px] border-r-[4px] border-pink-100/75 opacity-75" />
+            <span className="absolute inset-1 rounded-full border border-white/35" />
+            <span className="absolute left-3 top-3 h-4 w-4 rounded-full bg-white/40 blur-[1px]" />
+            <Volume2 className="relative h-7 w-7 drop-shadow-sm sm:h-8 sm:w-8" />
+          </button>
+          <div className="mb-1.5 font-body text-[0.68rem] font-black uppercase text-pink-400 sm:text-xs">{speakingModeLabel(copy, mode)}</div>
+          {showMainPrompt && <h3 className="mx-auto mb-2 max-w-2xl font-display text-2xl font-black leading-tight text-purple-800 dark:text-purple-100 sm:text-3xl">{visiblePrompt}</h3>}
+
+          {expectedText ? (
+            <div className="relative mx-auto flex min-h-16 max-w-4xl items-center justify-center rounded-[1rem] bg-white/95 px-4 py-1.5 shadow-md shadow-purple-100/35 ring-1 ring-purple-100/70 dark:bg-white/10 dark:ring-purple-500/20 sm:min-h-[4.75rem] sm:px-7">
+              <div className="flex min-w-0 justify-center px-20 [&_span]:text-xl sm:px-28 sm:[&_span]:text-2xl">
+                {visibleAnswer ? (
+                  <HighlightedSpeechTarget target={expectedText} transcript={transcript} />
+                ) : (
+                  <span className="rounded-2xl bg-purple-50 px-4 py-2 font-body text-sm font-black text-purple-300 dark:bg-white/10 dark:text-purple-200">{copy.answerHidden}</span>
+                )}
+              </div>
+              {image && <SignedImg path={image} className="absolute right-3 top-1/2 h-24 w-32 -translate-y-1/2 object-contain sm:right-6 sm:h-32 sm:w-44" draggable={false} />}
+            </div>
+          ) : (
+            <p className="mx-auto max-w-2xl rounded-[1.15rem] bg-white/90 px-4 py-3 font-body text-sm font-bold text-purple-500 shadow-sm ring-1 ring-purple-100/70 dark:bg-white/10 dark:text-purple-200 dark:ring-purple-500/20">{copy.sayAnything}</p>
+          )}
         </div>
-        <div className="mb-2 font-body text-xs font-black uppercase tracking-wider text-pink-400">{speakingModeLabel(copy, mode)}</div>
-        {showMainPrompt && <h3 className="mx-auto max-w-2xl font-display text-2xl font-black leading-tight text-purple-800 dark:text-purple-100 sm:text-3xl">{visiblePrompt}</h3>}
-        {image && (
-          <div className="mx-auto mt-4 max-w-sm overflow-hidden rounded-3xl border border-white bg-white/80 p-2 shadow-md dark:border-purple-500/20 dark:bg-white/5">
-            <SignedImg path={image} className="aspect-[4/3] w-full rounded-2xl object-cover" />
-          </div>
-        )}
-        {showAnswer && expectedText && (
-          <div className="mt-5 rounded-3xl border border-purple-100 bg-white/70 p-4 dark:border-purple-500/20 dark:bg-white/5">
-            {hidesAnswerInitially && attempted && score?.result !== 'great' && (
-              <div className="mb-2 font-body text-xs font-black uppercase tracking-wider text-orange-400">{copy.hintAnswer}</div>
-            )}
-            <HighlightedSpeechTarget target={expectedText} transcript={transcript} />
-          </div>
-        )}
-        {!showAnswer && expectedText && (
-          <div className="mt-5 rounded-3xl border border-dashed border-purple-100 bg-white/50 px-4 py-3 font-body text-sm font-black text-purple-300 dark:border-purple-500/20 dark:bg-white/5 dark:text-purple-300">{copy.answerHidden}</div>
-        )}
-        {!expectedText && <p className="mt-4 font-body text-sm font-bold text-purple-500 dark:text-purple-200">{copy.sayAnything}</p>}
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-        <div className={`rounded-3xl border p-4 shadow-sm transition ${resultStyles(score?.result)}`}>
+      <div className="grid gap-2 lg:grid-cols-[1fr_auto]">
+        <div className={`rounded-[1rem] border px-4 py-2.5 shadow-sm transition ${resultStyles(score?.result)}`}>
           <div className="mb-1 flex items-center justify-between gap-3">
-            <span className="font-body text-xs font-black uppercase tracking-wider opacity-70">{score ? resultLabel : recording ? copy.listeningNow : copy.heard}</span>
+            <span className="font-body text-xs font-black uppercase opacity-70">{score ? resultLabel : recording ? copy.listeningNow : copy.heard}</span>
             {recording && <span className="rounded-full bg-white/70 px-3 py-1 font-body text-xs font-black text-purple-600 dark:bg-white/10 dark:text-purple-100">{remaining} {copy.secondsLeft}</span>}
           </div>
           <div className="min-h-7 font-display text-lg font-black">
             {transcript || hint || '...'}
           </div>
-          {score?.tricky && score.result !== 'great' && (
-            <div className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-orange-100 bg-white/70 px-3 py-2 font-body text-xs font-black text-orange-600 dark:border-orange-500/20 dark:bg-white/5 dark:text-orange-100">
-              <Headphones className="h-4 w-4" /> {copy.trickyPart}: {score.tricky}
-            </div>
-          )}
         </div>
-        <div className="flex items-center justify-center gap-2 rounded-3xl border border-purple-100 bg-white/80 p-3 shadow-sm dark:border-purple-500/25 dark:bg-white/5">
-          {audio && (
-            <button type="button" onClick={() => {
-              if (!audioUrl) return;
-              const audioElement = new Audio(audioUrl);
-              audioElement.volume = 1;
-              audioElement.play().catch(() => undefined);
-            }} disabled={!audioUrl} className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50 text-purple-500 transition hover:-translate-y-0.5 hover:bg-pink-50 hover:text-pink-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/10 dark:text-purple-100" aria-label={copy.listen}>
-              <Volume2 className="h-5 w-5" />
-            </button>
-          )}
-          <button type="button" onClick={recording ? stop : start} className={`flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-lg transition hover:-translate-y-0.5 ${recording ? 'bg-gradient-to-br from-rose-400 to-pink-500 shadow-rose-200/50' : 'bg-gradient-to-br from-pink-400 to-purple-500 shadow-pink-200/50'}`} aria-label={recording ? copy.stopSpeaking : copy.startSpeaking}>
+        <div className="flex flex-wrap items-center justify-center gap-2 rounded-[1rem] bg-white/80 p-2 shadow-sm ring-1 ring-purple-100/80 dark:bg-white/5 dark:ring-purple-500/25">
+          <button type="button" onClick={recording ? stop : start} style={{ background: speakingActionGradient }} className="inline-flex h-11 min-w-11 items-center justify-center rounded-xl px-3.5 text-white shadow-lg shadow-purple-300/40 transition hover:-translate-y-0.5" aria-label={recording ? copy.stopSpeaking : copy.startSpeaking}>
             {recording ? <Square className="h-5 w-5 fill-current" /> : <Mic className="h-6 w-6" />}
           </button>
-          <button type="button" onClick={() => { setTranscript(''); setHint(''); setAttempted(false); setRemaining(seconds); }} className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50 text-purple-500 transition hover:-translate-y-0.5 hover:bg-purple-100 dark:bg-white/10 dark:text-purple-100" aria-label={copy.clear}>
-            <RotateCcw className="h-5 w-5" />
+          <button type="button" onClick={resetTask} className="inline-flex h-11 items-center gap-2 rounded-xl bg-purple-50 px-3.5 font-body text-sm font-black text-purple-500 transition hover:-translate-y-0.5 hover:bg-purple-100 dark:bg-white/10 dark:text-purple-100" aria-label={copy.reset}>
+            <RotateCcw className="h-5 w-5" /> {copy.reset}
           </button>
         </div>
       </div>
 
-      <div className="flex justify-center">
-        <button type="button" onClick={finishSpeakingTask} disabled={!transcript.trim()} className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-500 px-6 py-3 font-body text-sm font-black text-white shadow-xl shadow-pink-200/50 transition hover:-translate-y-0.5 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-50 dark:shadow-none">
-          <CheckCircle2 className="h-5 w-5" /> {copy.check}
-        </button>
+      <div className={`${hintRevealed ? 'grid items-center gap-2 lg:grid-cols-[1fr_auto]' : 'flex justify-center lg:justify-end'}`}>
+        <AnimatePresence initial={false}>
+          {hintRevealed && (
+            <div>
+              <TaskHintBubble
+                hint={pronunciationHint}
+                label={copy.hintAnswer}
+                className="max-w-full"
+              />
+            </div>
+          )}
+        </AnimatePresence>
+        <div className="flex flex-wrap justify-center gap-2 lg:justify-end">
+          <button type="button" onClick={() => { setHintRevealed(true); onEvent('hint_requested', { mechanic: 'speaking_practice', mode }); }} className="inline-flex h-10 items-center gap-2 rounded-xl bg-white px-4 font-body text-sm font-black text-purple-600 shadow-md shadow-purple-100/50 ring-1 ring-purple-100 transition hover:-translate-y-0.5 hover:bg-purple-50 dark:bg-white/10 dark:text-purple-100 dark:ring-purple-500/25">
+            <Lightbulb className="h-4 w-4 text-yellow-400" /> {copy.hintAnswer}
+          </button>
+          <button type="button" onClick={finishSpeakingTask} disabled={!transcript.trim()} style={{ background: speakingActionGradient }} className="inline-flex h-10 items-center gap-2 rounded-xl px-5 font-body text-sm font-black text-white shadow-xl shadow-purple-300/40 transition hover:-translate-y-0.5 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-50 dark:shadow-none">
+            <CheckCircle2 className="h-4 w-4" /> {copy.check}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1227,7 +1302,7 @@ function MatchingTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
   const imageOnlyCard = 'px-3 py-2';
   const cardBase = 'relative h-[4.55rem] overflow-visible rounded-[1.05rem] border-2 px-4 py-2.5 text-purple-800 shadow-[0_7px_18px_rgba(124,58,237,0.10)] transition-colors duration-200 focus:outline-none focus:ring-4 focus:ring-purple-200/70 dark:text-purple-100';
   const cardLive = 'border-purple-100 bg-white hover:-translate-y-0.5 hover:border-purple-300 hover:shadow-[0_11px_24px_rgba(124,58,237,0.15)] dark:border-purple-700 dark:bg-[#2b1a3d]';
-  const cardSelected = 'border-purple-300 bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white shadow-[0_14px_28px_rgba(168,85,247,0.25)] ring-4 ring-purple-200/70';
+  const cardSelected = masterConnectionSelectedClass;
   const cardDone = 'border-emerald-200 bg-emerald-50 text-emerald-700 opacity-80 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200';
   const cardWrong = 'border-rose-300 bg-rose-50 text-rose-600 animate-pulse dark:border-rose-700 dark:bg-rose-950 dark:text-rose-200';
   const leftDot = 'after:absolute after:right-[-0.45rem] after:top-1/2 after:z-20 after:hidden after:h-3 after:w-3 after:-translate-y-1/2 after:rounded-full after:bg-purple-400 after:shadow-[0_0_0_4px_rgba(196,181,253,0.18)] sm:after:block';
@@ -1251,9 +1326,9 @@ function MatchingTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
         <svg className="pointer-events-none absolute inset-0 z-0 hidden h-full w-full overflow-visible sm:block" aria-hidden="true">
           <defs>
             <linearGradient id="matching-line" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#8b5cf6" />
-              <stop offset="55%" stopColor="#d946ef" />
-              <stop offset="100%" stopColor="#f472b6" />
+              <stop offset="0%" stopColor="#EFA4DE" />
+              <stop offset="45%" stopColor="#D7A9E9" />
+              <stop offset="100%" stopColor="#B6BDF9" />
             </linearGradient>
             <filter id="matching-line-shadow" x="-20%" y="-80%" width="140%" height="260%">
               <feDropShadow dx="0" dy="6" stdDeviation="7" floodColor="#c084fc" floodOpacity="0.28" />
@@ -1274,8 +1349,8 @@ function MatchingTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
                   strokeLinecap="round"
                   strokeWidth="5"
                 />
-                <motion.circle initial={{ scale: 0 }} animate={{ scale: 1 }} cx={line.x1} cy={line.y1} r="7" fill="#8b5cf6" />
-                <motion.circle initial={{ scale: 0 }} animate={{ scale: 1 }} cx={line.x2} cy={line.y2} r="7" fill="#f472b6" />
+                <motion.circle initial={{ scale: 0 }} animate={{ scale: 1 }} cx={line.x1} cy={line.y1} r="7" fill="#EFA4DE" />
+                <motion.circle initial={{ scale: 0 }} animate={{ scale: 1 }} cx={line.x2} cy={line.y2} r="7" fill="#B6BDF9" />
               </g>
             );
           })}
@@ -1411,9 +1486,9 @@ function WordLegoTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
         <svg className="pointer-events-none absolute inset-0 z-0 h-full w-full overflow-visible" aria-hidden="true">
           <defs>
             <linearGradient id="word-lego-line" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#8b5cf6" />
-              <stop offset="55%" stopColor="#d946ef" />
-              <stop offset="100%" stopColor="#f472b6" />
+              <stop offset="0%" stopColor="#EFA4DE" />
+              <stop offset="45%" stopColor="#D7A9E9" />
+              <stop offset="100%" stopColor="#B6BDF9" />
             </linearGradient>
             <filter id="word-lego-line-shadow" x="-20%" y="-80%" width="140%" height="260%">
               <feDropShadow dx="0" dy="6" stdDeviation="7" floodColor="#c084fc" floodOpacity="0.28" />
@@ -1434,14 +1509,14 @@ function WordLegoTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
                   strokeLinecap="round"
                   strokeWidth="5"
                 />
-                <motion.circle initial={{ scale: 0 }} animate={{ scale: 1 }} cx={line.x1} cy={line.y1} r="7" fill="#8b5cf6" />
-                <motion.circle initial={{ scale: 0 }} animate={{ scale: 1 }} cx={line.x2} cy={line.y2} r="7" fill="#f472b6" />
+                <motion.circle initial={{ scale: 0 }} animate={{ scale: 1 }} cx={line.x1} cy={line.y1} r="7" fill="#EFA4DE" />
+                <motion.circle initial={{ scale: 0 }} animate={{ scale: 1 }} cx={line.x2} cy={line.y2} r="7" fill="#B6BDF9" />
               </g>
             );
           })}
         </svg>
         <div className="relative z-10 flex flex-col items-center">
-          <div className="mb-[clamp(0.55rem,1.2vh,0.75rem)] rounded-full bg-gradient-to-r from-purple-400 to-violet-500 px-[clamp(1.15rem,2.8vw,2.1rem)] py-[clamp(0.28rem,0.7vh,0.46rem)] font-body text-[clamp(0.66rem,0.95vw,0.82rem)] font-bold uppercase tracking-[0.08em] text-white shadow-[0_8px_18px_rgba(139,92,246,0.22)]">
+          <div className="student-accent-gradient mb-[clamp(0.55rem,1.2vh,0.75rem)] rounded-full px-[clamp(1.15rem,2.8vw,2.1rem)] py-[clamp(0.28rem,0.7vh,0.46rem)] font-body text-[clamp(0.66rem,0.95vw,0.82rem)] font-bold uppercase tracking-[0.08em] text-white shadow-[0_8px_18px_rgba(139,92,246,0.22)]">
             {copy.partOne}
           </div>
           <div className="flex w-full max-w-[13rem] flex-col gap-[clamp(0.42rem,1.05vh,0.72rem)]">
@@ -1451,7 +1526,7 @@ function WordLegoTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
                   usedLefts.has(i)
                     ? 'border-emerald-200 bg-emerald-50 text-emerald-700 opacity-80'
                     : selectedLeft === i
-                      ? 'border-violet-400 bg-violet-50 shadow-[0_10px_22px_rgba(139,92,246,0.18)] ring-4 ring-purple-100'
+                      ? masterConnectionSelectedClass
                       : 'border-purple-100 hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-[0_12px_24px_rgba(139,92,246,0.16)]'
                 }`}
               >
@@ -1464,7 +1539,7 @@ function WordLegoTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
           </div>
         </div>
         <div className="relative z-10 flex flex-col items-center">
-          <div className="mb-[clamp(0.55rem,1.2vh,0.75rem)] rounded-full bg-gradient-to-r from-pink-400 to-pink-500 px-[clamp(1.15rem,2.8vw,2.1rem)] py-[clamp(0.28rem,0.7vh,0.46rem)] font-body text-[clamp(0.66rem,0.95vw,0.82rem)] font-bold uppercase tracking-[0.08em] text-white shadow-[0_8px_18px_rgba(244,114,182,0.22)]">
+          <div className="student-accent-gradient mb-[clamp(0.55rem,1.2vh,0.75rem)] rounded-full px-[clamp(1.15rem,2.8vw,2.1rem)] py-[clamp(0.28rem,0.7vh,0.46rem)] font-body text-[clamp(0.66rem,0.95vw,0.82rem)] font-bold uppercase tracking-[0.08em] text-white shadow-[0_8px_18px_rgba(244,114,182,0.22)]">
             {copy.partTwo}
           </div>
           <div className="flex w-full max-w-[13rem] flex-col gap-[clamp(0.42rem,1.05vh,0.72rem)]">
@@ -1540,13 +1615,23 @@ function FillLettersTask({ payload, onDone, onEvent, lang }: { payload: any; onD
         <img
           src="/ui/fill-blank-tape.png"
           alt=""
-          className="pointer-events-none absolute -left-20 -top-16 z-10 w-[clamp(10rem,16vw,13.5rem)] -rotate-12 object-contain drop-shadow-[0_12px_18px_rgba(139,92,246,0.18)]"
+          className="pointer-events-none absolute -left-20 -top-16 z-10 w-[clamp(10rem,16vw,13.5rem)] -rotate-12 object-contain drop-shadow-[0_12px_18px_rgba(139,92,246,0.18)] dark:hidden"
+        />
+        <img
+          src="/ui/fill-blank-tape-dark.png"
+          alt=""
+          className="pointer-events-none absolute -left-[clamp(2.55rem,3.4vw,3.2rem)] -top-[clamp(2.15rem,2.9vw,2.65rem)] z-10 hidden w-[clamp(6.4rem,10.25vw,8.7rem)] -rotate-12 object-contain dark:block"
         />
         <div className="relative overflow-hidden rounded-[1.55rem] border-2 border-dashed border-pink-200/90 bg-gradient-to-br from-[#fff8ec] via-[#fffaf5] to-[#fff3f8] px-[clamp(1.2rem,3.2vw,3rem)] py-[clamp(1.8rem,4.8vh,3.6rem)] shadow-[0_10px_24px_rgba(236,72,153,0.10)] dark:border-purple-700 dark:from-[#2d2136] dark:via-[#291d34] dark:to-[#331b38]">
           <img
             src="/ui/fill-blank-notebook.png"
             alt=""
-            className="pointer-events-none absolute -bottom-12 -right-24 hidden w-[clamp(22rem,38vw,33rem)] object-contain drop-shadow-[0_16px_24px_rgba(139,92,246,0.16)] lg:block"
+            className="pointer-events-none absolute -bottom-12 -right-24 hidden w-[clamp(22rem,38vw,33rem)] object-contain drop-shadow-[0_16px_24px_rgba(139,92,246,0.16)] lg:block dark:lg:hidden"
+          />
+          <img
+            src="/ui/fill-blank-notebook-dark.png"
+            alt=""
+            className="pointer-events-none absolute bottom-[clamp(0rem,1.2vw,0.9rem)] -right-[clamp(0.5rem,1.2vw,0.9rem)] hidden w-[clamp(13.3rem,23vw,20rem)] object-contain dark:lg:block"
           />
 
           <div className="relative z-10 max-w-[42rem] lg:max-w-[calc(100%_-_21rem)]">
@@ -1560,12 +1645,12 @@ function FillLettersTask({ payload, onDone, onEvent, lang }: { payload: any; onD
                       value={values[i] || ''}
                       onChange={e => { const n = [...values]; n[i] = e.target.value; setValues(n); setChecked(false); }}
                       onKeyDown={e => { if (e.key === 'Enter') check(); }}
-                      className={`inline-flex h-[clamp(3.4rem,7.4vh,4.55rem)] w-[clamp(8rem,15vw,11rem)] rounded-[1.1rem] border-2 bg-white/85 px-4 text-center font-display text-[clamp(1.4rem,2.8vw,2.25rem)] font-semibold outline-none shadow-[0_8px_16px_rgba(251,191,36,0.12)] transition focus:ring-4 ${
+                      className={`inline-flex h-[clamp(3.4rem,7.4vh,4.55rem)] w-[clamp(8rem,15vw,11rem)] rounded-[1.1rem] border-2 bg-white/85 px-4 text-center font-display text-[clamp(1.4rem,2.8vw,2.25rem)] font-semibold outline-none shadow-[0_8px_16px_rgba(251,191,36,0.12)] transition focus:ring-4 dark:caret-fuchsia-200 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08),0_0_20px_rgba(168,85,247,0.18)] ${
                         checked
                           ? (values[i]?.trim().toLowerCase() === (answers[i]||'').toLowerCase()
-                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700 focus:ring-emerald-100'
-                            : 'border-rose-300 bg-rose-50 text-rose-600 focus:ring-rose-100')
-                          : 'border-yellow-300 text-amber-700 focus:border-yellow-400 focus:ring-yellow-100'
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700 focus:ring-emerald-100 dark:border-emerald-300/80 dark:bg-[rgba(16,185,129,0.18)] dark:text-emerald-50 dark:focus:ring-emerald-300/25'
+                            : 'border-rose-300 bg-rose-50 text-rose-600 focus:ring-rose-100 dark:border-rose-300/80 dark:bg-[rgba(244,63,94,0.18)] dark:text-rose-50 dark:focus:ring-rose-300/25')
+                          : 'border-yellow-300 text-amber-700 focus:border-yellow-400 focus:ring-yellow-100 dark:border-violet-300/90 dark:bg-[rgba(31,21,51,0.92)] dark:text-white dark:focus:border-fuchsia-200 dark:focus:ring-fuchsia-300/25'
                       }`}
                     />
                   )}
@@ -1580,7 +1665,7 @@ function FillLettersTask({ payload, onDone, onEvent, lang }: { payload: any; onD
             <button
               type="button"
               onClick={check}
-              className="relative mt-[clamp(1.35rem,3vh,2rem)] inline-flex min-h-[clamp(3rem,6.2vh,4rem)] items-center justify-center rounded-[1.2rem] bg-gradient-to-r from-pink-300 via-purple-300 to-violet-300 px-[clamp(2rem,4.2vw,3.8rem)] font-display text-[clamp(1.08rem,1.8vw,1.45rem)] font-semibold text-white shadow-[0_12px_24px_rgba(168,85,247,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(168,85,247,0.24)]"
+              className="student-accent-gradient relative mt-[clamp(1.35rem,3vh,2rem)] inline-flex min-h-[clamp(3rem,6.2vh,4rem)] items-center justify-center rounded-[1.2rem] px-[clamp(2rem,4.2vw,3.8rem)] font-display text-[clamp(1.08rem,1.8vw,1.45rem)] font-semibold text-white shadow-[0_12px_24px_rgba(168,85,247,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(168,85,247,0.24)] dark:shadow-[0_12px_28px_rgba(104,168,243,0.24)]"
             >
               {copy.check}
               <img src="/ui/fill-blank-wand.png" alt="" className="pointer-events-none absolute -bottom-12 -right-16 h-[9.5rem] w-[9.5rem] rotate-12 object-contain" />
@@ -1677,20 +1762,25 @@ function AnagramTask({ payload, onDone, onEvent, lang }: { payload: any; onDone:
   return (
     <div className="mx-auto flex h-full w-full max-w-6xl flex-col justify-center">
       <div className="relative min-h-[clamp(22rem,47dvh,29rem)] overflow-visible rounded-[2rem] border-2 border-dashed border-purple-200/80 bg-gradient-to-br from-white via-[#fff8ff] to-[#f8f3ff] px-[clamp(1rem,2.8vw,2.6rem)] py-[clamp(1.05rem,2.5vh,2rem)] shadow-inner shadow-purple-100/70">
-        <img src="/ui/anagram-tape-purple.png" alt="" draggable={false} className="pointer-events-none absolute -left-[clamp(1.05rem,1.58vw,1.42rem)] -top-[clamp(0.72rem,1.16vw,1.05rem)] z-30 w-[clamp(6.25rem,8.35vw,7.75rem)] -rotate-[25deg] select-none object-contain drop-shadow-[0_12px_18px_rgba(124,58,237,0.18)]" />
-        <img src="/ui/anagram-cloud.png" alt="" draggable={false} className="pointer-events-none absolute bottom-[clamp(0.05rem,0.26vw,0.22rem)] left-[clamp(0.65rem,1vw,0.92rem)] z-10 w-[clamp(5.15rem,7.2vw,6.75rem)] select-none object-contain drop-shadow-[0_10px_18px_rgba(125,180,255,0.20)]" />
-        <img src="/ui/anagram-star-blue.png" alt="" draggable={false} className="pointer-events-none absolute left-[15%] top-[28%] z-10 w-[clamp(2.8rem,4.25vw,3.95rem)] select-none object-contain drop-shadow-[0_8px_14px_rgba(124,58,237,0.18)]" />
-        <img src="/ui/anagram-star-pink.png" alt="" draggable={false} className="pointer-events-none absolute right-[8%] top-[16%] z-10 w-[clamp(2.95rem,4.5vw,4.2rem)] rotate-12 select-none object-contain drop-shadow-[0_10px_18px_rgba(236,72,153,0.20)]" />
+	        <img src="/ui/anagram-tape-purple.png" alt="" draggable={false} className="pointer-events-none absolute -left-[clamp(1.05rem,1.58vw,1.42rem)] -top-[clamp(0.72rem,1.16vw,1.05rem)] z-30 w-[clamp(6.25rem,8.35vw,7.75rem)] -rotate-[25deg] select-none object-contain drop-shadow-[0_12px_18px_rgba(124,58,237,0.18)] dark:hidden" />
+	        <img src="/ui/anagram-tape-purple-dark.png" alt="" draggable={false} className="pointer-events-none absolute -left-[clamp(1.05rem,1.58vw,1.42rem)] -top-[clamp(0.72rem,1.16vw,1.05rem)] z-30 hidden w-[clamp(6.25rem,8.35vw,7.75rem)] -rotate-[25deg] select-none object-contain drop-shadow-[0_12px_20px_rgba(168,85,247,0.32)] dark:block" />
+	        <img src="/ui/anagram-cloud.png" alt="" draggable={false} className="pointer-events-none absolute bottom-[clamp(0.05rem,0.26vw,0.22rem)] left-[clamp(0.65rem,1vw,0.92rem)] z-10 w-[clamp(5.15rem,7.2vw,6.75rem)] select-none object-contain drop-shadow-[0_10px_18px_rgba(125,180,255,0.20)] dark:hidden" />
+	        <img src="/ui/anagram-cloud-dark.png" alt="" draggable={false} className="pointer-events-none absolute bottom-[clamp(0.05rem,0.26vw,0.22rem)] left-[clamp(0.65rem,1vw,0.92rem)] z-10 hidden w-[clamp(5.15rem,7.2vw,6.75rem)] select-none object-contain drop-shadow-[0_10px_20px_rgba(124,58,237,0.32)] dark:block" />
+	        <img src="/ui/anagram-star-blue.png" alt="" draggable={false} className="pointer-events-none absolute left-[15%] top-[28%] z-10 w-[clamp(2.8rem,4.25vw,3.95rem)] select-none object-contain drop-shadow-[0_8px_14px_rgba(124,58,237,0.18)] dark:hidden" />
+	        <img src="/ui/anagram-star-blue-dark.png" alt="" draggable={false} className="pointer-events-none absolute left-[15%] top-[28%] z-10 hidden w-[clamp(2.8rem,4.25vw,3.95rem)] select-none object-contain drop-shadow-[0_8px_18px_rgba(147,51,234,0.34)] dark:block" />
+	        <img src="/ui/anagram-star-pink.png" alt="" draggable={false} className="pointer-events-none absolute right-[8%] top-[16%] z-10 w-[clamp(2.95rem,4.5vw,4.2rem)] rotate-12 select-none object-contain drop-shadow-[0_10px_18px_rgba(236,72,153,0.20)] dark:hidden" />
+	        <img src="/ui/anagram-star-pink-dark.png" alt="" draggable={false} className="pointer-events-none absolute right-[8%] top-[16%] z-10 hidden w-[clamp(2.95rem,4.5vw,4.2rem)] rotate-12 select-none object-contain drop-shadow-[0_10px_20px_rgba(147,51,234,0.36)] dark:block" />
 
-        <div className="relative z-20 flex h-full min-h-[inherit] -translate-y-[clamp(1.15rem,3.1vh,2.05rem)] flex-col items-center justify-center gap-[clamp(0.9rem,2vh,1.35rem)] text-center">
-          <div className={`relative flex aspect-[1350/600] w-[min(100%,clamp(16.2rem,24.2vw,21.5rem))] items-center justify-center overflow-visible transition ${wrong ? 'animate-pulse' : ''}`}>
-            <img src="/ui/anagram-answer-panel.png" alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain" />
-            <div className={`relative z-10 flex max-w-[78%] items-center justify-center gap-[clamp(0.18rem,0.54vw,0.42rem)] font-display text-[clamp(1.55rem,3.2vw,2.55rem)] font-black leading-none tracking-[0.12em] ${wrong ? 'text-rose-500' : 'text-purple-800'}`}>
-              {answerDisplay.map((ch, index) => (
-                <span key={`${ch}-${index}`} className={ch === '?' ? 'text-purple-700' : 'text-purple-800'}>
-                  {ch}
-                </span>
-              ))}
+	        <div className="relative z-20 flex h-full min-h-[inherit] -translate-y-[clamp(1.15rem,3.1vh,2.05rem)] flex-col items-center justify-center gap-[clamp(0.9rem,2vh,1.35rem)] text-center">
+		          <div className={`relative flex aspect-[1350/600] w-[min(100%,clamp(16.2rem,24.2vw,21.5rem))] items-center justify-center overflow-visible transition ${wrong ? 'animate-pulse' : ''}`}>
+		            <img src="/ui/anagram-answer-panel.png" alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain dark:hidden" />
+		            <img src="/ui/anagram-answer-panel-dark.png" alt="" draggable={false} className="pointer-events-none absolute inset-0 hidden h-full w-full select-none object-contain dark:block" />
+		            <div className={`relative z-10 flex max-w-[78%] items-center justify-center gap-[clamp(0.18rem,0.54vw,0.42rem)] font-display text-[clamp(1.55rem,3.2vw,2.55rem)] font-black leading-none tracking-[0.12em] ${wrong ? 'text-rose-500' : 'text-purple-800 dark:text-violet-100'}`}>
+	              {answerDisplay.map((ch, index) => (
+		                <span key={`${ch}-${index}`} className={ch === '?' ? 'text-purple-700 dark:text-white' : 'text-purple-800 dark:text-white'}>
+	                  {ch}
+	                </span>
+	              ))}
             </div>
           </div>
 
@@ -1704,9 +1794,9 @@ function AnagramTask({ payload, onDone, onEvent, lang }: { payload: any; onDone:
                 onClick={() => pick(i)}
                 disabled={tl.used}
                 className={`flex h-[clamp(3rem,5.5vw,4.25rem)] w-[clamp(3rem,5.5vw,4.25rem)] items-center justify-center rounded-[0.78rem] border-2 font-display text-[clamp(1.55rem,3vw,2.45rem)] font-black leading-none shadow-[0_8px_0_rgba(124,58,237,0.16),0_13px_22px_rgba(124,58,237,0.14)] transition focus:outline-none focus:ring-4 focus:ring-purple-200/70 ${
-                  tl.used
-                    ? 'cursor-not-allowed border-purple-100 bg-purple-50/45 text-purple-200 shadow-none'
-                    : 'border-white bg-gradient-to-br from-white via-[#fff9f5] to-[#f7edff] text-purple-800 hover:border-pink-200'
+	                  tl.used
+	                    ? 'cursor-not-allowed border-purple-100 bg-purple-50/45 text-purple-200 shadow-none dark:text-white/45'
+	                    : 'border-white bg-gradient-to-br from-white via-[#fff9f5] to-[#f7edff] text-purple-800 hover:border-pink-200 dark:text-white'
                 }`}
               >
                 {tl.ch.toUpperCase()}
@@ -1719,7 +1809,7 @@ function AnagramTask({ payload, onDone, onEvent, lang }: { payload: any; onDone:
               <TaskHintBubble
                 hint={hintText}
                 label={copy.hintAnswer}
-                className="my-0 min-h-[2.75rem] max-w-[31rem] border-[#d8c4ff]/80 bg-gradient-to-r from-[#efe4ff]/90 via-[#fbf7ff]/95 to-[#eadcff]/90 py-1 pl-3 pr-5 text-[clamp(0.78rem,1.02vw,0.92rem)] text-purple-800 shadow-[0_7px_16px_rgba(168,85,247,0.10)]"
+                className="my-0 min-h-[2.75rem] max-w-[31rem] border-[#d8c4ff]/80 bg-gradient-to-r from-[#efe4ff]/90 via-[#fbf7ff]/95 to-[#eadcff]/90 py-1 pl-3 pr-5 text-[clamp(0.78rem,1.02vw,0.92rem)] text-purple-800 shadow-[0_7px_16px_rgba(168,85,247,0.10)] dark:!border-[#8f6cf5]/70 dark:!bg-[#2a123f] dark:![background-image:none] dark:!shadow-[0_0_18px_rgba(168,85,247,0.24)]"
                 iconClassName="-my-2 h-14 w-14"
               />
             )}
@@ -1732,7 +1822,7 @@ function AnagramTask({ payload, onDone, onEvent, lang }: { payload: any; onDone:
                 setShowHint(true);
                 onEvent('hint_requested', { mechanic: 'anagram_unscramble' });
               }}
-              className="inline-flex min-h-[2.75rem] items-center justify-center gap-2 rounded-full border border-yellow-200 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:bg-yellow-50"
+	              className="inline-flex min-h-[2.75rem] items-center justify-center gap-2 rounded-full border border-yellow-200 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:bg-yellow-50 dark:text-white"
             >
               <Lightbulb className="h-4 w-4 text-yellow-500" /> {copy.hintAnswer}
             </button>
@@ -1740,7 +1830,7 @@ function AnagramTask({ payload, onDone, onEvent, lang }: { payload: any; onDone:
               type="button"
               onClick={reset}
               disabled={picked.length === 0 && !wrong && !showHint}
-              className="inline-flex min-h-[2.75rem] items-center justify-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-45"
+	              className="inline-flex min-h-[2.75rem] items-center justify-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-45 dark:text-white"
             >
               <RotateCcw className="h-4 w-4 text-violet-500" /> {copy.reset}
             </button>
@@ -1748,7 +1838,7 @@ function AnagramTask({ payload, onDone, onEvent, lang }: { payload: any; onDone:
               type="button"
               onClick={undo}
               disabled={picked.length === 0}
-              className="inline-flex min-h-[2.75rem] items-center justify-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-45"
+	              className="inline-flex min-h-[2.75rem] items-center justify-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-45 dark:text-white"
             >
               <Undo2 className="h-4 w-4 text-violet-500" /> {copy.undoLast}
             </button>
@@ -1785,13 +1875,13 @@ function OddOneOutTask({ payload, onDone, onEvent, lang }: { payload: any; onDon
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-5xl flex-col justify-center">
-      <div className="grid w-full gap-[clamp(0.9rem,1.8vw,1.4rem)] sm:grid-cols-2 lg:grid-cols-3">
+    <div className="relative mx-auto flex h-full w-full max-w-5xl flex-col justify-center pb-[clamp(4rem,7.5vh,5.5rem)]">
+      <div className="mt-[clamp(2.55rem,4.5vh,3.35rem)] grid w-full gap-[clamp(0.9rem,1.8vw,1.4rem)] sm:grid-cols-2 lg:grid-cols-3">
         {items.map((item, i) => (
           <button
             key={i}
             onClick={() => pick(i)}
-            className={`flex h-[clamp(12.5rem,24vh,15.25rem)] flex-col items-center justify-between overflow-hidden rounded-[1.35rem] border-2 px-5 pb-5 pt-4 text-center font-body text-lg font-900 shadow-[0_8px_20px_rgba(139,92,246,0.10)] transition hover:-translate-y-1 hover:shadow-xl ${
+            className={`flex h-[clamp(12.5rem,24vh,15.25rem)] flex-col items-center justify-between overflow-hidden rounded-[1.35rem] border-2 px-5 pb-5 pt-4 text-center font-body text-lg font-900 shadow-[0_8px_20px_rgba(139,92,246,0.10)] transition hover:-translate-y-1 hover:shadow-xl ${/сыр|сир|cheese/i.test(item.text || '') ? '-mt-[clamp(0.55rem,1.3vh,0.95rem)]' : ''} ${
               correct === i ? doneTile : wrong === i ? wrongTile : liveTile
             }`}
           >
@@ -1808,9 +1898,17 @@ function OddOneOutTask({ payload, onDone, onEvent, lang }: { payload: any; onDon
           </button>
         ))}
       </div>
-      {showHint && <TaskHintBubble hint={String(payload?.hint || '').trim()} label={copy.hintAnswer} />}
       <TaskActionBar
         copy={copy}
+        className="!mt-0 absolute bottom-[-1.8rem] left-0 right-0 min-h-[3.3rem]"
+        centerContent={showHint ? (
+          <TaskHintBubble
+            hint={String(payload?.hint || '').trim()}
+            label={copy.hintAnswer}
+            className="mx-0 min-h-[2.55rem] max-w-[min(22rem,100%)] translate-y-1 px-3 py-0 text-[clamp(0.78rem,1.05vw,0.92rem)]"
+            iconClassName="-my-2.5 h-12 w-12"
+          />
+        ) : null}
         onHint={() => {
           setShowHint(true);
           onEvent('hint_requested', { mechanic: 'odd_one_out' });
@@ -1828,10 +1926,51 @@ function OddOneOutTask({ payload, onDone, onEvent, lang }: { payload: any; onDon
 }
 
 // ==================== CATEGORY SORTING ====================
-function categoryCardAssetForName(name: string) {
+type CategoryCardAsset = {
+  light: string;
+  dark?: string;
+};
+
+const categoryDarkCardsByLang = {
+  toys: {
+    ru: '/ui/category-toys-card-dark-wide.png',
+    en: '/ui/category-toys-card-dark-en.png',
+    ua: '/ui/category-toys-card-dark-ua.png',
+  },
+  food: {
+    ru: '/ui/category-food-card-dark-wide.png',
+    en: '/ui/category-food-card-dark-en.png',
+    ua: '/ui/category-food-card-dark-ua.png',
+  },
+} satisfies Record<'toys' | 'food', Record<Lang, string>>;
+
+const categoryLightCardsByLang = {
+  toys: {
+    ru: '/ui/category-toys-card.png',
+    en: '/ui/category-toys-card-light-en.png',
+    ua: '/ui/category-toys-card-light-ua.png',
+  },
+  food: {
+    ru: '/ui/category-food-card.png',
+    en: '/ui/category-food-card-light-en.png',
+    ua: '/ui/category-food-card-light-ua.png',
+  },
+} satisfies Record<'toys' | 'food', Record<Lang, string>>;
+
+function categoryCardAssetForName(name: string, lang: Lang) {
   const normalized = name.toLowerCase();
-  if (normalized.includes('игруш') || normalized.includes('toy')) return '/ui/category-toys-card.png';
-  if (normalized.includes('еда') || normalized.includes('food') || normalized.includes('їжа')) return '/ui/category-food-card.png';
+  if (normalized.includes('игруш') || normalized.includes('іграш') || normalized.includes('toy')) {
+    return {
+      light: categoryLightCardsByLang.toys[lang],
+      dark: categoryDarkCardsByLang.toys[lang],
+    };
+  }
+  if (normalized.includes('еда') || normalized.includes('food') || normalized.includes('їжа')) {
+    return {
+      light: categoryLightCardsByLang.food[lang],
+      dark: categoryDarkCardsByLang.food[lang],
+    };
+  }
   return null;
 }
 
@@ -1973,10 +2112,14 @@ function CategorySortingTask({ payload, onDone, onEvent, lang }: { payload: any;
         <div className="mb-1 flex items-center gap-2 font-body text-xs font-black uppercase tracking-wider text-pink-400">
           {copy.sendToCategory}
         </div>
-        <div className="mx-auto grid w-full max-w-[48rem] flex-1 content-start gap-x-[clamp(0.6rem,1.15vw,0.9rem)] pt-[clamp(0.25rem,0.8vh,0.55rem)] sm:grid-cols-2">
+        <div className={`mx-auto grid w-full max-w-[48rem] flex-1 content-start pt-[clamp(0.25rem,0.8vh,0.55rem)] sm:grid-cols-2 ${
+          lang === 'ru' ? 'gap-x-[clamp(0.6rem,1.15vw,0.9rem)]' : 'gap-x-[clamp(0.75rem,1.35vw,1.05rem)]'
+        }`}>
           {categories.map((cat, i) => (
             (() => {
-              const categoryCardAsset = cat.cardImage || categoryCardAssetForName(cat.name);
+              const categoryCardAsset: CategoryCardAsset | null = cat.cardImage
+                ? { light: cat.cardImage }
+                : categoryCardAssetForName(cat.name, lang);
               const sharedProps = {
                 onClick: () => chooseCategory(i),
                 onDragOver: (event: React.DragEvent<HTMLButtonElement>) => event.preventDefault(),
@@ -1989,24 +2132,41 @@ function CategorySortingTask({ payload, onDone, onEvent, lang }: { payload: any;
 
               if (categoryCardAsset) {
                 const categoryPositionClass = i % 2 === 0
-                  ? 'sm:justify-self-end sm:-translate-y-[clamp(0.25rem,0.55vh,0.45rem)]'
-                  : 'sm:justify-self-start sm:-translate-y-[clamp(0.78rem,1.55vh,1.2rem)]';
+                  ? lang === 'ru'
+                    ? 'sm:justify-self-end sm:-translate-y-[clamp(0.25rem,0.55vh,0.45rem)]'
+                    : 'sm:justify-self-end sm:translate-x-[clamp(0.25rem,0.65vw,0.5rem)] sm:translate-y-[clamp(0.28rem,0.7vh,0.52rem)]'
+                  : lang === 'ru'
+                    ? 'sm:justify-self-start sm:-translate-y-[clamp(0.35rem,0.75vh,0.58rem)]'
+                    : lang === 'en'
+                      ? 'sm:justify-self-start sm:-translate-x-[clamp(0.35rem,0.85vw,0.65rem)] sm:translate-y-[clamp(1.62rem,3vh,2.25rem)]'
+                    : 'sm:justify-self-start sm:-translate-x-[clamp(0.35rem,0.85vw,0.65rem)] sm:translate-y-[clamp(1.5rem,2.8vh,2.08rem)]';
                 const categorySizeClass = i % 2 === 0
-                  ? 'w-[112%] scale-[1.02] sm:scale-[1.06]'
-                  : 'w-[107%] scale-[0.98] sm:scale-[1.01]';
+                  ? lang === 'ru'
+                    ? 'h-[clamp(14rem,26vh,16.8rem)] w-[112%] scale-[1.02] sm:scale-[1.06]'
+                    : 'h-[clamp(12.4rem,22.8vh,14.8rem)] w-[100%] scale-[1.09] sm:scale-[1.14]'
+                  : lang === 'ru'
+                    ? 'h-[clamp(14rem,26vh,16.8rem)] w-[107%] scale-[0.98] sm:scale-[1.01]'
+                    : 'h-[clamp(11.9rem,21.8vh,14.2rem)] w-[97%] scale-[1.23] sm:scale-[1.29]';
                 return (
                   <button
                     key={i}
                     {...sharedProps}
-                    className={`group relative aspect-[1260/760] h-[clamp(14rem,26vh,16.8rem)] max-w-none origin-bottom translate-y-[clamp(0.4rem,1vh,0.72rem)] overflow-visible rounded-[1.4rem] bg-transparent p-0 text-left transition-[filter,opacity] duration-200 ease-out hover:brightness-[1.04] hover:saturate-[1.07] disabled:opacity-75 ${categorySizeClass} ${categoryPositionClass} ${
+                    className={`group relative aspect-[1260/760] max-w-none origin-bottom translate-y-[clamp(0.4rem,1vh,0.72rem)] overflow-visible rounded-[1.4rem] bg-transparent p-0 text-left transition-[filter,opacity] duration-200 ease-out hover:brightness-[1.04] hover:saturate-[1.07] disabled:opacity-75 ${categorySizeClass} ${categoryPositionClass} ${
                       wrongCategory === i ? 'animate-pulse ring-4 ring-rose-200' : ''
                     }`}
                   >
                     <img
-                      src={categoryCardAsset}
+                      src={categoryCardAsset.light}
                       alt=""
-                      className="pointer-events-none absolute inset-0 h-full w-full object-contain transition-transform duration-200 ease-out group-hover:scale-[1.018]"
+                      className={`pointer-events-none absolute inset-0 h-full w-full object-contain transition-transform duration-200 ease-out group-hover:scale-[1.018] ${categoryCardAsset.dark ? 'dark:hidden' : ''}`}
                     />
+                    {categoryCardAsset.dark && (
+                      <img
+                        src={categoryCardAsset.dark}
+                        alt=""
+                        className="pointer-events-none absolute inset-0 hidden h-full w-full object-contain transition-transform duration-200 ease-out group-hover:scale-[1.018] dark:block"
+                      />
+                    )}
                     <span className="sr-only">{cat.name}</span>
                   </button>
                 );
@@ -2090,6 +2250,7 @@ function CipherDecoderTask({ payload, onDone, onEvent, lang }: { payload: any; o
   const copy = cipherCopy[lang];
   const [value, setValue] = useState('');
   const [checked, setChecked] = useState<'ok' | 'wrong' | null>(null);
+  const cipherSequence = encodeCipherAnswer(answer).split(' ');
   const check = () => {
     playButtonSound('check');
     const ok = value.trim().toLowerCase() === answer.toLowerCase();
@@ -2103,32 +2264,41 @@ function CipherDecoderTask({ payload, onDone, onEvent, lang }: { payload: any; o
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 text-center">
-      <section className="rounded-3xl border border-purple-100 bg-gradient-to-br from-white to-purple-50/70 p-4 shadow-sm dark:border-purple-600/30 dark:from-[#2b1a3d] dark:to-[#241632] sm:p-5">
-        <div className="mb-4 font-display text-lg font-black text-purple-700 dark:text-purple-100">{copy.key}</div>
-        <div className="grid grid-cols-5 gap-2 sm:grid-cols-9 lg:grid-cols-13">
+    <div className="mx-auto flex h-full w-full max-w-[61rem] flex-col justify-start gap-[clamp(0.55rem,1.2vh,0.9rem)] text-center">
+      <section className="rounded-[1.55rem] border border-purple-100 bg-white/[0.92] px-[clamp(0.8rem,1.35vw,1.15rem)] py-[clamp(0.78rem,1.5vh,1.08rem)] shadow-[0_10px_28px_rgba(168,85,247,0.10)] dark:border-purple-600/30 dark:bg-[#241632]">
+        <div className="mb-[clamp(0.52rem,1vh,0.78rem)] font-display text-[clamp(1.1rem,1.65vw,1.38rem)] font-black leading-none text-purple-700 dark:text-purple-100">{copy.key}</div>
+        <div className="mx-auto grid max-w-[55.6rem] grid-cols-5 gap-[clamp(0.38rem,0.8vw,0.66rem)] sm:grid-cols-9">
           {cipherAlphabet.map(item => (
-            <div key={item.letter} className="overflow-hidden rounded-xl border border-pink-100 bg-white shadow-sm dark:border-purple-500/25 dark:bg-[#321c47]">
-              <div className="bg-gradient-to-r from-pink-100 to-purple-100 py-1 text-[11px] font-black text-pink-500 dark:from-pink-500/15 dark:to-purple-500/15 dark:text-pink-200">{item.number}</div>
-              <div className="py-2 font-display text-lg font-black text-purple-700 dark:text-purple-100">{item.letter}</div>
+            <div key={item.letter} className="overflow-hidden rounded-[0.72rem] border border-purple-100 bg-white shadow-[0_5px_12px_rgba(168,85,247,0.08)] dark:border-purple-500/25 dark:bg-[#321c47]">
+              <div className="bg-gradient-to-r from-pink-50 to-purple-50 py-[0.22rem] font-body text-[clamp(0.62rem,0.82vw,0.76rem)] font-black leading-none text-pink-500 dark:from-pink-500/15 dark:to-purple-500/15 dark:text-pink-200">{item.number}</div>
+              <div className="py-[clamp(0.34rem,0.75vh,0.52rem)] font-display text-[clamp(1rem,1.35vw,1.22rem)] font-black leading-none text-purple-700 dark:text-purple-100">{item.letter}</div>
             </div>
           ))}
         </div>
       </section>
-      <div className="rounded-3xl border border-purple-100 bg-white p-5 shadow-sm dark:border-purple-600/30 dark:bg-[#241632]">
-        <div className="mb-2 text-xs font-body font-800 uppercase tracking-wider text-pink-400">{copy.decode}</div>
-        <div className="font-mono text-2xl font-black tracking-widest text-purple-800 dark:text-purple-100">{encodeCipherAnswer(answer)}</div>
-      </div>
-      <input
-        value={value}
-        onChange={e => { setValue(e.target.value); setChecked(null); }}
-        onKeyDown={e => { if (e.key === 'Enter') check(); }}
-        className={`input-magic w-full text-center text-lg font-900 ${checked === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : checked === 'wrong' ? 'border-rose-300 bg-rose-50 text-rose-600' : ''}`}
-        placeholder={copy.placeholder}
-      />
-      <button onClick={check} className="rounded-2xl bg-gradient-to-r from-pink-400 to-purple-400 px-5 py-2.5 font-body font-800 text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl">
-        {copy.check}
-      </button>
+
+      <section className="rounded-[1.55rem] border border-purple-100 bg-white/[0.94] px-[clamp(0.9rem,1.45vw,1.25rem)] py-[clamp(0.76rem,1.45vh,1.04rem)] shadow-[0_10px_28px_rgba(168,85,247,0.10)] dark:border-purple-600/30 dark:bg-[#241632]">
+        <div className="mb-[clamp(0.4rem,0.75vh,0.62rem)] font-body text-[clamp(0.72rem,1vw,0.86rem)] font-black uppercase tracking-wide text-pink-400">{copy.decode}</div>
+        <div className="mb-[clamp(0.55rem,1vh,0.78rem)] flex flex-wrap justify-center gap-x-[clamp(0.7rem,1.35vw,1.1rem)] gap-y-1 font-display text-[clamp(1.4rem,2.4vw,2.25rem)] font-black leading-none text-purple-800 dark:text-purple-100">
+          {cipherSequence.map((item, index) => (
+            <span key={`${item}-${index}`}>{item}</span>
+          ))}
+        </div>
+        <div className="mx-auto max-w-[43rem]">
+          <div className="relative">
+            <input
+              value={value}
+              onChange={e => { setValue(e.target.value); setChecked(null); }}
+              onKeyDown={e => { if (e.key === 'Enter') check(); }}
+              className={`h-[clamp(2.8rem,5.6vh,3.35rem)] w-full rounded-[1rem] border-2 bg-white px-5 text-center font-display text-[clamp(1.05rem,1.65vw,1.32rem)] font-black text-purple-700 shadow-inner shadow-purple-100/45 outline-none transition placeholder:text-purple-300 focus:border-purple-300 focus:ring-4 focus:ring-purple-100 dark:bg-white/10 dark:text-purple-100 dark:placeholder:text-purple-300 ${checked === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : checked === 'wrong' ? 'border-rose-300 bg-rose-50 text-rose-600' : 'border-purple-200'}`}
+              placeholder={copy.placeholder}
+            />
+          </div>
+          <button onClick={check} className="student-accent-gradient mt-[clamp(0.55rem,1.05vh,0.78rem)] inline-flex min-h-[2.45rem] min-w-[10.5rem] items-center justify-center rounded-full px-6 font-display text-[clamp(0.92rem,1.18vw,1.05rem)] font-bold text-white shadow-[0_10px_22px_rgba(139,92,246,0.28)] transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60">
+            {copy.check}
+          </button>
+        </div>
+      </section>
     </div>
   );
 }
@@ -2255,47 +2425,65 @@ function WordSearchTask({ payload, onDone, onEvent, lang }: { payload: any; onDo
 
   return (
     <div className="relative mx-auto grid h-full min-h-0 w-full max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] items-center justify-items-center gap-[clamp(0.3rem,0.62vh,0.46rem)] overflow-hidden px-2 pb-[clamp(0.45rem,0.95vh,0.7rem)] pt-[clamp(0.05rem,0.45vh,0.22rem)]">
-      <img
-        src="/ui/word-search-star-yellow.png"
+      <ThemedStarImage
+        lightSrc="/ui/word-search-star-light-purple-new.png"
+        darkSrc={DARK_STAR_MEDIUM_SRC}
         alt=""
         aria-hidden="true"
         draggable={false}
-        className="pointer-events-none absolute left-[6%] top-[22%] hidden h-11 w-11 -rotate-12 object-contain opacity-95 lg:block"
+        className="pointer-events-none absolute left-[6%] top-[22%] h-11 w-11 -rotate-12 object-contain opacity-95"
+        lightClassName="hidden lg:block dark:hidden"
+        darkClassName="hidden dark:lg:block"
       />
-      <img
-        src="/ui/word-search-star-yellow.png"
+      <ThemedStarImage
+        lightSrc="/ui/word-search-star-light-purple-new.png"
+        darkSrc={DARK_STAR_MEDIUM_SRC}
         alt=""
         aria-hidden="true"
         draggable={false}
-        className="pointer-events-none absolute right-[5%] top-[28%] hidden h-10 w-10 rotate-12 object-contain opacity-95 lg:block"
+        className="pointer-events-none absolute right-[5%] top-[28%] h-10 w-10 rotate-12 object-contain opacity-95"
+        lightClassName="hidden lg:block dark:hidden"
+        darkClassName="hidden dark:lg:block"
       />
-      <img
-        src="/ui/word-search-star-blue.png"
+      <ThemedStarImage
+        lightSrc="/ui/word-search-star-light-blue-new.png"
+        darkSrc={DARK_STAR_SMALL_SRC}
         alt=""
         aria-hidden="true"
         draggable={false}
-        className="pointer-events-none absolute left-[15%] bottom-[18%] hidden h-11 w-11 -rotate-6 object-contain opacity-85 drop-shadow-[0_12px_18px_rgba(129,140,248,0.20)] lg:block"
+        className="pointer-events-none absolute left-[15%] bottom-[18%] h-12 w-12 -rotate-6 object-contain opacity-85 drop-shadow-[0_12px_18px_rgba(129,140,248,0.20)]"
+        lightClassName="hidden lg:block dark:hidden"
+        darkClassName="hidden dark:lg:block"
       />
-      <img
-        src="/ui/word-search-star-blue.png"
+      <ThemedStarImage
+        lightSrc="/ui/word-search-star-light-blue-new.png"
+        darkSrc={DARK_STAR_SMALL_SRC}
         alt=""
         aria-hidden="true"
         draggable={false}
-        className="pointer-events-none absolute right-[14%] bottom-[16%] hidden h-9 w-9 rotate-12 object-contain opacity-82 drop-shadow-[0_12px_18px_rgba(129,140,248,0.18)] lg:block"
+        className="pointer-events-none absolute right-[14%] bottom-[16%] h-10 w-10 rotate-12 object-contain opacity-82 drop-shadow-[0_12px_18px_rgba(129,140,248,0.18)]"
+        lightClassName="hidden lg:block dark:hidden"
+        darkClassName="hidden dark:lg:block"
       />
-      <img
-        src="/ui/word-search-star-pink.png"
+      <ThemedStarImage
+        lightSrc="/ui/word-search-star-light-pink-new.png"
+        darkSrc={DARK_STAR_LARGE_SRC}
         alt=""
         aria-hidden="true"
         draggable={false}
-        className="pointer-events-none absolute left-[12%] top-[42%] hidden h-10 w-10 rotate-12 object-contain opacity-82 drop-shadow-[0_12px_18px_rgba(244,114,182,0.18)] lg:block"
+        className="pointer-events-none absolute left-[12%] top-[42%] h-16 w-16 rotate-12 object-contain opacity-82 drop-shadow-[0_12px_18px_rgba(244,114,182,0.18)]"
+        lightClassName="hidden lg:block dark:hidden"
+        darkClassName="hidden dark:lg:block dark:h-10 dark:w-10"
       />
-      <img
-        src="/ui/word-search-star-pink.png"
+      <ThemedStarImage
+        lightSrc="/ui/word-search-star-light-pink-new.png"
+        darkSrc={DARK_STAR_LARGE_SRC}
         alt=""
         aria-hidden="true"
         draggable={false}
-        className="pointer-events-none absolute right-[12%] top-[50%] hidden h-12 w-12 -rotate-12 object-contain opacity-82 drop-shadow-[0_12px_18px_rgba(244,114,182,0.18)] lg:block"
+        className="pointer-events-none absolute right-[12%] top-[50%] h-20 w-20 -rotate-12 object-contain opacity-82 drop-shadow-[0_12px_18px_rgba(244,114,182,0.18)]"
+        lightClassName="hidden lg:block dark:hidden"
+        darkClassName="hidden dark:lg:block dark:h-12 dark:w-12"
       />
 
       <div className="relative z-10 flex shrink-0 flex-wrap justify-center gap-[clamp(0.38rem,0.72vw,0.56rem)]">
@@ -2312,7 +2500,7 @@ function WordSearchTask({ payload, onDone, onEvent, lang }: { payload: any; onDo
               key={word}
               className={`inline-flex min-h-[1.95rem] min-w-[4.65rem] items-center justify-center rounded-full border px-4 py-1 font-display text-sm font-semibold uppercase tracking-wide shadow-sm transition ${
                 done
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 line-through opacity-85'
+                  ? 'student-accent-gradient border-transparent text-white line-through opacity-95 shadow-[0_0_16px_rgba(215,169,233,0.34)]'
                   : chipTones[index % chipTones.length]
               }`}
             >
@@ -2339,9 +2527,9 @@ function WordSearchTask({ payload, onDone, onEvent, lang }: { payload: any; onDo
               onClick={() => selectCell(rowIndex, colIndex)}
               className={`aspect-square rounded-[0.66rem] border font-display text-[clamp(0.64rem,1vw,0.84rem)] font-bold leading-none shadow-[0_4px_9px_rgba(124,58,237,0.06)] transition duration-150 focus:outline-none focus:ring-4 focus:ring-purple-200/70 ${
                 isFound
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-emerald-100/60'
+                  ? 'student-accent-gradient border-transparent text-white shadow-[0_0_16px_rgba(215,169,233,0.42)]'
                   : isSelected
-                    ? 'border-transparent bg-gradient-to-br from-pink-400 via-purple-500 to-violet-500 text-white shadow-[0_9px_18px_rgba(168,85,247,0.28)]'
+                    ? 'student-accent-gradient border-transparent text-white shadow-[0_9px_18px_rgba(215,169,233,0.34)] dark:text-white dark:shadow-[0_0_18px_rgba(215,169,233,0.46)]'
                     : 'border-purple-100 bg-white text-purple-700 hover:-translate-y-0.5 hover:border-pink-200 hover:bg-pink-50 dark:border-purple-700 dark:bg-[#2b1a3d] dark:text-purple-100 dark:hover:bg-[#3a2451]'
               }`}
             >
@@ -2352,16 +2540,20 @@ function WordSearchTask({ payload, onDone, onEvent, lang }: { payload: any; onDo
       </div>
 
       <div className="relative z-20 flex min-h-[2.65rem] shrink-0 flex-wrap items-center justify-center gap-[clamp(0.42rem,0.78vw,0.62rem)]">
-        <span className="inline-flex min-h-[2.25rem] min-w-[5.65rem] items-center justify-center rounded-full border border-purple-100 bg-white px-5 py-1.5 text-center font-display text-base font-bold tracking-[0.2em] text-purple-700 shadow-[0_8px_18px_rgba(168,85,247,0.08)] dark:border-purple-700 dark:bg-[#2b1a3d] dark:text-purple-100">
+        <span className={`inline-flex min-h-[2.25rem] min-w-[5.65rem] items-center justify-center rounded-full border px-5 py-1.5 text-center font-display text-base font-bold tracking-[0.2em] shadow-[0_8px_18px_rgba(168,85,247,0.08)] ${
+          selectedWord
+            ? 'student-accent-gradient border-transparent text-white'
+            : 'border-purple-100 bg-white text-purple-700 dark:border-purple-700 dark:bg-[#2b1a3d] dark:text-purple-100'
+        }`}>
           {selectedWord || '...'}
         </span>
         <button
           type="button"
           onClick={check}
           disabled={selected.length === 0}
-          className="inline-flex min-h-[2.25rem] items-center justify-center gap-2 rounded-full bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 px-6 py-1.5 font-display text-base font-semibold text-white shadow-[0_10px_20px_rgba(168,85,247,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(168,85,247,0.30)] disabled:cursor-not-allowed disabled:opacity-45"
+          className="student-accent-gradient inline-flex min-h-[2.25rem] items-center justify-center gap-2 rounded-full px-6 py-1.5 font-display text-base font-semibold text-white shadow-[0_10px_20px_rgba(168,85,247,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(168,85,247,0.30)] disabled:cursor-not-allowed disabled:opacity-45"
         >
-          <img src="/ui/reward-star.png" alt="" draggable={false} className="h-6 w-6 object-contain" />
+          <img src={REWARD_STAR_SRC} alt="" draggable={false} className="h-6 w-6 object-contain" />
           {copy.check}
         </button>
         <button
@@ -2369,7 +2561,7 @@ function WordSearchTask({ payload, onDone, onEvent, lang }: { payload: any; onDo
           onClick={() => setSelected([])}
           className="inline-flex min-h-[2.25rem] items-center justify-center gap-2 rounded-full border border-purple-100 bg-white px-6 py-1.5 font-display text-base font-semibold text-purple-700 shadow-[0_8px_18px_rgba(168,85,247,0.08)] transition hover:-translate-y-0.5 hover:border-purple-200 hover:bg-purple-50 dark:border-purple-700 dark:bg-[#2b1a3d] dark:text-purple-100"
         >
-          <RotateCcw className="h-5 w-5 text-violet-500" />
+          <RotateCcw className="h-5 w-5 text-[#D7A9E9]" />
           {copy.clear}
         </button>
       </div>
@@ -2412,10 +2604,17 @@ function ConnectDotsTask({ payload, onDone, onEvent, lang }: { payload: any; onD
       <div className="mx-auto max-w-3xl rounded-3xl border border-purple-100 bg-gradient-to-br from-sky-50 via-pink-50 to-purple-50 p-4 shadow-sm dark:border-purple-700 dark:from-[#211331] dark:via-[#25123a] dark:to-[#14253d]">
         <div className="relative aspect-[16/9] overflow-hidden rounded-[1.5rem] bg-white/80 dark:bg-[#1a1028]">
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full">
+            <defs>
+              <linearGradient id="connect-dots-line" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#EFA4DE" />
+                <stop offset="45%" stopColor="#D7A9E9" />
+                <stop offset="100%" stopColor="#B6BDF9" />
+              </linearGradient>
+            </defs>
             <motion.polyline
               points={polyline}
               fill="none"
-              stroke="#ec4899"
+              stroke="url(#connect-dots-line)"
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth="1.8"
@@ -2434,7 +2633,7 @@ function ConnectDotsTask({ payload, onDone, onEvent, lang }: { payload: any; onD
                 className={`absolute flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-4 font-display text-lg font-black shadow-lg transition ${
                   done ? 'border-emerald-200 bg-emerald-400 text-white' :
                   wrong === point.order ? 'border-rose-200 bg-rose-400 text-white' :
-                  current ? 'border-pink-200 bg-gradient-to-br from-pink-400 to-purple-400 text-white ring-4 ring-pink-100' :
+                  current ? 'student-accent-gradient border-pink-200 text-white ring-4 ring-pink-100' :
                   'border-white bg-purple-100 text-purple-600 hover:scale-110 dark:border-purple-700 dark:bg-[#2b1a3d] dark:text-purple-100'
                 }`}
                 style={{ left: `${point.x}%`, top: `${point.y}%` }}
@@ -2656,12 +2855,19 @@ function DigitalColoringTask({ payload, onDone, onEvent, lang }: { payload: any;
 // ==================== TRUE / FALSE ====================
 function TrueFalseTask({ payload, onDone, onEvent, lang, variant = 'default' }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang; variant?: 'default' | 'master' }) {
   const copy = taskCopy[lang] || taskCopy.ru;
-  const statements: Array<{ text: string; is_true: boolean; image?: string; photo?: string; image_url?: string; photo_url?: string }> = (payload?.statements || []).filter((item: any) => String(item?.text || '').trim());
+  const statements: Array<{ text: string; is_true: boolean; hint?: string; image?: string; photo?: string; image_url?: string; photo_url?: string }> = (payload?.statements || []).filter((item: any) => String(item?.text || '').trim());
   const [index, setIndex] = useState(0);
   const [wrong, setWrong] = useState(false);
   const [correct, setCorrect] = useState(false);
   const [selected, setSelected] = useState<boolean | null>(null);
+  const [showHint, setShowHint] = useState(false);
   const current = statements[index];
+  const fallbackHint = lang === 'en'
+    ? 'Look at the picture and compare it with the statement.'
+    : lang === 'ua'
+      ? 'Подивись на картинку і порівняй її з твердженням.'
+      : 'Посмотри на картинку и сравни её с утверждением.';
+  const hintText = String(current?.hint || payload?.hint || fallbackHint).trim();
   const currentImage = [
     current?.image,
     current?.photo,
@@ -2672,6 +2878,10 @@ function TrueFalseTask({ payload, onDone, onEvent, lang, variant = 'default' }: 
     payload?.image_url,
     payload?.photo_url,
   ].find((value): value is string => typeof value === 'string' && value.trim().length > 0);
+
+  useEffect(() => {
+    setShowHint(false);
+  }, [index]);
 
   const answer = (value: boolean) => {
     if (!current) return;
@@ -2698,11 +2908,11 @@ function TrueFalseTask({ payload, onDone, onEvent, lang, variant = 'default' }: 
   }
 
   return (
-    <div className={`${variant === 'master' ? 'mx-auto flex h-full w-full max-w-[min(58rem,100%)] flex-col justify-start gap-[clamp(0.28rem,0.58vh,0.46rem)] text-center' : 'mx-auto flex max-w-5xl flex-col gap-4 text-center'}`}>
+    <div className={`${variant === 'master' ? 'mx-auto flex h-full w-full max-w-[min(58rem,100%)] flex-col justify-start gap-[clamp(0.28rem,0.58vh,0.46rem)] text-center' : 'mx-auto flex max-w-5xl flex-col gap-4 text-center'} relative`}>
       {variant !== 'master' && (
         <div className="flex shrink-0 items-center justify-center gap-2 py-[clamp(0.02rem,0.18vh,0.12rem)]">
           {statements.map((_, i) => (
-            <span key={i} className={`h-1.5 rounded-full transition-all ${i <= index ? 'w-7 bg-gradient-to-r from-pink-400 to-purple-400' : 'w-1.5 bg-purple-100 dark:bg-purple-800'}`} />
+            <span key={i} className={`h-1.5 rounded-full transition-all ${i <= index ? 'student-accent-gradient w-7' : 'w-1.5 bg-purple-100 dark:bg-purple-800'}`} />
           ))}
         </div>
       )}
@@ -2711,11 +2921,11 @@ function TrueFalseTask({ payload, onDone, onEvent, lang, variant = 'default' }: 
         animate={wrong ? { x: [0, -8, 8, -5, 5, 0] } : correct ? { scale: [1, 1.015, 1] } : { x: 0, scale: 1 }}
         className={`${variant === 'master' ? 'max-w-[min(43rem,88%)]' : 'max-w-[min(50rem,100%)]'} relative mx-auto aspect-[1296/792] w-full shrink-0`}
       >
-        <img src="/ui/true-false-notebook.png" alt="" className="absolute inset-0 h-full w-full select-none object-contain" draggable={false} />
-        <div className="absolute left-[50%] top-[13.2%] z-10 aspect-[4/3] w-[25.8%] -translate-x-1/2 rounded-[0.78rem] border-[3px] border-white bg-white p-[0.3rem] shadow-[0_8px_18px_rgba(124,58,237,0.14)]">
-          <span className="absolute -left-[7%] -top-[8%] z-20 h-[22%] w-[28%] rotate-[-34deg] rounded-[0.25rem] bg-rose-200/85 shadow-sm" />
+        <img src="/ui/true-false-notebook.png" alt="" className="absolute inset-0 h-full w-full scale-[0.99] select-none object-contain dark:hidden" draggable={false} />
+        <img src="/ui/true-false-notebook-dark.png" alt="" className="absolute inset-0 hidden h-full w-full scale-[1.08] select-none object-contain dark:block" draggable={false} />
+        <div className="absolute left-[50%] top-[13.2%] z-10 aspect-[4/3] w-[25.8%] -translate-x-1/2 overflow-hidden rounded-[0.78rem] bg-white p-[0.36rem] shadow-[0_8px_18px_rgba(124,58,237,0.14)] ring-2 ring-white/95">
           {currentImage ? (
-            <SignedImg path={currentImage} className="h-full w-full rounded-[0.56rem] object-cover" />
+            <SignedImg path={currentImage} className="h-full w-full scale-[1.08] rounded-[0.5rem] object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center rounded-[0.56rem] bg-gradient-to-br from-purple-100 via-pink-50 to-sky-100 text-purple-300">
               <ImageIcon className="h-8 w-8" />
@@ -2725,7 +2935,7 @@ function TrueFalseTask({ payload, onDone, onEvent, lang, variant = 'default' }: 
         <img src="/ui/true-false-doodle-heart.png" alt="" className="absolute left-[28.6%] top-[30.7%] z-10 aspect-square w-[7.1%] select-none object-contain opacity-90" draggable={false} />
         <img src="/ui/true-false-doodle-star.png" alt="" className="absolute right-[25.7%] top-[30.4%] z-10 aspect-square w-[6.4%] select-none object-contain opacity-95" draggable={false} />
         <div className="absolute left-1/2 top-[50.2%] z-20 flex w-[58%] -translate-x-1/2 justify-center">
-          <div className={`${variant === 'master' ? 'text-[clamp(1.34rem,2.15vw,1.94rem)]' : 'text-[clamp(1.45rem,3vw,2.35rem)]'} max-w-[78%] font-display font-semibold leading-[1.12] text-[#4130a3] drop-shadow-[0_2px_0_rgba(255,255,255,0.85)]`}>
+          <div className={`${variant === 'master' ? 'text-[clamp(1.34rem,2.15vw,1.94rem)]' : 'text-[clamp(1.45rem,3vw,2.35rem)]'} max-w-[78%] font-display font-semibold leading-[1.12] text-[#4130a3] drop-shadow-[0_2px_0_rgba(255,255,255,0.85)] dark:text-white dark:drop-shadow-[0_2px_8px_rgba(0,0,0,0.72)]`}>
             {current.text}
           </div>
         </div>
@@ -2758,11 +2968,29 @@ function TrueFalseTask({ payload, onDone, onEvent, lang, variant = 'default' }: 
           </button>
         </div>
       </motion.div>
-      <div className={`${variant === 'master' ? 'mx-auto mt-[clamp(0.1rem,0.36vh,0.3rem)] w-full max-w-[min(43rem,88%)] px-[clamp(0.18rem,0.6vw,0.45rem)]' : 'mx-auto w-full max-w-[min(50rem,100%)] px-[clamp(0.42rem,0.9vw,0.78rem)]'} flex shrink-0 items-center justify-between gap-3`}>
+      <div className={`${variant === 'master' ? 'mx-auto mt-[clamp(0.1rem,0.36vh,0.3rem)] w-full max-w-[min(43rem,88%)] px-[clamp(0.18rem,0.6vw,0.45rem)]' : 'mx-auto w-full max-w-[min(50rem,100%)] px-[clamp(0.42rem,0.9vw,0.78rem)]'} relative flex shrink-0 items-center justify-between gap-3`}>
+        <AnimatePresence initial={false}>
+          {showHint && (
+            <motion.div
+              initial={{ opacity: 0, y: 4, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 4, scale: 0.98 }}
+              style={{ translate: '-50% -50%' }}
+              className="pointer-events-none absolute left-1/2 top-1/2 z-20 flex max-w-[min(21rem,42%)] items-center justify-center gap-1.5 rounded-[0.9rem] border border-purple-200 bg-white/95 px-3 py-1.5 text-center font-body text-[clamp(0.76rem,1vw,0.88rem)] font-semibold leading-tight text-indigo-900 shadow-[0_8px_18px_rgba(139,92,246,0.12)] dark:border-purple-700 dark:bg-[#2b1a3d]/95 dark:text-purple-100"
+            >
+              <img src="/ui/fill-blank-bulb.png" alt="" className="-my-2.5 h-12 w-12 shrink-0 object-contain" />
+              <span className="min-w-0 -translate-x-3 truncate"><strong className="font-display text-purple-700 dark:text-purple-100">{copy.hintAnswer}:</strong> {hintText}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <button
           type="button"
-          onClick={() => onEvent('hint_requested', { mechanic: 'true_false', index })}
-          className="inline-flex min-h-[2.35rem] items-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:border-yellow-200"
+          onClick={() => {
+            setShowHint(true);
+            onEvent('hint_requested', { mechanic: 'true_false', index });
+          }}
+          disabled={!hintText}
+          className="inline-flex min-h-[2.35rem] items-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:border-yellow-200 disabled:cursor-not-allowed disabled:opacity-45 dark:border-purple-800 dark:bg-[#2b1a3d] dark:text-purple-100"
         >
           <span className="text-lg leading-none">💡</span> {copy.hintAnswer}
         </button>
@@ -2772,9 +3000,10 @@ function TrueFalseTask({ payload, onDone, onEvent, lang, variant = 'default' }: 
             setSelected(null);
             setWrong(false);
             setCorrect(false);
+            setShowHint(false);
             onEvent('reset_requested', { mechanic: 'true_false', index });
           }}
-          className="inline-flex min-h-[2.35rem] items-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:border-violet-200"
+          className="inline-flex min-h-[2.35rem] items-center gap-2 rounded-full border border-purple-100 bg-white px-4 py-2 font-display text-sm font-bold text-indigo-800 shadow-[0_8px_18px_rgba(139,92,246,0.10)] transition hover:-translate-y-0.5 hover:border-violet-200 dark:border-purple-800 dark:bg-[#2b1a3d] dark:text-purple-100"
         >
           <RotateCcw className="h-4 w-4 text-violet-500" /> {lang === 'ru' ? 'Сбросить' : copy.clear}
         </button>
@@ -2784,9 +3013,18 @@ function TrueFalseTask({ payload, onDone, onEvent, lang, variant = 'default' }: 
 }
 
 // ==================== MINI-SHOP ====================
+const miniShopAssets = {
+  pinkBasket: '/ui/mini-shop-pink-basket.png',
+  basketDark: '/ui/mini-shop-basket-dark.png',
+  bag: '/ui/mini-shop-bag.png',
+  bagDark: '/ui/mini-shop-bag-dark.png',
+  purpleBasket: '/ui/mini-shop-purple-basket.png',
+  targetStar: '/ui/mini-shop-target-star.png',
+};
+
 function MiniShopTask({ payload, onDone, onEvent, lang }: { payload: any; onDone: () => void; onEvent: TaskTelemetry; lang: Lang }) {
   const copy = taskCopy[lang] || taskCopy.ru;
-  const items: Array<{ name: string; price: number; image?: string }> = (payload?.items || []).filter((item: any) => String(item?.name || '').trim());
+  const items: Array<{ name: string; price: number; image?: string; photo?: string; image_url?: string }> = (payload?.items || []).filter((item: any) => String(item?.name || '').trim());
   const target = Math.max(0, Number(payload?.target_total) || 0);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [completed, setCompleted] = useState(false);
@@ -2807,6 +3045,7 @@ function MiniShopTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
   }, [completed, target, total, selected]);
 
   const toggle = (index: number) => {
+    if (completed) return;
     setSelected(previous => {
       const next = new Set(previous);
       if (next.has(index)) next.delete(index);
@@ -2824,40 +3063,60 @@ function MiniShopTask({ payload, onDone, onEvent, lang }: { payload: any; onDone
   }
 
   return (
-    <div className="space-y-5">
-      <div className="mx-auto grid max-w-xl grid-cols-2 gap-3">
-        <div className="rounded-3xl border border-pink-100 bg-pink-50 p-4 text-center shadow-sm dark:border-pink-500/20 dark:bg-pink-500/10">
-          <div className="font-body text-xs font-black uppercase tracking-wider text-pink-400">{copy.shopTarget}</div>
-          <div className="font-display text-3xl font-black text-pink-600 dark:text-pink-100">{target}</div>
+    <div className="relative mx-auto flex h-full w-full max-w-[62rem] flex-col gap-[clamp(0.75rem,1.4vh,1.15rem)] pb-[clamp(3.8rem,7.6vw,5.8rem)]">
+      <div className="mx-auto grid w-full max-w-[46rem] grid-cols-1 gap-[clamp(0.62rem,1.1vw,0.9rem)] sm:grid-cols-2">
+        <div className="relative min-h-[clamp(4.75rem,8.2vh,5.8rem)] overflow-visible rounded-[1.35rem] border border-pink-200 bg-gradient-to-br from-white via-pink-50/80 to-white px-[clamp(1.2rem,2vw,1.65rem)] py-[clamp(0.62rem,1.2vh,0.86rem)] text-center shadow-[0_10px_24px_rgba(236,72,153,0.08)]">
+          <div className="font-body text-[clamp(0.68rem,0.96vw,0.82rem)] font-black uppercase tracking-wide text-pink-400">{copy.shopTarget}</div>
+          <div className="font-display text-[clamp(2rem,3.6vw,2.8rem)] font-black leading-none text-pink-600 dark:text-pink-100">{target}</div>
+          <img src={miniShopAssets.targetStar} alt="" draggable={false} className="pointer-events-none absolute -bottom-[13%] -right-[5%] h-[clamp(2.05rem,3.95vw,3.1rem)] w-[clamp(2.55rem,4.86vw,3.82rem)] select-none object-contain drop-shadow-[0_8px_14px_rgba(251,191,36,0.2)]" />
         </div>
-        <div className={`rounded-3xl border p-4 text-center shadow-sm ${completed ? 'border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-100' : over ? 'border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-500/25 dark:bg-rose-500/10 dark:text-rose-100' : 'border-purple-100 bg-white text-purple-700 dark:border-purple-700 dark:bg-[#241632] dark:text-purple-100'}`}>
-          <div className="font-body text-xs font-black uppercase tracking-wider opacity-65">{over ? copy.shopOver : copy.shopTotal}</div>
-          <div className="font-display text-3xl font-black">{total}</div>
+        <div className={`relative min-h-[clamp(4.75rem,8.2vh,5.8rem)] overflow-visible rounded-[1.35rem] border px-[clamp(1.2rem,2vw,1.65rem)] py-[clamp(0.62rem,1.2vh,0.86rem)] text-center shadow-[0_10px_24px_rgba(139,92,246,0.08)] ${completed ? 'border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-100' : over ? 'border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-500/25 dark:bg-rose-500/10 dark:text-rose-100' : 'border-purple-200 bg-white text-purple-700 dark:border-purple-700 dark:bg-[#241632] dark:text-purple-100'}`}>
+          <div className="font-body text-[clamp(0.68rem,0.96vw,0.82rem)] font-black uppercase tracking-wide opacity-65">{over ? copy.shopOver : copy.shopTotal}</div>
+          <div className="flex items-center justify-center gap-2 font-display text-[clamp(2rem,3.6vw,2.8rem)] font-black leading-none">
+            <span>{total}</span>
+            {completed && total === target && (
+              <span className="flex h-[clamp(1.28rem,2.08vw,1.68rem)] w-[clamp(1.28rem,2.08vw,1.68rem)] items-center justify-center text-emerald-500 drop-shadow-[0_4px_8px_rgba(16,185,129,0.22)]">
+                <CheckCircle2 className="h-full w-full" />
+                <span className="sr-only">{lang === 'en' ? 'Result saved' : lang === 'ua' ? 'Результат збережено' : 'Результат сохранён'}</span>
+              </span>
+            )}
+          </div>
+          <img src={miniShopAssets.purpleBasket} alt="" draggable={false} className="pointer-events-none absolute -bottom-[16%] -right-[4%] h-[clamp(2.62rem,5.05vw,4rem)] w-[clamp(2.7rem,5.22vw,4.14rem)] select-none object-contain drop-shadow-[0_8px_16px_rgba(124,58,237,0.16)]" />
         </div>
       </div>
-      {completed && (
-        <div className="mx-auto max-w-xl rounded-3xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-center font-display text-lg font-black text-emerald-700 shadow-sm dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-100">
-          {lang === 'en' ? 'Great, saved!' : lang === 'ua' ? 'Супер, збережено!' : 'Супер, сохраняем результат!'}
-        </div>
-      )}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="relative z-10 grid gap-x-[clamp(1rem,1.75vw,1.45rem)] gap-y-[clamp(0.8rem,1.45vw,1.2rem)] sm:grid-cols-2 lg:grid-cols-3">
         {items.map((item, index) => {
           const active = selected.has(index);
+          const itemImage = item.image || item.photo || item.image_url;
+          const isCheese = /сыр|сир|cheese/i.test(item.name || '');
           return (
             <button
               key={index}
               onClick={() => toggle(index)}
-              className={`min-h-36 rounded-[2rem] border-2 p-4 text-center shadow-sm transition hover:-translate-y-1 hover:shadow-xl ${
-                active ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100' : liveTile
+              disabled={completed}
+              className={`mini-shop-card-shell relative flex min-h-[clamp(10.9rem,21.6vh,14.2rem)] flex-col items-center justify-end overflow-visible px-[clamp(1.18rem,2vw,1.7rem)] pb-[clamp(1.18rem,2.1vh,1.58rem)] pt-[clamp(1.65rem,3vh,2.15rem)] text-center transition hover:-translate-y-1 focus:outline-none focus-visible:ring-4 focus-visible:ring-pink-200 dark:focus-visible:ring-fuchsia-300/50 ${isCheese ? '-mt-[clamp(1rem,2.1vh,1.45rem)]' : ''} ${
+                active ? 'text-emerald-700 drop-shadow-[0_12px_18px_rgba(16,185,129,0.18)] dark:text-emerald-100' : 'text-purple-700 drop-shadow-[0_10px_18px_rgba(168,85,247,0.08)] dark:text-white'
               }`}
             >
-              {item.image ? <SignedImg path={item.image} className="mx-auto mb-3 h-20 w-24 rounded-2xl object-cover" /> : <div className="mx-auto mb-3 flex h-20 w-24 items-center justify-center rounded-2xl bg-gradient-to-br from-yellow-100 via-pink-100 to-purple-100 text-3xl">🛍️</div>}
-              <div className="font-display text-lg font-black">{item.name}</div>
-              <div className="mt-1 font-body text-sm font-black opacity-70">{Number(item.price) || 0}</div>
+              <span className="student-accent-gradient absolute right-[10%] top-[10%] flex h-[clamp(1.72rem,3.15vw,2.34rem)] w-[clamp(1.72rem,3.15vw,2.34rem)] items-center justify-center rounded-full font-display text-[clamp(0.82rem,1.48vw,1.12rem)] font-black text-white shadow-[0_7px_14px_rgba(124,58,237,0.22)] ring-2 ring-white/90">
+                {Number(item.price) || 0}
+              </span>
+              {itemImage ? (
+                <SignedImg
+                  path={itemImage}
+                  className="mb-[clamp(0.12rem,0.35vh,0.28rem)] h-[clamp(7.05rem,13.1vh,9.25rem)] w-[clamp(9.2rem,16vw,12.85rem)] scale-[1.78] object-contain"
+                  draggable={false}
+                />
+              ) : (
+                <div aria-hidden="true" className="mb-[clamp(0.12rem,0.35vh,0.28rem)] h-[clamp(7.05rem,13.1vh,9.25rem)] w-[clamp(9.2rem,16vw,12.85rem)]" />
+              )}
+              <div className="max-w-full -translate-y-[clamp(0.32rem,0.72vh,0.52rem)] truncate font-display text-[clamp(1.02rem,1.65vw,1.34rem)] font-black leading-none">{item.name}</div>
             </button>
           );
         })}
       </div>
+      <img src={miniShopAssets.pinkBasket} alt="" draggable={false} className="pointer-events-none absolute bottom-[-0.85rem] -right-[1.05rem] z-0 h-[clamp(5.4rem,9.6vw,7.7rem)] w-[clamp(5.4rem,9.6vw,7.7rem)] select-none object-contain drop-shadow-[0_14px_24px_rgba(236,72,153,0.16)] dark:hidden" />
+      <img src={miniShopAssets.basketDark} alt="" draggable={false} className="pointer-events-none absolute bottom-[-1.35rem] right-[0.2rem] z-0 hidden h-[clamp(5.4rem,9.6vw,7.7rem)] w-[clamp(5.4rem,9.6vw,7.7rem)] select-none object-contain drop-shadow-[0_14px_26px_rgba(168,85,247,0.28)] dark:block" />
     </div>
   );
 }
@@ -3172,7 +3431,7 @@ export default function InteractiveLessonRoom({
   const cur = displayedTasks[idx];
   const useMasterGameLayout = !loading && lesson.type !== 'theory' && Boolean(cur);
   useEffect(() => {
-    if (!useMasterGameLayout || typeof document === 'undefined') return undefined;
+    if (typeof document === 'undefined') return undefined;
     const previousBodyOverflow = document.body.style.overflow;
     const previousHtmlOverscroll = document.documentElement.style.overscrollBehavior;
     document.body.style.overflow = 'hidden';
@@ -3181,7 +3440,7 @@ export default function InteractiveLessonRoom({
       document.body.style.overflow = previousBodyOverflow;
       document.documentElement.style.overscrollBehavior = previousHtmlOverscroll;
     };
-  }, [useMasterGameLayout]);
+  }, []);
 
   useEffect(() => {
     if (!useMasterGameLayout || finished !== null || masterTaskReady || !cur) return undefined;
@@ -3255,16 +3514,16 @@ export default function InteractiveLessonRoom({
 
   if (useMasterGameLayout) {
     const masterRoom = (
-      <div
-        className="fixed inset-0 z-50 overflow-y-auto bg-[#f8efff] bg-cover bg-center bg-no-repeat text-purple-950 md:h-[100dvh] md:overflow-hidden"
-        style={{ backgroundImage: "url('/backgrounds/vetoschool-interactive-room-bg.png')", backgroundPosition: 'center bottom' }}
-      >
+	      <div
+	        className="interactive-master-room fixed inset-0 z-50 overflow-y-auto bg-[#f8efff] bg-[url('/backgrounds/vetoschool-interactive-room-bg.png')] bg-cover bg-center bg-no-repeat text-purple-950 dark:bg-[#080821] dark:bg-[url('/backgrounds/vetoschool-interactive-room-bg-dark.png')] md:h-[100dvh] md:overflow-hidden"
+	        style={{ backgroundPosition: 'center bottom' }}
+	      >
 
         <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-[1600px] flex-col px-[clamp(0.65rem,1.45vw,1.45rem)] py-[clamp(0.45rem,1vh,0.9rem)] md:h-[100dvh] md:min-h-0">
           <header className="flex shrink-0 items-center justify-end gap-[clamp(0.45rem,1vw,0.85rem)] pb-[clamp(0.35rem,1vh,0.75rem)]">
             <div className="flex items-center gap-[clamp(0.26rem,0.55vw,0.44rem)] rounded-full border border-purple-100 bg-white px-[clamp(0.82rem,1.28vw,1.04rem)] py-[clamp(0.4rem,0.75vh,0.58rem)] shadow-[0_10px_24px_rgba(168,85,247,0.14)]">
               <img
-                src="/ui/reward-star.png"
+                src={REWARD_STAR_SRC}
                 alt=""
                 draggable={false}
                 className="h-[clamp(2.05rem,2.75vw,2.45rem)] w-[clamp(2.05rem,2.75vw,2.45rem)] select-none object-contain"
@@ -3273,7 +3532,11 @@ export default function InteractiveLessonRoom({
             </div>
             <div className="flex items-center gap-[clamp(0.45rem,0.9vw,0.75rem)] rounded-full border border-purple-100 bg-white py-[clamp(0.25rem,0.65vh,0.45rem)] pl-[clamp(0.35rem,0.7vw,0.5rem)] pr-[clamp(0.75rem,1.3vw,1rem)] shadow-[0_10px_24px_rgba(168,85,247,0.14)]">
               <div className="flex h-[clamp(2.35rem,4.8vw,3rem)] w-[clamp(2.35rem,4.8vw,3rem)] items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-sky-100 to-pink-100 text-[clamp(1.35rem,2.5vw,1.8rem)] ring-[clamp(0.18rem,0.45vw,0.3rem)] ring-white">
-                {equippedAvatar ? equippedAvatar.emoji : (studentProfile?.name?.[0] || 'V').toUpperCase()}
+                {equippedAvatar
+                  ? equippedAvatar.imageSrc
+                    ? <img src={equippedAvatar.imageSrc} alt="" className="h-full w-full object-contain" />
+                    : equippedAvatar.emoji
+                  : (studentProfile?.name?.[0] || 'V').toUpperCase()}
               </div>
               <span className="max-w-[10rem] truncate font-display text-sm font-black text-purple-700 sm:max-w-[14rem]">{studentProfile?.name || 'Vetoschool'}</span>
             </div>
@@ -3290,16 +3553,23 @@ export default function InteractiveLessonRoom({
             <aside className="pointer-events-none relative z-30 flex min-h-[420px] min-w-0 flex-col justify-end gap-[clamp(0.28rem,0.65vh,0.48rem)] overflow-visible md:min-h-0">
               <div
                 aria-hidden={hideOwlSpeechBubble}
-                className={`relative z-10 mx-auto mb-[clamp(1.35rem,3.2vh,2.5rem)] aspect-[1055/570] w-[min(100%,20.5rem)] -translate-x-[clamp(0.45rem,1.4vw,1.15rem)] translate-y-[clamp(1.7rem,4.2vh,3.1rem)] transition-opacity duration-200 ease-in-out md:w-[min(100%,19.5rem)] md:-translate-x-[clamp(0.75rem,1.9vw,1.65rem)] md:translate-y-[clamp(2.2rem,5.2dvh,4rem)] lg:w-[min(100%,21.25rem)] ${hideOwlSpeechBubble ? 'opacity-0' : 'opacity-100'}`}
+                className={`relative z-10 mx-auto mb-[clamp(1.35rem,3.2vh,2.5rem)] aspect-[1055/570] w-[min(100%,21.5rem)] -translate-x-[clamp(0.45rem,1.4vw,1.15rem)] translate-y-[clamp(1.25rem,3.4vh,2.55rem)] transition-opacity duration-200 ease-in-out dark:w-[min(100%,27rem)] md:w-[min(100%,20.75rem)] md:-translate-x-[clamp(0.75rem,1.9vw,1.65rem)] md:translate-y-[clamp(1.7rem,4.4dvh,3.35rem)] dark:md:w-[min(100%,26rem)] lg:w-[min(100%,23rem)] dark:lg:w-[min(100%,29.5rem)] ${hideOwlSpeechBubble ? 'opacity-0' : 'opacity-100'}`}
               >
                 <img
                   src="/ui/dialog-window.png"
                   alt=""
                   aria-hidden="true"
                   draggable={false}
-                  className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain"
+                  className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain dark:hidden"
                 />
-                <p className="absolute left-[11%] right-[19%] top-[17%] flex h-[54%] items-center justify-center text-center font-display text-[clamp(1.02rem,1.36vw,1.32rem)] font-bold leading-[1.15] text-purple-800">
+                <img
+                  src="/ui/dialog-window-dark.png"
+                  alt=""
+                  aria-hidden="true"
+                  draggable={false}
+                  className="pointer-events-none absolute inset-0 hidden h-full w-full select-none object-fill dark:block"
+                />
+                <p className="absolute left-[11%] right-[15%] top-[17%] flex h-[54%] items-center justify-center text-center font-display text-[clamp(1.05rem,1.42vw,1.4rem)] font-bold leading-[1.15] text-purple-800">
                   {owlSpeech}
                 </p>
               </div>
@@ -3328,9 +3598,9 @@ export default function InteractiveLessonRoom({
                     ✨
                   </div>
                   <div className="min-w-0">
-                    <div className="font-body text-[clamp(0.62rem,0.9vw,0.7rem)] font-medium uppercase tracking-[0.2em] text-purple-400">{copy.unit}</div>
-                    <h2 className="truncate font-display text-[clamp(1.18rem,2.1vw,1.66rem)] font-bold leading-tight text-purple-800">{unitTitle || copy.unit}</h2>
-                    <p className="mt-0.5 truncate font-body text-[clamp(0.72rem,1vw,0.84rem)] font-medium text-purple-500">{copy.topic}: {lesson.title}</p>
+	                    <div className="font-body text-[clamp(0.62rem,0.9vw,0.7rem)] font-medium uppercase tracking-[0.2em] text-purple-400 dark:text-white">{copy.unit}</div>
+	                    <h2 className="truncate font-display text-[clamp(1.18rem,2.1vw,1.66rem)] font-bold leading-tight text-purple-800 dark:text-white">{unitTitle || copy.unit}</h2>
+	                    <p className="mt-0.5 truncate font-body text-[clamp(0.72rem,1vw,0.84rem)] font-medium text-purple-500 dark:text-white">{copy.topic}: {lesson.title}</p>
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center justify-center gap-[clamp(0.42rem,0.78vw,0.62rem)]">
@@ -3363,8 +3633,18 @@ export default function InteractiveLessonRoom({
                   <AnimatePresence mode="wait">
                     <motion.div key={cur.id} className="flex min-h-0 flex-1 flex-col" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}>
                       <div className="mx-auto mb-[clamp(0.46rem,1.08vh,0.72rem)] w-full max-w-4xl rounded-[1.45rem] bg-white px-[clamp(0.9rem,1.7vw,1.48rem)] py-[clamp(0.44rem,1vh,0.74rem)] text-center shadow-[0_8px_22px_rgba(168,85,247,0.06)]">
-                        <h3 className="font-display text-[clamp(1.38rem,2.55vw,2.38rem)] font-bold leading-tight text-purple-800">{taskMeta?.title || lesson.title}</h3>
-                        <p className="mt-0.5 font-body text-[clamp(0.72rem,1.14vw,0.88rem)] font-medium text-purple-500">{taskMeta?.instruction}</p>
+	                        <h3 className="font-display text-[clamp(1.38rem,2.55vw,2.38rem)] font-bold leading-tight text-purple-800 dark:text-white">
+                          <span className="inline-flex items-center justify-center gap-[clamp(0.32rem,0.68vw,0.56rem)]">
+                            <span>{taskMeta?.title || lesson.title}</span>
+                            {cur.mechanic_type === 'mini_shop' && (
+                              <>
+                                <img src={miniShopAssets.bag} alt="" draggable={false} className="h-[clamp(1.85rem,3.55vw,2.9rem)] w-[clamp(1.52rem,2.94vw,2.42rem)] select-none object-contain drop-shadow-[0_8px_14px_rgba(236,72,153,0.14)] dark:hidden" />
+                                <img src={miniShopAssets.bagDark} alt="" draggable={false} className="hidden h-[clamp(2.15rem,4.1vw,3.35rem)] w-[clamp(1.75rem,3.38vw,2.8rem)] translate-y-1 select-none object-contain drop-shadow-[0_8px_18px_rgba(168,85,247,0.30)] dark:block" />
+                              </>
+                            )}
+                          </span>
+                        </h3>
+	                        <p className="mt-0.5 font-body text-[clamp(0.72rem,1.14vw,0.88rem)] font-medium text-purple-500 dark:text-white">{taskMeta?.instruction}</p>
                       </div>
                       <div className="min-h-0 flex-1">
                         {renderMasterTaskContent(cur, () => setMasterTaskReady(true))}
@@ -3388,11 +3668,11 @@ export default function InteractiveLessonRoom({
               <div className="relative h-[clamp(0.48rem,0.98vh,0.64rem)] flex-1 overflow-visible rounded-full bg-purple-50 shadow-inner shadow-purple-100">
                 <div className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-100/80 via-purple-50 to-sky-50" />
                 <div
-                  className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-pink-500 via-violet-500 to-sky-400 shadow-[0_0_18px_rgba(168,85,247,0.28)] transition-all duration-500"
-                  style={{ width: `${lessonProgressPercent}%` }}
+                  className="absolute inset-y-0 left-0 rounded-full shadow-[0_0_18px_rgba(168,85,247,0.28)] transition-all duration-500"
+                  style={{ width: `${lessonProgressPercent}%`, background: masterProgressGradient }}
                 />
                 <div
-                  className="absolute top-[58%] h-[clamp(3.55rem,6.25vw,4.85rem)] w-[clamp(5.33rem,9.38vw,7.27rem)] -translate-x-1/2 -translate-y-1/2 transition-[left] duration-500 ease-in-out"
+                  className="absolute top-[64%] h-[clamp(3.55rem,6.25vw,4.85rem)] w-[clamp(5.33rem,9.38vw,7.27rem)] -translate-x-1/2 -translate-y-1/2 transition-[left] duration-500 ease-in-out"
                   style={{ left: `clamp(1.15rem, ${lessonProgressPercent}%, calc(100% - 0.65rem))` }}
                   aria-hidden="true"
                 >
@@ -3402,7 +3682,7 @@ export default function InteractiveLessonRoom({
                     <span className="progress-star-sparkle progress-star-sparkle-c" />
                     <span className="progress-star-sparkle progress-star-sparkle-d" />
                     <img
-                      src="/ui/progress-star.png"
+                      src={PROGRESS_STAR_SRC}
                       alt=""
                       draggable={false}
                       className="relative z-10 h-full w-full select-none object-contain"
@@ -3419,7 +3699,8 @@ export default function InteractiveLessonRoom({
                 nextTask();
               }}
               disabled={!masterTaskReady || finished !== null}
-              className="inline-flex min-h-[2.4rem] items-center justify-center gap-2 rounded-full bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500 px-[clamp(1.18rem,2vw,1.72rem)] py-[clamp(0.42rem,0.78vh,0.58rem)] font-display text-[clamp(0.82rem,1.15vw,0.98rem)] font-semibold text-white shadow-[0_10px_24px_rgba(168,85,247,0.28)] transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:from-purple-300 disabled:via-fuchsia-200 disabled:to-pink-200 disabled:text-white/90 disabled:shadow-[0_8px_18px_rgba(168,85,247,0.12)]"
+              className="inline-flex min-h-[2.4rem] items-center justify-center gap-2 rounded-full px-[clamp(1.18rem,2vw,1.72rem)] py-[clamp(0.42rem,0.78vh,0.58rem)] font-display text-[clamp(0.82rem,1.15vw,0.98rem)] font-semibold text-white shadow-[0_10px_24px_rgba(168,85,247,0.28)] transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60 disabled:text-white/90 disabled:shadow-[0_8px_18px_rgba(168,85,247,0.12)]"
+              style={{ background: masterProgressGradient }}
             >
               {copy.next} <ArrowRight className="h-4 w-4" />
             </button>
@@ -3432,8 +3713,8 @@ export default function InteractiveLessonRoom({
   }
 
   const room = (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-gradient-to-br from-pink-50 via-violet-50 to-sky-50 dark:bg-[#150923] dark:bg-none">
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 sm:px-6 lg:px-8">
+    <div className="fixed inset-0 z-50 overflow-x-hidden overflow-y-auto bg-gradient-to-br from-pink-50 via-violet-50 to-sky-50 dark:bg-[#150923] dark:bg-none">
+      <div className={`mx-auto flex min-h-screen w-full flex-col px-4 sm:px-6 lg:px-8 ${lesson.type === 'theory' ? 'max-w-[1510px] py-2' : 'max-w-6xl py-5'}`}>
         <div className="mb-5 flex items-center justify-between gap-3 rounded-3xl border border-white bg-white px-4 py-3 shadow-sm dark:border-purple-800 dark:bg-[#211331] dark:shadow-none">
           <button onClick={exitLesson} className="inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-body font-800 text-purple-500 transition hover:bg-purple-50 hover:text-purple-700 dark:text-purple-200 dark:hover:bg-purple-900 dark:hover:text-white">
             <ArrowLeft className="h-4 w-4" /> {copy.exit}
@@ -3445,8 +3726,8 @@ export default function InteractiveLessonRoom({
             </div>
           </div>
         </div>
-        <div className="flex flex-1 items-start justify-center pt-6 sm:pt-10">
-          <div className="w-full rounded-[2rem] border border-white bg-gradient-to-br from-white via-white to-pink-50 p-4 shadow-2xl shadow-purple-100/60 sm:p-6 lg:p-8 dark:border-purple-800 dark:bg-[#211331] dark:bg-none dark:shadow-none">
+        <div className={`flex flex-1 items-start justify-center ${lesson.type === 'theory' ? 'pt-0' : 'pt-6 sm:pt-10'}`}>
+          <div className={`w-full ${lesson.type === 'theory' ? '' : 'rounded-[2rem] border border-white bg-gradient-to-br from-white via-white to-pink-50 p-4 shadow-2xl shadow-purple-100/60 dark:border-purple-800 dark:bg-[#211331] dark:bg-none dark:shadow-none sm:p-6 lg:p-8'}`}>
           <AnimatePresence>
             {teacherHint && finished === null && (
               <motion.div
@@ -3459,12 +3740,14 @@ export default function InteractiveLessonRoom({
               </motion.div>
             )}
           </AnimatePresence>
-          <div className="mb-6 text-center">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-2xl border border-purple-100 bg-white px-4 py-2 text-xs font-body font-800 uppercase tracking-wider text-purple-400 shadow-sm dark:border-purple-700 dark:bg-[#2b1a3d] dark:text-purple-200">
-              <Sparkles className="h-4 w-4 text-pink-400" /> Vetoschool quest
+          {lesson.type !== 'theory' && (
+            <div className="mb-6 text-center">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-2xl border border-purple-100 bg-white px-4 py-2 text-xs font-body font-800 uppercase tracking-wider text-purple-400 shadow-sm dark:border-purple-700 dark:bg-[#2b1a3d] dark:text-purple-200">
+                <Sparkles className="h-4 w-4 text-pink-400" /> Vetoschool quest
+              </div>
+              <h2 className="font-display text-3xl font-black text-purple-800 sm:text-4xl dark:text-purple-100">{lesson.title}</h2>
             </div>
-            {lesson.type !== 'theory' && <h2 className="font-display text-3xl font-black text-purple-800 sm:text-4xl dark:text-purple-100">{lesson.title}</h2>}
-          </div>
+          )}
 
           {loading && <p className="text-center text-purple-500 dark:text-purple-200">{copy.loading}</p>}
           {finishError && finished === null && (
@@ -3482,8 +3765,8 @@ export default function InteractiveLessonRoom({
           {!loading && lesson.type === 'theory' && theoryTask && finished === null && (
             <div className="space-y-6">
               <TheoryLessonView content={theoryTask.payload_json} fallbackTitle={lesson.title} lang={lang} />
-              <div className="flex justify-center border-t border-purple-100 pt-6 dark:border-purple-700">
-                <button onClick={() => { playButtonSound('study'); void finish(); }} className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-500 px-6 py-3 font-display text-sm font-black text-white shadow-xl shadow-pink-200/50 transition hover:-translate-y-0.5 hover:shadow-2xl dark:shadow-none">
+              <div className="flex justify-center pt-6">
+                <button onClick={() => { playButtonSound('study'); void finish(); }} style={{ background: masterProgressGradient }} className="inline-flex items-center gap-2 rounded-2xl px-6 py-3 font-display text-sm font-black text-white shadow-xl shadow-purple-200/50 transition hover:-translate-y-0.5 hover:brightness-105 hover:shadow-2xl dark:shadow-none">
                   <CheckCircle2 className="h-5 w-5" /> {copy.studied}
                 </button>
               </div>
@@ -3495,7 +3778,15 @@ export default function InteractiveLessonRoom({
                 {mechanicCopy[lang][cur.mechanic_type] && (
                   <div className="mx-auto mb-6 max-w-3xl rounded-3xl border border-pink-100 bg-gradient-to-r from-pink-50 via-purple-50 to-sky-50 px-5 py-4 text-center shadow-sm dark:border-purple-500/25 dark:from-pink-500/10 dark:via-purple-500/10 dark:to-sky-500/10">
                     <h3 className="font-display text-xl font-black text-purple-700 dark:text-purple-100 sm:text-2xl">
-                      {mechanicCopy[lang][cur.mechanic_type]?.title}
+                      <span className="inline-flex items-center justify-center gap-2">
+                        <span>{mechanicCopy[lang][cur.mechanic_type]?.title}</span>
+                        {cur.mechanic_type === 'mini_shop' && (
+                          <>
+                            <img src={miniShopAssets.bag} alt="" draggable={false} className="h-8 w-7 select-none object-contain drop-shadow-[0_8px_14px_rgba(236,72,153,0.14)] dark:hidden sm:h-10 sm:w-8" />
+                            <img src={miniShopAssets.bagDark} alt="" draggable={false} className="hidden h-9 w-8 translate-y-1 select-none object-contain drop-shadow-[0_8px_18px_rgba(168,85,247,0.30)] dark:block sm:h-12 sm:w-10" />
+                          </>
+                        )}
+                      </span>
                     </h3>
                     <p className="mt-1 font-body text-sm font-bold text-purple-500 dark:text-purple-200 sm:text-base">
                       {mechanicCopy[lang][cur.mechanic_type]?.instruction}

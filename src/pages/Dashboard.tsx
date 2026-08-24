@@ -1,6 +1,7 @@
 import { useCallback, useState, useEffect, type MouseEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Check, Clock, Crown, Lock, Unlock } from 'lucide-react';
 import { getCurrentUser, logout } from '../lib/auth';
 import { getStudentSchedule } from '../lib/schedule';
 import { ensureStudentContent, ContentItem, getStudentRating, isGradedContentType, loadStudentContent, openOrDownload, submitStudentContentWork } from '../lib/content';
@@ -18,6 +19,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { pricingPlanNameKeys, type PricingPlanId } from '../lib/pricingCurrency';
 import { redirectToStripeCustomerPortal } from '../lib/stripeCheckout';
 import { activeSubscriptionStatus, billingStatusClass, billingStatusLabel, shouldShowActiveTariff } from '../lib/subscriptionStatus';
+
+const RATING_STAR_SRC = '/dashboard/rating-user-star.png?v=20260815';
+const withoutLeadingStar = (value: string) => value.replace(/^⭐\s*/, '');
 
 type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades' | 'shop' | 'interactive';
 
@@ -198,12 +202,26 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
   const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
 
   return (
-    <div className="glass rounded-3xl p-6 border border-sky-100 bg-gradient-to-br from-white via-sky-50/50 to-purple-50/60">
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+    <div className="relative overflow-visible">
+      <div className="glass relative overflow-hidden rounded-3xl p-6 border border-sky-100 bg-white">
+        <img
+          src="/dashboard/telegram-parents-bg.png"
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 h-full w-full scale-[1.08] select-none object-cover dark:hidden"
+        />
+        <img
+          src="/dashboard/telegram-parents-bg-dark.png"
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 hidden h-full w-full scale-[1.08] select-none object-cover dark:block"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/70 via-white/34 to-white/8 dark:hidden" />
+        <div className="relative z-10 flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div>
-          <h3 className="font-display font-bold text-xl text-purple-700 mb-1">💬 {text.title}</h3>
-          <p className="font-body text-sm text-purple-400 max-w-2xl">{text.desc}</p>
-          <p className="font-body text-xs text-purple-400 mt-2">{text.settings}</p>
+          <h3 className="font-display font-bold text-xl text-purple-700 mb-1 dark:text-violet-50">💬 {text.title}</h3>
+          <p className="font-body text-sm text-purple-400 max-w-2xl dark:text-violet-100/78">{text.desc}</p>
+          <p className="font-body text-xs text-purple-400 mt-2 dark:text-violet-200/65">{text.settings}</p>
         </div>
         <button onClick={createLink} disabled={loading}
           className="btn-magic px-5 py-3 text-white text-sm font-display font-bold disabled:opacity-60 flex-shrink-0">
@@ -212,7 +230,7 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
       </div>
 
       {link && (
-        <div className="mt-4 rounded-2xl bg-white/80 border border-purple-100 p-3">
+        <div className="relative z-10 mt-4 rounded-2xl bg-white/80 border border-purple-100 p-3">
           <div className="flex flex-col sm:flex-row gap-2">
             <input readOnly value={link} className="input-magic text-sm py-2 flex-1" onFocus={e => e.currentTarget.select()} />
             <button onClick={copy} className="btn-outline px-4 py-2 text-sm font-display font-bold">{text.copy}</button>
@@ -226,27 +244,27 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
         </div>
       )}
 
-      <div className="mt-4">
+      <div className="relative z-10 mt-4">
         <div className="mb-2 flex items-center justify-between gap-3">
-          <div className="font-body font-700 text-sm text-purple-600">{text.linked}</div>
-          <button onClick={refreshParents} disabled={refreshing} className="rounded-xl bg-white/70 px-3 py-1.5 font-body text-xs font-800 text-purple-500 hover:bg-pink-50 disabled:opacity-60">
+          <div className="font-body font-700 text-sm text-purple-600 dark:text-violet-100">{text.linked}</div>
+          <button onClick={refreshParents} disabled={refreshing} className="rounded-xl bg-white/70 px-3 py-1.5 font-body text-xs font-800 text-purple-500 hover:bg-pink-50 disabled:opacity-60 dark:bg-[#251143]/72 dark:text-violet-100 dark:hover:bg-[#311858]">
             {refreshing ? '...' : text.refresh}
           </button>
         </div>
         {parents.length === 0 ? (
-          <div className="font-body text-sm text-purple-400 bg-white/60 rounded-2xl px-4 py-3">{text.empty}</div>
+          <div className="font-body text-sm text-purple-400 bg-white/60 rounded-2xl px-4 py-3 dark:bg-[#251143]/70 dark:text-violet-100/75">{text.empty}</div>
         ) : (
-          <div className="grid sm:grid-cols-2 gap-2">
+          <div className="grid gap-2">
             {parents.map(parent => (
-              <div key={parent.id} className="rounded-2xl bg-white/70 border border-purple-100 px-4 py-3">
-                <div className="font-body font-700 text-purple-700 text-sm">
+              <div key={parent.id} className="rounded-2xl bg-white/70 border border-purple-100 px-4 py-3 dark:border-violet-300/16 dark:bg-[#251143]/74">
+                <div className="font-body font-700 text-purple-700 text-sm dark:text-violet-50">
                   {parent.parentName || parent.telegramUsername || 'Telegram'}
                 </div>
-                <div className="mt-0.5 font-body text-xs text-purple-400">
+                <div className="mt-0.5 font-body text-xs text-purple-400 dark:text-violet-200/72">
                   {parent.telegramUsername ? `@${parent.telegramUsername.replace(/^@/, '')}` : 'Telegram'} · {parent.language.toUpperCase()}
                 </div>
                 {parent.linkedAt && (
-                  <div className="mt-1 font-body text-[11px] font-700 text-purple-300">
+                  <div className="mt-1 font-body text-[11px] font-700 text-purple-300 dark:text-violet-200/55">
                     {text.linkedAt}: {new Date(parent.linkedAt).toLocaleString(locale)}
                   </div>
                 )}
@@ -266,10 +284,10 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className="font-body text-xs font-800 text-red-500">{text.confirm}</span>
                     <button
-                      type="button"
-                      onClick={() => disconnectParent(parent.id)}
-                      disabled={disconnectingId === parent.id}
-                      className="rounded-xl border border-red-200 bg-red-100 px-3 py-1.5 font-body text-xs font-800 text-red-600 hover:bg-red-200 disabled:opacity-60"
+	                      type="button"
+	                      onClick={() => disconnectParent(parent.id)}
+	                      disabled={disconnectingId === parent.id}
+	                      className="telegram-disconnect-button rounded-xl border border-red-200 bg-red-100 px-3 py-1.5 font-body text-xs font-800 text-red-600 hover:bg-red-200 disabled:opacity-60"
                     >
                       {disconnectingId === parent.id ? '...' : text.disconnect}
                     </button>
@@ -283,10 +301,10 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
                   </div>
                 ) : (
                   <button
-                    type="button"
-                    onClick={() => { setStatusMessage(null); setConfirmDisconnectId(parent.id); }}
-                    className="mt-2 rounded-xl border border-red-100 bg-red-50/70 px-3 py-1.5 font-body text-xs font-800 text-red-500 hover:bg-red-100"
-                  >
+	                    type="button"
+	                    onClick={() => { setStatusMessage(null); setConfirmDisconnectId(parent.id); }}
+	                    className="telegram-disconnect-button mt-2 rounded-xl border border-red-100 bg-red-50/70 px-3 py-1.5 font-body text-xs font-800 text-red-500 hover:bg-red-100"
+	                  >
                     {text.disconnect}
                   </button>
                 )}
@@ -300,6 +318,19 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
           </div>
         )}
       </div>
+      </div>
+      <img
+        src="/dashboard/telegram-phone-sticker.png"
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-[-0.4rem] right-[-1.1rem] z-20 h-32 w-auto select-none object-contain drop-shadow-[0_16px_20px_rgba(88,28,135,0.18)] dark:hidden md:h-40"
+      />
+      <img
+        src="/dashboard/telegram-phone-sticker-dark.png"
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-[-0.8rem] right-[-1.1rem] z-20 hidden h-[8.5rem] w-auto select-none object-contain drop-shadow-[0_18px_24px_rgba(88,28,135,0.28)] dark:block md:h-[10.5rem]"
+      />
     </div>
   );
 }
@@ -373,7 +404,7 @@ function FileModal({ item, userId, canSubmitWork, onClose, onSubmitted, onStartI
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
       style={{ background: 'rgba(80,40,120,0.6)', backdropFilter: 'blur(12px)' }}
       onClick={onClose}>
       <motion.div initial={{ scale: 0.85, y: 40 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.85, y: 40 }}
@@ -411,7 +442,7 @@ function FileModal({ item, userId, canSubmitWork, onClose, onSubmitted, onStartI
             {hasInteractive && (
               <div className="rounded-2xl border border-pink-100 bg-gradient-to-br from-white via-pink-50/70 to-purple-50/70 p-4">
                 <div className="mb-3 flex items-center gap-3">
-                  <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-pink-400 to-purple-400 text-xl text-white shadow-sm">🎮</span>
+                  <span className="student-accent-gradient grid h-11 w-11 place-items-center rounded-2xl text-xl text-white shadow-sm">🎮</span>
                   <div>
                     <div className="font-display font-bold text-purple-700">
                       {lang === 'en' ? 'Interactive task' : lang === 'ua' ? 'Інтерактивне завдання' : 'Интерактивное задание'}
@@ -617,7 +648,7 @@ function FileModal({ item, userId, canSubmitWork, onClose, onSubmitted, onStartI
 function LockedModal({ item, onClose, lang }: { item: ContentItem; onClose: () => void; lang: Lang }) {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
       style={{ background: 'rgba(80,40,120,0.5)', backdropFilter: 'blur(10px)' }}
       onClick={onClose}>
       <motion.div initial={{ scale: 0.85, y: 40 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.85 }}
@@ -737,6 +768,17 @@ function EmptySection({ emoji, title, desc }: { emoji: string; title: string; de
   );
 }
 
+function RatingStatIcon() {
+	return (
+	  <img
+	    src={RATING_STAR_SRC}
+	    alt=""
+	    className="h-14 w-14 translate-y-[3px] object-contain drop-shadow-[0_8px_9px_rgba(217,119,6,0.18)]"
+	    aria-hidden="true"
+    />
+  );
+}
+
 // ================================================================
 export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   const [lang, setLang] = useState<Lang>(propLang);
@@ -761,6 +803,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalError, setPortalError] = useState('');
+  const [isWelcomeScrolledUnderHeader, setIsWelcomeScrolledUnderHeader] = useState(false);
 
   const effectiveUserId = previewUserId || user?.id || '';
   const billingAccessStatus = billing?.access_status || user?.accessStatus || null;
@@ -848,9 +891,20 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
     if (isLimitedAccess && activeTab !== 'overview') setActiveTab('overview');
   }, [activeTab, isLimitedAccess]);
 
+  useEffect(() => {
+    const updateWelcomeLayer = () => setIsWelcomeScrolledUnderHeader(window.scrollY > 8);
+    updateWelcomeLayer();
+    window.addEventListener('scroll', updateWelcomeLayer, { passive: true });
+    return () => window.removeEventListener('scroll', updateWelcomeLayer);
+  }, []);
+
   if (!user) return null;
 
   const handleLogout = async () => { await logout(); navigate('/'); };
+  const handleShopBack = () => {
+    setActiveTab('overview');
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  };
   const handleItemClick = (item: ContentItem) => { setSelectedItem(item); setShowModal(true); };
   const friendlyPortalError = (error: unknown) => {
     const message = error instanceof Error ? error.message : '';
@@ -895,7 +949,15 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   const listening = content.filter(i => i.type === 'listening');
   const checkpoint = content.filter(i => i.type === 'checkpoint');
   const completedLessons = lessons.filter(l => l.unlocked).length;
+  const recentLesson = lessons[lessons.length - 1] || null;
+  const recentLessonCompleted = Boolean(
+    recentLesson?.interactiveCompletedAt ||
+    recentLesson?.checkedAt ||
+    (recentLesson?.starRating && recentLesson.starRating > 0)
+  );
+  const recentLessonUnlocked = Boolean(recentLesson?.unlocked);
   const { avg: ratingAvg } = getStudentRating(effectiveUserId);
+  const ratingFullStars = Math.max(0, Math.min(5, Math.floor(ratingAvg)));
   const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
   const billingPlanId = billing?.plan_id && billing.plan_id in pricingPlanNameKeys ? billing.plan_id as PricingPlanId : null;
   const billingKind = activeSubscriptionStatus({
@@ -989,19 +1051,19 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
     },
   }[lang];
 
-  const tabs: { id: Tab; label: string; emoji: string }[] = [
-    { id: 'overview', label: t(lang, 'dash_overview'), emoji: '🏠' },
-    { id: 'interactive', label: t(lang, 'dash_interactive'), emoji: '🗺️' },
-    { id: 'lessons', label: t(lang, 'dash_lessons'), emoji: '📚' },
-    { id: 'homework', label: t(lang, 'dash_homework'), emoji: '✏️' },
-    { id: 'schedule', label: t(lang, 'dash_schedule'), emoji: '📅' },
-    { id: 'practice', label: t(lang, 'dash_practice'), emoji: '🎮' },
-    { id: 'grammar', label: t(lang, 'dash_grammar'), emoji: '📝' },
-    { id: 'listening', label: t(lang, 'dash_listening'), emoji: '🎧' },
-    { id: 'checkpoint', label: t(lang, 'dash_checkpoint'), emoji: '🏁' },
-    { id: 'dictionary', label: t(lang, 'dict_tab'), emoji: '📖' },
-    { id: 'grades', label: t(lang, 'dash_grades'), emoji: '🏆' },
-    { id: 'shop', label: t(lang, 'shop_tab'), emoji: '🛍️' },
+  const tabs: { id: Tab; label: string; iconSrc: string }[] = [
+    { id: 'overview', label: t(lang, 'dash_overview'), iconSrc: '/dashboard/menu-icons/overview.png' },
+    { id: 'interactive', label: t(lang, 'dash_interactive'), iconSrc: '/dashboard/menu-icons/interactive.png' },
+    { id: 'lessons', label: t(lang, 'dash_lessons'), iconSrc: '/dashboard/menu-icons/lessons.png' },
+    { id: 'homework', label: t(lang, 'dash_homework'), iconSrc: '/dashboard/menu-icons/homework.png' },
+    { id: 'schedule', label: t(lang, 'dash_schedule'), iconSrc: '/dashboard/menu-icons/schedule.png' },
+    { id: 'practice', label: t(lang, 'dash_practice'), iconSrc: '/dashboard/menu-icons/practice.png' },
+    { id: 'grammar', label: t(lang, 'dash_grammar'), iconSrc: '/dashboard/menu-icons/grammar.png' },
+    { id: 'listening', label: t(lang, 'dash_listening'), iconSrc: '/dashboard/menu-icons/listening.png' },
+    { id: 'checkpoint', label: t(lang, 'dash_checkpoint'), iconSrc: '/dashboard/menu-icons/checkpoint.png' },
+    { id: 'dictionary', label: t(lang, 'dict_tab'), iconSrc: '/dashboard/menu-icons/dictionary.png' },
+    { id: 'grades', label: t(lang, 'dash_grades'), iconSrc: '/dashboard/menu-icons/grades.png' },
+    { id: 'shop', label: t(lang, 'shop_tab'), iconSrc: '/dashboard/menu-icons/shop.png' },
   ];
   const visibleTabs = isLimitedAccess ? tabs.filter(tab => tab.id === 'overview') : tabs;
 
@@ -1045,12 +1107,26 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
       )}
 
       {/* Header */}
-      <div className="sticky top-0 z-40 glass border-b border-pink-100" style={{ boxShadow: '0 4px 20px rgba(200,150,220,0.1)' }}>
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div
+        className="student-dashboard-header sticky top-0 z-40 glass border-b border-pink-100"
+      >
+        <div className="relative max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <span className="text-2xl">📖</span>
             <span className="font-display font-black text-xl bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">Vetoschool</span>
           </Link>
+          {activeTab === 'shop' && (
+            <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2">
+              <button
+                type="button"
+                onClick={handleShopBack}
+                className="inline-flex items-center gap-1.5 font-body text-xs font-700 text-purple-400 transition-colors hover:text-pink-500"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                {lang === 'en' ? 'Back' : 'Назад'}
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <ThemeToggle />
             {/* Lang switcher */}
@@ -1067,19 +1143,21 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
             )}
             {/* Stars balance widget */}
             <button onClick={() => { if (!isLimitedAccess) setActiveTab('shop'); }}
-              disabled={isLimitedAccess}
-              className="hidden sm:flex items-center gap-1.5 bg-gradient-to-r from-yellow-100 to-amber-100 border border-yellow-300 rounded-full px-3 py-1.5 hover:scale-105 transition-transform"
-              title={t(lang, 'shop_balance')}>
-              <span className="text-base">⭐</span>
-              <span className="font-display font-black text-yellow-700 text-sm">{starProfile.starBalance}</span>
-            </button>
+	              disabled={isLimitedAccess}
+	              className="hidden sm:flex items-center gap-1.5 bg-gradient-to-r from-yellow-100 to-amber-100 border border-yellow-300 rounded-full px-3 py-1.5 hover:scale-105 transition-transform"
+	              title={t(lang, 'shop_balance')}>
+		              <img src={RATING_STAR_SRC} alt="" aria-hidden="true" className="h-6 w-6 scale-[1.22] object-contain drop-shadow-[0_4px_7px_rgba(217,119,6,0.2)]" />
+	              <span className="font-display font-black text-yellow-700 text-sm">{starProfile.starBalance}</span>
+	            </button>
             <div className="hidden sm:block text-right">
               <div className="font-display font-bold text-purple-700 text-sm">{user.name}</div>
               <div className="font-body text-xs text-purple-400">{billingHasAccess ? t(lang, 'dash_active') : t(lang, 'dash_pending')}</div>
             </div>
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-300 to-purple-300 flex items-center justify-center font-display font-black text-white text-lg overflow-hidden">
               {equippedAvatar
-                ? <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>{equippedAvatar.emoji}</span>
+                ? equippedAvatar.imageSrc
+                  ? <img src={equippedAvatar.imageSrc} alt="" className="h-full w-full object-contain" />
+                  : <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>{equippedAvatar.emoji}</span>
                 : user.name[0].toUpperCase()}
             </div>
             {!isPreview && (
@@ -1094,14 +1172,29 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className={activeTab === 'shop' ? 'mx-auto max-w-[100rem] px-2 py-2 sm:px-4' : 'max-w-7xl mx-auto px-4 py-6'}>
 
         {/* Welcome banner */}
+        {activeTab !== 'shop' && (<>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          className="rounded-3xl p-6 md:p-8 mb-6 text-white relative overflow-hidden"
-          style={{ background: 'linear-gradient(135deg, #FF8DC7 0%, #C8B3FF 50%, #7EC8FF 100%)' }}>
-          <div className="absolute inset-0 opacity-10">
+          className={`student-welcome-banner rounded-3xl p-6 md:p-8 mb-8 text-white relative overflow-visible ${isWelcomeScrolledUnderHeader ? 'z-10' : 'z-[60]'}`}>
+          <div className="absolute inset-0 overflow-hidden rounded-3xl opacity-10">
             {[...Array(15)].map((_, i) => <div key={i} className="absolute text-xl" style={{ left: `${(i * 6.7) % 100}%`, top: `${(i * 7.3) % 100}%` }}>✨</div>)}
+          </div>
+          <div
+            className={`student-welcome-owl-stage pointer-events-none absolute bottom-0 right-0 top-[-80px] hidden w-[68%] max-w-[850px] overflow-hidden rounded-r-3xl md:block ${isWelcomeScrolledUnderHeader ? 'z-20' : 'z-[70]'}`}
+            style={{ clipPath: 'inset(0 round 0 1.5rem 1.5rem 0)' }}
+          >
+            <img
+              src="/dashboard/student-welcome-owl-v2.png"
+              alt=""
+              className="student-welcome-owl-art absolute bottom-[-24px] right-[-14px] w-full origin-bottom-right scale-[0.98] select-none object-contain drop-shadow-[0_22px_32px_rgba(90,38,160,0.22)] dark:hidden"
+            />
+            <img
+              src="/dashboard/student-welcome-owl-dark.png"
+              alt=""
+              className="student-welcome-owl-art absolute bottom-[-135px] right-[2px] hidden w-full origin-bottom-right scale-[0.9] select-none object-contain drop-shadow-[0_22px_32px_rgba(3,1,12,0.36)] dark:block"
+            />
           </div>
           <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
@@ -1109,9 +1202,12 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
               <h1 className="font-display font-black text-2xl md:text-3xl">
                 {isPreview ? `👁️ Preview` : `${user.name}`}
               </h1>
-              <p className="font-body text-white/80 mt-1 text-sm">
-                {isLimitedAccess ? limitedCopy.banner : billingHasAccess ? t(lang, 'dash_keep_up') : t(lang, 'dash_locked_desc')}
-              </p>
+	              <p className="font-body text-white/80 mt-1 flex items-center gap-1.5 text-sm">
+	                {!isLimitedAccess && billingHasAccess && (
+	                  <img src={RATING_STAR_SRC} alt="" aria-hidden="true" className="h-6 w-6 object-contain drop-shadow-[0_5px_8px_rgba(217,119,6,0.24)]" />
+	                )}
+	                <span>{isLimitedAccess ? limitedCopy.banner : billingHasAccess ? withoutLeadingStar(t(lang, 'dash_keep_up')) : t(lang, 'dash_locked_desc')}</span>
+	              </p>
             </div>
             {isLimitedAccess ? (
               <Link
@@ -1135,14 +1231,29 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-body font-600 text-sm whitespace-nowrap transition-all duration-300 flex-shrink-0 ${
                 activeTab === tab.id
-                  ? 'bg-gradient-to-r from-pink-400 to-purple-400 text-white shadow-lg shadow-purple-200'
+                  ? 'student-accent-gradient text-white shadow-lg shadow-purple-200'
                   : 'glass text-purple-600 hover:bg-pink-50'
               }`}>
-              <span>{tab.emoji}</span>
+              <span className="relative h-6 w-6 flex-shrink-0">
+                <img
+                  src={tab.iconSrc}
+                  alt=""
+                  aria-hidden="true"
+                  draggable={false}
+                  className={`absolute left-1/2 top-1/2 max-w-none -translate-x-1/2 -translate-y-1/2 object-contain drop-shadow-sm ${
+                    tab.id === 'interactive'
+                      ? 'h-9 w-9'
+                      : ['practice', 'listening', 'shop'].includes(tab.id)
+                        ? 'h-8 w-8'
+                        : 'h-7 w-7'
+                  }`}
+                />
+              </span>
               <span>{tab.label}</span>
             </button>
           ))}
         </div>
+        </>)}
 
         {/* Tab content */}
         <AnimatePresence mode="wait">
@@ -1193,26 +1304,46 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
-                    { label: t(lang, 'dash_lessons_done'), value: `${completedLessons}/${lessons.length}`, emoji: '📚', color: 'from-pink-100 to-rose-100', border: 'border-pink-200' },
-                    { label: t(lang, 'dash_rating'), value: ratingAvg > 0 ? `${ratingAvg}★` : '—', emoji: '⭐', color: 'from-yellow-100 to-amber-100', border: 'border-yellow-200' },
-                    { label: t(lang, 'dash_hw_due'), value: homework.filter(h => !h.starRating || h.starRating === 0).length.toString(), emoji: '✏️', color: 'from-purple-100 to-violet-100', border: 'border-purple-200' },
-                    { label: t(lang, 'dash_week'), value: `${schedule.length}`, emoji: '📅', color: 'from-blue-100 to-cyan-100', border: 'border-blue-200' },
+                    { label: t(lang, 'dash_lessons_done'), value: `${completedLessons}/${lessons.length}`, icon: '/dashboard/stat-icons/lessons.png', color: 'from-pink-100 to-rose-100', border: 'border-pink-200', iconClass: 'h-full w-full object-contain drop-shadow-[0_8px_10px_rgba(126,34,206,0.16)]' },
+                    { label: t(lang, 'dash_rating'), value: ratingAvg > 0 ? `${ratingAvg}` : '—', icon: null, color: 'from-yellow-100 to-amber-100', border: 'border-yellow-200', iconClass: '' },
+                    { label: t(lang, 'dash_hw_due'), value: homework.filter(h => !h.starRating || h.starRating === 0).length.toString(), icon: '/dashboard/stat-icons/homework.png', color: 'from-purple-100 to-violet-100', border: 'border-purple-200', iconClass: 'h-full w-full object-contain drop-shadow-[0_8px_10px_rgba(126,34,206,0.16)]' },
+                    { label: t(lang, 'dash_week'), value: `${schedule.length}`, icon: '/dashboard/stat-icons/schedule.png', color: 'from-blue-100 to-cyan-100', border: 'border-blue-200', iconClass: 'h-full w-full object-contain drop-shadow-[0_8px_10px_rgba(14,116,144,0.16)]' },
                   ].map((stat, i) => (
                     <motion.div key={stat.label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.1 }}
-                      className={`bg-gradient-to-br ${stat.color} border ${stat.border} rounded-3xl p-5 card-hover`}>
-                      <div className="text-3xl mb-2">{stat.emoji}</div>
+                      className={`bg-gradient-to-br ${stat.color} border ${stat.border} rounded-3xl p-5 pt-4 min-h-[8.5rem] card-hover`}>
+                      <div className="-mt-2 mb-1 flex h-14 w-14 items-center justify-center">
+                        {stat.icon ? (
+                          <img src={stat.icon} alt="" className={stat.iconClass} aria-hidden="true" />
+                        ) : (
+                          <RatingStatIcon />
+                        )}
+                      </div>
                       <div className="font-display font-black text-2xl text-purple-700">{stat.value}</div>
-                      <div className="font-body text-xs text-purple-500 mt-1">{stat.label}</div>
+                      <div className="mt-1 font-display text-[13px] font-bold leading-none text-purple-500/90">{stat.label}</div>
                     </motion.div>
                   ))}
                 </div>
 
-                <div className="glass rounded-3xl p-6">
-                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="grid gap-6 md:grid-cols-2">
+                <div className="glass relative min-h-[20.5rem] overflow-hidden rounded-3xl p-6 md:p-7">
+                  <img
+                    src="/dashboard/tariff-intensive-bg.png"
+                    alt=""
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 h-full w-full -translate-x-6 scale-[1.10] select-none object-cover dark:hidden"
+                  />
+                  <img
+                    src="/dashboard/tariff-intensive-bg-dark.png"
+                    alt=""
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 hidden h-full w-full -translate-x-6 scale-[1.10] select-none object-cover dark:block"
+                  />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/45 via-white/18 to-transparent dark:hidden" />
+                  <div className="relative z-10 flex max-w-[39rem] flex-col gap-5">
                     <div>
-                      <p className="font-body text-xs font-800 uppercase tracking-[0.12em] text-purple-300">{tariffLabel}</p>
-                      <h3 className="mt-1 font-display text-2xl font-black text-purple-700">{billingPlanName}</h3>
-                      <p className={`mt-1 inline-flex rounded-2xl border px-3 py-1 font-body text-xs font-800 ${billingStatusClass(billingKind)}`}>{billingStatus}</p>
+                      <p className="font-display text-sm font-bold uppercase tracking-[0.08em] text-violet-400 dark:text-violet-200/85">{tariffLabel}</p>
+                      <h3 className="mt-2 font-display text-2xl font-black leading-tight text-violet-700 drop-shadow-[0_2px_0_rgba(255,255,255,0.65)] dark:text-violet-50 dark:drop-shadow-[0_0_18px_rgba(168,85,247,0.42)] md:text-3xl">{billingPlanName}</h3>
+                      <p className={`mt-4 inline-flex rounded-2xl border px-4 py-1.5 font-body text-sm font-800 ${billingStatusClass(billingKind)}`}>{billingStatus}</p>
                       {billingKind === 'manual_access' && billing?.manual_access_override_at && (
                         <p className={`mt-2 font-body text-xs font-700 ${billingStatusTextClass}`}>
                           {lang === 'en' ? 'Manual access' : lang === 'ua' ? 'Ручний доступ' : 'Ручной доступ'}: {new Date(billing.manual_access_override_at).toLocaleString(locale)}
@@ -1229,42 +1360,48 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                         </p>
                       )}
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-3 md:min-w-[34rem]">
-                      <div className="rounded-2xl border border-purple-100 bg-white/60 px-4 py-3">
-                        <p className="font-body text-xs font-800 text-purple-300">{formatLabel}</p>
-                        <p className="font-display text-lg font-black text-purple-700">{billingFormat}</p>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-2xl border border-violet-100 bg-white/70 px-4 py-3 shadow-sm shadow-violet-100/40 backdrop-blur dark:border-violet-300/16 dark:bg-[#241042]/62 dark:shadow-black/15">
+                        <p className="font-display text-sm font-bold text-violet-400 dark:text-violet-200/80">{formatLabel}</p>
+                        <p className="mt-1 font-display text-lg font-black text-violet-800 dark:text-white">{billingFormat}</p>
                       </div>
-                      <div className="rounded-2xl border border-purple-100 bg-white/60 px-4 py-3">
-                        <p className="font-body text-xs font-800 text-purple-300">{lessonsBalanceLabel}</p>
-                        <p className="font-display text-lg font-black text-purple-700">
+                      <div className="rounded-2xl border border-violet-100 bg-white/70 px-4 py-3 shadow-sm shadow-violet-100/40 backdrop-blur dark:border-violet-300/16 dark:bg-[#241042]/62 dark:shadow-black/15">
+                        <p className="font-display text-sm font-bold text-violet-400 dark:text-violet-200/80">{lessonsBalanceLabel}</p>
+                        <p className="mt-1 font-display text-lg font-black text-violet-800 dark:text-white">
                           {billing ? `${billing.lessons_remaining ?? 0}/${billing.lessons_total ?? 0}` : '—'}
                         </p>
                       </div>
-                      <div className="rounded-2xl border border-purple-100 bg-white/60 px-4 py-3">
-                        <p className="font-body text-xs font-800 text-purple-300">{billingDateLabel}</p>
-                        <p className="font-display text-sm font-black text-purple-700">
+                      <div className="rounded-2xl border border-violet-100 bg-white/70 px-4 py-3 shadow-sm shadow-violet-100/40 backdrop-blur dark:border-violet-300/16 dark:bg-[#241042]/62 dark:shadow-black/15">
+                        <p className="font-display text-sm font-bold text-violet-400 dark:text-violet-200/80">{billingDateLabel}</p>
+                        <p className="mt-1 font-display text-sm font-black text-violet-800 dark:text-white">
                           {nextPaymentDate ? new Date(nextPaymentDate).toLocaleDateString(locale) : '—'}
                         </p>
                       </div>
                     </div>
                   </div>
                   {(hasPaymentProblem || hasStripeCustomer || !isPreview) && (
-                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <div className="relative z-10 mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
                       {hasStripeCustomer && (
                         <button
                           type="button"
                           onClick={handleManageSubscription}
                           disabled={portalLoading}
-                          className="inline-flex min-h-11 items-center justify-center rounded-full border border-purple-200 bg-white/75 px-5 py-2 font-display text-sm font-bold text-purple-600 shadow-sm transition hover:bg-purple-50 disabled:opacity-60"
+                          className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-purple-600 px-6 py-3 font-display text-base font-bold text-white shadow-lg shadow-violet-300/45 transition hover:-translate-y-0.5 hover:shadow-violet-300/60 disabled:opacity-60"
                         >
-                          {portalLoading ? '...' : manageSubscriptionLabel}
+                          {portalLoading ? '...' : (
+                            <>
+                              <Crown className="h-5 w-5 fill-yellow-300 text-yellow-300" aria-hidden="true" />
+                              {manageSubscriptionLabel}
+                            </>
+                          )}
                         </button>
                       )}
                       {!isPreview && (
                         <Link
                           to="/pricing"
-                          className="inline-flex min-h-11 items-center justify-center rounded-full border border-pink-200 bg-white/75 px-5 py-2 font-display text-sm font-bold text-pink-600 shadow-sm transition hover:bg-pink-50"
+                          className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-violet-100 bg-white px-6 py-3 font-display text-base font-bold text-violet-700 shadow-md shadow-violet-100/50 transition hover:-translate-y-0.5 hover:bg-white dark:border-violet-300/20 dark:bg-[#241042]/76 dark:text-violet-50 dark:shadow-black/20 dark:hover:bg-[#2b124f]"
                         >
+                          <Clock className="h-5 w-5 text-violet-600 dark:text-violet-200" aria-hidden="true" />
                           {changeTariffLabel}
                         </Link>
                       )}
@@ -1280,47 +1417,127 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                     </div>
                   )}
                   {portalError && (
-                    <p className="mt-2 font-body text-xs font-700 text-red-500">{portalError}</p>
+                    <p className="relative z-10 mt-2 font-body text-xs font-700 text-red-500">{portalError}</p>
                   )}
                 </div>
 
-                {!isPreview && (
-                  <TelegramConnectCard studentId={effectiveUserId} lang={lang} />
-                )}
+                  {!isPreview && (
+                    <TelegramConnectCard studentId={effectiveUserId} lang={lang} />
+                  )}
+                </div>
 
-                {ratingAvg > 0 && (
-                  <div className="glass rounded-3xl p-6">
-                    <h3 className="font-display font-bold text-xl text-purple-700 mb-4">⭐ {t(lang, 'dash_rating')}</h3>
-                    <div className="flex items-center gap-4">
-                      <div className="flex gap-1">
-                        {[1,2,3,4,5].map(s => <span key={s} className={`text-3xl ${s <= Math.round(ratingAvg) ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>)}
-                      </div>
-                      <span className="font-display font-black text-3xl text-purple-700">{ratingAvg}</span>
-                      <span className="font-body text-purple-400 text-sm">/ 5 {t(lang, 'dash_stars')}</span>
-                    </div>
-                  </div>
-                )}
-
-                <div className="glass rounded-3xl p-6">
-                  <h3 className="font-display font-bold text-xl text-purple-700 mb-4">{t(lang, 'dash_recent')}</h3>
-                  {lessons.length === 0 ? (
-                    <p className="font-body text-purple-400 text-sm text-center py-4">{t(lang, 'dash_lessons_empty_desc')}</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {lessons.map(lesson => (
-                        <div key={lesson.id} onClick={() => handleItemClick(lesson)}
-                          className="flex items-center gap-3 p-3 bg-white/60 rounded-2xl cursor-pointer hover:bg-white/80 transition-colors">
-                          <span className="text-2xl">{lesson.emoji}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-body font-600 text-purple-700 text-sm truncate">{lesson.title}</div>
-                          </div>
-                          <div className={`px-3 py-1 rounded-full text-xs font-body font-600 flex-shrink-0 ${lesson.unlocked ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-                            {lesson.unlocked ? t(lang, 'dash_done') : '🔒'}
-                          </div>
+                <div className="grid gap-6 md:grid-cols-2">
+                  {ratingAvg > 0 && (
+                    <div className="glass relative overflow-hidden rounded-3xl p-6" data-testid="student-rating-card">
+                      <img
+	                        src="/dashboard/rating-bg.png"
+	                        alt=""
+	                        aria-hidden="true"
+	                        className="pointer-events-none absolute inset-0 h-full w-full scale-[1.03] select-none object-cover dark:hidden"
+	                      />
+	                      <img
+	                        src="/dashboard/rating-bg-dark.png"
+	                        alt=""
+	                        aria-hidden="true"
+	                        className="pointer-events-none absolute inset-0 hidden h-full w-full scale-[1.03] select-none object-cover dark:block"
+	                      />
+	                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/72 via-white/34 to-white/6 dark:hidden" />
+	                      <h3 className="relative z-10 mb-4 flex items-center gap-2 font-display text-xl font-bold text-purple-700 dark:text-violet-50">
+                        <img
+                          src={RATING_STAR_SRC}
+                          alt=""
+                          className="h-7 w-7 object-contain drop-shadow-[0_4px_7px_rgba(217,119,6,0.18)]"
+                          aria-hidden="true"
+                        />
+                        {t(lang, 'dash_rating')}
+                      </h3>
+                      <div className="relative z-10 flex flex-wrap items-center gap-x-5 gap-y-3">
+                        <div className="flex items-center gap-1.5" data-testid="student-rating-stars" aria-label={`${ratingAvg} / 5 ${t(lang, 'dash_stars')}`}>
+                          {[1,2,3,4,5].map(s => (
+	                            <img
+	                              key={s}
+	                              src={RATING_STAR_SRC}
+	                              alt=""
+	                              className={`h-9 w-9 object-contain drop-shadow-[0_6px_8px_rgba(217,119,6,0.16)] transition sm:h-10 sm:w-10 ${
+	                                s <= ratingFullStars ? 'opacity-100' : 'opacity-30'
+	                              }`}
+	                              aria-hidden="true"
+	                            />
+                          ))}
                         </div>
-                      ))}
+                        <div className="flex items-baseline gap-2">
+	                          <span className="font-display text-4xl font-black leading-none text-purple-700 dark:text-violet-50">{ratingAvg}</span>
+	                          <span className="font-body text-sm font-700 text-purple-400 dark:text-violet-200/78">/ 5 {t(lang, 'dash_stars')}</span>
+                        </div>
+                      </div>
                     </div>
                   )}
+
+	                  <div
+	                    className="student-recent-lessons-card glass rounded-3xl p-6"
+	                    data-recent-lesson-state={recentLessonUnlocked ? 'open' : 'locked'}
+	                    style={{
+	                      backgroundImage: `url('${recentLessonUnlocked ? '/dashboard/recent-lessons-open-bg.png' : '/dashboard/recent-lessons-bg.png'}')`,
+	                      backgroundPosition: 'calc(50% - 3px) 48.5%',
+                      backgroundRepeat: 'no-repeat',
+                      backgroundSize: '104% auto',
+                    }}
+                  >
+	                    <h3 className="-translate-y-3 font-display font-bold text-xl text-purple-700 dark:text-violet-50 mb-4">{t(lang, 'dash_recent')}</h3>
+                    {recentLesson ? (
+                      <button
+                        type="button"
+                        onClick={() => handleItemClick(recentLesson)}
+                        className="ml-[4.75rem] block h-14 w-[min(23.5rem,62%)] rounded-2xl px-3 py-0.5 text-left transition hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-purple-300 focus:ring-offset-2 focus:ring-offset-white/70"
+                      >
+	                        <div className="-translate-y-[0.6rem] truncate font-display text-sm font-black leading-5 text-purple-700 dark:text-violet-50">{recentLesson.title}</div>
+                        <div className="-translate-y-1 mt-0.5 grid grid-cols-3 items-start gap-2">
+                          <div className="flex min-w-0 flex-col items-center gap-0.5">
+                            <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-violet-200 bg-white text-violet-500 shadow-[0_3px_8px_rgba(139,92,246,0.18)]">
+                              <Check className="h-3.5 w-3.5" strokeWidth={3.2} aria-hidden="true" />
+                            </div>
+                            <span className="w-full truncate text-center font-display text-[10px] font-bold leading-3 text-violet-300">{t(lang, 'dash_recent_start')}</span>
+                          </div>
+                          <div className="relative flex min-w-0 flex-col items-center gap-0.5">
+                            <div className="absolute left-[calc(-50%+0.75rem)] right-[calc(50%+0.75rem)] top-3 h-0.5 rounded-full bg-[repeating-linear-gradient(90deg,rgba(167,139,250,0.82)_0_6px,transparent_6px_11px)]" />
+                            <div className="absolute left-[calc(50%+0.75rem)] right-[calc(-50%+0.75rem)] top-3 h-0.5 rounded-full bg-[repeating-linear-gradient(90deg,rgba(167,139,250,0.82)_0_6px,transparent_6px_11px)]" />
+                            <div className={`relative z-10 flex h-6 w-6 items-center justify-center rounded-full border-2 shadow-[0_3px_8px_rgba(139,92,246,0.18)] ${
+                              recentLessonCompleted
+                                ? 'border-violet-300 bg-white text-violet-500'
+                                : recentLessonUnlocked
+                                  ? 'border-white bg-gradient-to-br from-violet-400 to-purple-500 text-white'
+                                  : 'border-violet-200 bg-white text-violet-300'
+                            }`}>
+                              {recentLessonCompleted ? (
+                                <Check className="h-3.5 w-3.5" strokeWidth={3.2} aria-hidden="true" />
+                              ) : (
+                                <span className="h-2.5 w-2.5 rounded-full bg-current ring-2 ring-white/75" aria-hidden="true" />
+                              )}
+                            </div>
+                            <span className={`w-full truncate text-center font-display text-[10px] font-bold leading-3 ${
+                              recentLessonUnlocked ? 'text-violet-500' : 'text-violet-300'
+                            }`}>
+                              {t(lang, 'dash_recent_progress')}
+                            </span>
+                          </div>
+                          <div className="flex min-w-0 flex-col items-center gap-0.5">
+                            <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-violet-200 bg-white text-violet-500 shadow-[0_4px_9px_rgba(139,92,246,0.18)] ring-1 ring-white/80">
+                              {recentLessonUnlocked ? (
+                                <Unlock className="h-3.5 w-3.5" strokeWidth={3} aria-hidden="true" />
+                              ) : (
+                                <Lock className="h-3.5 w-3.5" strokeWidth={3} aria-hidden="true" />
+                              )}
+                            </div>
+                            <span className="w-full truncate text-center font-display text-[10px] font-bold leading-3 text-violet-500">
+                              {recentLessonUnlocked ? t(lang, 'dash_recent_unlocked') : t(lang, 'dash_recent_locked')}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    ) : (
+                      <p className="font-body text-purple-400 text-sm text-center py-4">{t(lang, 'dash_lessons_empty_desc')}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -1357,7 +1574,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                           <input type="checkbox" checked={slot.isConducted} disabled readOnly
                             className="w-5 h-5 accent-green-500 cursor-not-allowed flex-shrink-0"
                             title={t(lang, 'sched_conducted_label')} />
-                          <div className={`w-16 h-16 rounded-2xl flex flex-col items-center justify-center text-white font-display font-black flex-shrink-0 ${done ? 'bg-gradient-to-br from-green-400 to-emerald-500' : 'bg-gradient-to-br from-pink-400 to-purple-400'}`}>
+                          <div className={`w-16 h-16 rounded-2xl flex flex-col items-center justify-center text-white font-display font-black flex-shrink-0 ${done ? 'bg-gradient-to-br from-green-400 to-emerald-500' : 'student-accent-gradient'}`}>
                             <span className="text-xs">{slot.day.slice(0, 3)}</span>
                             <span className="text-lg">{slot.time.split(':')[0]}</span>
                           </div>
@@ -1374,7 +1591,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                             href={slot.onlineUrl as string}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-400 px-4 py-2.5 font-display text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5"
+                            className="student-accent-gradient mt-4 inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 font-display text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5"
                           >
                             🎥 {t(lang, 'sched_join')}
                           </a>
@@ -1509,7 +1726,13 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
             {/* SHOP */}
             {activeTab === 'shop' && (
-              <AvatarShop userId={effectiveUserId} hasAccess={billingHasAccess} lang={lang} onChange={refreshStars} />
+              <AvatarShop
+                userId={effectiveUserId}
+                hasAccess={billingHasAccess}
+                lang={lang}
+                userName={user.name}
+                onChange={refreshStars}
+              />
             )}
 
             {/* INTERACTIVE LESSONS */}

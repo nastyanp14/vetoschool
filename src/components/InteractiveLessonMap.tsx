@@ -310,7 +310,7 @@ function LessonCard({
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-purple-50 dark:bg-white/10">
           <div
-            className={done ? 'h-full rounded-full bg-emerald-400' : 'h-full rounded-full bg-gradient-to-r from-pink-400 to-purple-500'}
+            className={done ? 'h-full rounded-full bg-emerald-400' : 'student-accent-gradient h-full rounded-full'}
             style={{ width: `${progressValue}%` }}
           />
         </div>
@@ -321,7 +321,7 @@ function LessonCard({
           done
             ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-200'
             : unlocked
-              ? 'bg-gradient-to-r from-pink-400 to-purple-500 text-white shadow-lg shadow-pink-200/50'
+              ? 'student-accent-gradient text-white shadow-lg shadow-pink-200/50'
               : 'bg-slate-100 text-slate-400 dark:bg-white/10 dark:text-purple-300'
         }`}>
           {done ? <CheckCircle2 className="h-4 w-4" /> : unlocked ? <PlayCircle className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
@@ -439,7 +439,7 @@ export default function InteractiveLessonMap({ userId, hasAccess, lang = 'ru', a
                     type="button"
                     disabled={!firstPlayable}
                     onClick={() => firstPlayable && openLesson(firstPlayable)}
-                    className="mt-6 inline-flex items-center gap-3 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-500 px-5 py-3 font-display text-sm font-black text-white shadow-xl shadow-pink-200/60 transition duration-300 hover:-translate-y-0.5 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-50"
+                    className="student-accent-gradient mt-6 inline-flex items-center gap-3 rounded-2xl px-5 py-3 font-display text-sm font-black text-white shadow-xl shadow-pink-200/60 transition duration-300 hover:-translate-y-0.5 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <PlayCircle className="h-5 w-5" />
                     {copy.continue}
@@ -519,7 +519,7 @@ export default function InteractiveLessonMap({ userId, hasAccess, lang = 'ru', a
                                   initial={{ width: 0 }}
                                   animate={{ width: `${unitPercent}%` }}
                                   transition={{ duration: 0.35, ease: 'easeOut' }}
-                                  className="h-full rounded-full bg-gradient-to-r from-pink-400 to-purple-500"
+                                  className="student-accent-gradient h-full rounded-full"
                                 />
                               </div>
                               <div className="mt-2 font-display text-xs font-bold text-pink-500 dark:text-pink-300">

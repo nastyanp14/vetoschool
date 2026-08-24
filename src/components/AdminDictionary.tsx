@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, Loader2, RefreshCw, Trash2, Upload, Users, Volume2, Wand2, X } from 'lucide-react';
+import { CheckCircle2, Image, Loader2, RefreshCw, Trash2, Upload, Users, Volume2, Wand2, X } from 'lucide-react';
 import { Lang, t } from '../lib/i18n';
 import { addDictWords, deleteDictWord, DictWord, loadDictionary } from '../lib/dictionary';
 import { signedUrlFor, uploadWorkbookAsset } from '../lib/workbooks';
@@ -18,6 +18,12 @@ const labels = {
     audioReady: 'Аудио прикреплено',
     removeAudio: 'Убрать аудио',
     uploadError: 'Не удалось загрузить аудио',
+    image: 'Фото слова',
+    uploadImage: 'Загрузить фото',
+    replaceImage: 'Заменить фото',
+    imageReady: 'Фото прикреплено',
+    removeImage: 'Убрать фото',
+    imageUploadError: 'Не удалось загрузить фото',
     saved: 'Слово добавлено',
     generateAudio: 'Сгенерировать',
     regenerateAudio: 'Перегенерировать',
@@ -35,6 +41,12 @@ const labels = {
     audioReady: 'Audio attached',
     removeAudio: 'Remove audio',
     uploadError: 'Could not upload audio',
+    image: 'Word photo',
+    uploadImage: 'Upload photo',
+    replaceImage: 'Replace photo',
+    imageReady: 'Photo attached',
+    removeImage: 'Remove photo',
+    imageUploadError: 'Could not upload photo',
     saved: 'Word added',
     generateAudio: 'Generate',
     regenerateAudio: 'Regenerate',
@@ -52,6 +64,12 @@ const labels = {
     audioReady: 'Аудіо прикріплено',
     removeAudio: 'Прибрати аудіо',
     uploadError: 'Не вдалося завантажити аудіо',
+    image: 'Фото слова',
+    uploadImage: 'Завантажити фото',
+    replaceImage: 'Замінити фото',
+    imageReady: 'Фото прикріплено',
+    removeImage: 'Прибрати фото',
+    imageUploadError: 'Не вдалося завантажити фото',
     saved: 'Слово додано',
     generateAudio: 'Згенерувати',
     regenerateAudio: 'Перегенерувати',
@@ -67,6 +85,27 @@ async function playStoredAudio(path?: string | null) {
   if (url) await new Audio(url).play();
 }
 
+function DictionaryWordThumb({ word }: { word: DictWord }) {
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    if (!word.imageUrl) {
+      setImageSrc(null);
+      return;
+    }
+    if (/^(https?:|data:|blob:)/.test(word.imageUrl)) setImageSrc(word.imageUrl);
+    else signedUrlFor(word.imageUrl).then(url => { if (alive) setImageSrc(url); });
+    return () => { alive = false; };
+  }, [word.imageUrl]);
+
+  return (
+    <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-purple-50 text-2xl dark:bg-white/10">
+      {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-contain p-1" /> : word.emoji}
+    </span>
+  );
+}
+
 export default function AdminDictionary({ userId, lang, users = [] }: { userId: string; lang: Lang; users?: User[] }) {
   const copy = labels[lang] || labels.ru;
   const [words, setWords] = useState<DictWord[]>([]);
@@ -76,7 +115,9 @@ export default function AdminDictionary({ userId, lang, users = [] }: { userId: 
   const [translation, setTranslation] = useState('');
   const [emoji, setEmoji] = useState('✨');
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [uploadingAudio, setUploadingAudio] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([userId]);
   const [saving, setSaving] = useState(false);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
@@ -103,6 +144,15 @@ export default function AdminDictionary({ userId, lang, users = [] }: { userId: 
     setAudioUrl(path);
   };
 
+  const handleImageUpload = async (file?: File) => {
+    if (!file) return;
+    setUploadingImage(true);
+    const path = await uploadWorkbookAsset(file);
+    setUploadingImage(false);
+    if (!path) return;
+    setImageUrl(path);
+  };
+
   const handleAdd = async () => {
     if (!word.trim() || !translation.trim() || selectedIds.length === 0) return;
     setSaving(true);
@@ -113,11 +163,13 @@ export default function AdminDictionary({ userId, lang, users = [] }: { userId: 
       translation: translation.trim(),
       emoji: emoji.trim() || '✨',
       audioUrl,
+      imageUrl,
     });
     setWord('');
     setTranslation('');
     setEmoji('✨');
     setAudioUrl(null);
+    setImageUrl(null);
     setSaving(false);
     refresh();
   };
@@ -202,6 +254,24 @@ export default function AdminDictionary({ userId, lang, users = [] }: { userId: 
               )}
             </div>
           </div>
+          <div className="col-span-2">
+            <label className="mb-1 block font-body text-xs font-600 text-purple-500 dark:text-purple-200">{copy.image}</label>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="inline-flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-purple-100 bg-white px-3 py-2 font-body text-xs font-black text-purple-500 transition hover:border-pink-200 hover:bg-pink-50 dark:border-purple-700 dark:bg-[#2a183a] dark:text-purple-100">
+                {uploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Image className="h-4 w-4" />}
+                {uploadingImage ? '...' : imageUrl ? copy.replaceImage : copy.uploadImage}
+                <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e.target.files?.[0])} />
+              </label>
+              {imageUrl && (
+                <>
+                  <span className="rounded-2xl bg-emerald-50 px-3 py-2 font-body text-xs font-black text-emerald-500 dark:bg-emerald-500/10 dark:text-emerald-100">{copy.imageReady}</span>
+                  <button type="button" onClick={() => setImageUrl(null)} className="rounded-2xl bg-red-50 px-3 py-2 font-body text-xs font-black text-red-500 transition hover:bg-red-100" title={copy.removeImage}>
+                    <X className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
         {studentOptions.length > 1 && (
@@ -246,12 +316,13 @@ export default function AdminDictionary({ userId, lang, users = [] }: { userId: 
             {words.map(w => (
               <motion.div key={w.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}
                 className="flex items-center gap-3 rounded-2xl border border-purple-50 bg-white/70 p-3 dark:border-purple-700 dark:bg-[#241331]">
-                <span className="text-2xl">{w.emoji}</span>
+                <DictionaryWordThumb word={w} />
                 <div className="min-w-0 flex-1">
                   <div className="font-display text-sm font-bold text-purple-700 dark:text-purple-100">{w.word} <span className="font-body font-600 text-purple-400">— {w.translation}</span></div>
                   <div className="flex flex-wrap gap-x-3 font-body text-xs text-purple-400 dark:text-purple-200">
                     {w.lesson && <span>📚 {w.lesson}</span>}
                     {w.category && <span>🏷️ {w.category}</span>}
+                    {w.imageUrl && <span>🖼️ photo</span>}
                     {w.audioUrl && <span>🔊 audio</span>}
                   </div>
                 </div>

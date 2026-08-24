@@ -5,6 +5,27 @@ import { Lang, t } from '../lib/i18n';
 import { DictWord, loadDictionary } from '../lib/dictionary';
 import { signedUrlFor } from '../lib/workbooks';
 
+function DictionaryVisual({ word }: { word: DictWord }) {
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    if (!word.imageUrl) {
+      setImageSrc(null);
+      return;
+    }
+    if (/^(https?:|data:|blob:)/.test(word.imageUrl)) setImageSrc(word.imageUrl);
+    else signedUrlFor(word.imageUrl).then(url => { if (alive) setImageSrc(url); });
+    return () => { alive = false; };
+  }, [word.imageUrl]);
+
+  return (
+    <div className="mx-auto mb-2 flex h-28 w-28 items-center justify-center text-6xl">
+      {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full scale-[1.35] object-contain" /> : word.emoji}
+    </div>
+  );
+}
+
 function FlipCard({ word, hint }: { word: DictWord; hint: string }) {
   const [flipped, setFlipped] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -52,7 +73,7 @@ function FlipCard({ word, hint }: { word: DictWord; hint: string }) {
           <span className={`absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-2xl bg-white/80 text-purple-400 shadow-sm transition dark:bg-white/10 dark:text-pink-200 ${playing ? 'scale-110 text-pink-500' : ''}`}>
             <Volume2 className="h-4 w-4" />
           </span>
-          <div className="text-5xl mb-2">{word.emoji}</div>
+          <DictionaryVisual word={word} />
           <div className="font-display font-black text-2xl text-purple-700 break-words dark:text-purple-100">{word.word}</div>
           <div className="font-body text-[10px] uppercase tracking-wider text-purple-400 mt-2 opacity-80">{hint}</div>
         </div>

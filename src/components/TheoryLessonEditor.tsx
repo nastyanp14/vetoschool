@@ -55,6 +55,11 @@ const theoryCopy = {
     saveLessonFirst: 'Сначала сохраните урок',
     vocabTitlePlaceholder: 'Название: Новые слова',
     emoji: 'Эмодзи',
+    wordImage: 'Фото слова',
+    addWordImage: 'Добавить фото',
+    replaceWordImage: 'Заменить фото',
+    wordImageReady: 'Фото прикреплено',
+    removeWordImage: 'Убрать фото',
     wordPlaceholder: 'Слово: flower',
     translationPlaceholder: 'Перевод: цветок',
     transcriptionPlaceholder: 'Транскрипция: [ˈflaʊə]',
@@ -88,6 +93,10 @@ const theoryCopy = {
     examplesTitle: 'Название блока: Примеры',
     exampleTranslation: 'У меня есть кот.',
     exampleNote: 'Необязательная подсказка к примеру',
+    addExampleImage: 'Добавить картинку примера',
+    replaceExampleImage: 'Заменить картинку примера',
+    exampleImageReady: 'Картинка примера прикреплена',
+    removeExampleImage: 'Убрать картинку',
     deleteExample: 'Удалить пример',
     addExample: 'Добавить пример',
     textLists: 'Текст и списки',
@@ -106,6 +115,11 @@ const theoryCopy = {
     eyebrowPlaceholder: 'Надпись над заголовком',
     lessonTitlePlaceholder: 'Красивый заголовок урока',
     subtitlePlaceholder: 'Короткое вступление к теме',
+    sideCards: 'Правые карточки урока',
+    planTitlePlaceholder: 'Заголовок: Что будем делать?',
+    planStepsPlaceholder: 'Пункты карточки — каждый с новой строки',
+    tipTitlePlaceholder: 'Заголовок: Совет',
+    tipBodyPlaceholder: 'Текст совета для этого урока',
     cardAudio: 'Озвучивание карточек',
     voiceModel: 'Голос: George · Модель: Multilingual v2',
     voiceSettings: 'Дополнительные настройки голоса',
@@ -150,6 +164,11 @@ const theoryCopy = {
     saveLessonFirst: 'Save the lesson first',
     vocabTitlePlaceholder: 'Title: New words',
     emoji: 'Emoji',
+    wordImage: 'Word photo',
+    addWordImage: 'Add photo',
+    replaceWordImage: 'Replace photo',
+    wordImageReady: 'Photo attached',
+    removeWordImage: 'Remove photo',
     wordPlaceholder: 'Word: flower',
     translationPlaceholder: 'Translation: flower',
     transcriptionPlaceholder: 'Transcription: [ˈflaʊə]',
@@ -183,6 +202,10 @@ const theoryCopy = {
     examplesTitle: 'Block title: Examples',
     exampleTranslation: 'I have a cat.',
     exampleNote: 'Optional hint for the example',
+    addExampleImage: 'Add example image',
+    replaceExampleImage: 'Replace example image',
+    exampleImageReady: 'Example image attached',
+    removeExampleImage: 'Remove image',
     deleteExample: 'Delete example',
     addExample: 'Add example',
     textLists: 'Text and lists',
@@ -201,6 +224,11 @@ const theoryCopy = {
     eyebrowPlaceholder: 'Eyebrow above the title',
     lessonTitlePlaceholder: 'Beautiful lesson title',
     subtitlePlaceholder: 'Short introduction to the topic',
+    sideCards: 'Lesson side cards',
+    planTitlePlaceholder: 'Title: What will we do?',
+    planStepsPlaceholder: 'Card steps — one per line',
+    tipTitlePlaceholder: 'Title: Tip',
+    tipBodyPlaceholder: 'Tip text for this lesson',
     cardAudio: 'Card audio',
     voiceModel: 'Voice: George · Model: Multilingual v2',
     voiceSettings: 'Additional voice settings',
@@ -245,6 +273,11 @@ const theoryCopy = {
     saveLessonFirst: 'Спочатку збережіть урок',
     vocabTitlePlaceholder: 'Назва: Нові слова',
     emoji: 'Емодзі',
+    wordImage: 'Фото слова',
+    addWordImage: 'Додати фото',
+    replaceWordImage: 'Замінити фото',
+    wordImageReady: 'Фото прикріплено',
+    removeWordImage: 'Прибрати фото',
     wordPlaceholder: 'Слово: flower',
     translationPlaceholder: 'Переклад: квітка',
     transcriptionPlaceholder: 'Транскрипція: [ˈflaʊə]',
@@ -278,6 +311,10 @@ const theoryCopy = {
     examplesTitle: 'Назва блока: Приклади',
     exampleTranslation: 'У мене є кіт.',
     exampleNote: 'Необовʼязкова підказка до прикладу',
+    addExampleImage: 'Додати картинку прикладу',
+    replaceExampleImage: 'Замінити картинку прикладу',
+    exampleImageReady: 'Картинку прикладу прикріплено',
+    removeExampleImage: 'Прибрати картинку',
     deleteExample: 'Видалити приклад',
     addExample: 'Додати приклад',
     textLists: 'Текст і списки',
@@ -296,6 +333,11 @@ const theoryCopy = {
     eyebrowPlaceholder: 'Напис над заголовком',
     lessonTitlePlaceholder: 'Красивий заголовок уроку',
     subtitlePlaceholder: 'Короткий вступ до теми',
+    sideCards: 'Праві картки уроку',
+    planTitlePlaceholder: 'Заголовок: Що будемо робити?',
+    planStepsPlaceholder: 'Пункти картки — кожен з нового рядка',
+    tipTitlePlaceholder: 'Заголовок: Порада',
+    tipBodyPlaceholder: 'Текст поради для цього уроку',
     cardAudio: 'Озвучування карток',
     voiceModel: 'Голос: George · Модель: Multilingual v2',
     voiceSettings: 'Додаткові налаштування голосу',
@@ -383,6 +425,38 @@ function VocabularyAudioUpload({ audio, onUploaded, lang }: { audio?: string; on
       {uploading ? copy.loading : audio ? copy.replacePronunciation : copy.addPronunciation}
       <input type="file" accept="audio/*" className="hidden" onChange={e => upload(e.target.files?.[0])} />
     </label>
+  );
+}
+
+function VocabularyImageUpload({ image, onUploaded, onRemoved, lang }: { image?: string; onUploaded: (path: string) => void; onRemoved: () => void; lang: Lang }) {
+  const copy = tc(lang);
+  const [uploading, setUploading] = useState(false);
+  const upload = async (file?: File) => {
+    if (!file) return;
+    setUploading(true);
+    const path = await uploadWorkbookAsset(file);
+    setUploading(false);
+    if (!path) return toast.error(copy.imageUploadError);
+    onUploaded(path);
+    toast.success(copy.imageUploaded);
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-purple-100 bg-white px-3 py-2 text-xs font-black text-purple-500 transition hover:border-pink-200 hover:bg-pink-50 hover:text-pink-500 dark:border-purple-700 dark:bg-[#241331] dark:text-purple-200">
+        {uploading ? <Sparkles className="h-4 w-4 animate-spin" /> : <Image className="h-4 w-4" />}
+        {uploading ? copy.loading : image ? copy.replaceWordImage : copy.addWordImage}
+        <input type="file" accept="image/*" className="hidden" onChange={e => upload(e.target.files?.[0])} />
+      </label>
+      {image && (
+        <>
+          <span className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-500 dark:bg-emerald-500/10 dark:text-emerald-100">{copy.wordImageReady}</span>
+          <button type="button" onClick={onRemoved} className="rounded-xl border border-red-100 bg-white px-3 py-2 text-xs font-black text-red-400 hover:bg-red-50 dark:border-red-900 dark:bg-[#241331]">
+            {copy.removeWordImage}
+          </button>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -507,6 +581,9 @@ function VocabularyEditor({ block, onChange, lessonId, voiceId, modelId, lang }:
                 onClick={() => onChange({ ...block, items: block.items.filter((_, i) => i !== index) })}>{copy.deleteWord}</button>
             </div>
             <div className="sm:col-span-3">
+              <VocabularyImageUpload image={item.image} lang={lang} onUploaded={image => updateItem(index, { image })} onRemoved={() => updateItem(index, { image: '' })} />
+            </div>
+            <div className="sm:col-span-3">
               <GeneratedAudioControls lessonId={lessonId} cardId={item.id} text={item.word} audioUrl={item.audio_url} voiceId={voiceId} modelId={modelId} lang={lang} onChanged={audio_url => updateItem(index, { audio_url, audio_voice_id: audio_url ? voiceId : undefined, audio_model_id: audio_url ? modelId : undefined })} />
             </div>
           </div>
@@ -517,6 +594,38 @@ function VocabularyEditor({ block, onChange, lessonId, voiceId, modelId, lang }:
       ))}
       <button type="button" onClick={() => onChange({ ...block, items: [...block.items, { id: theoryId(), emoji: '⭐', word: '', transcription: '', translation: '' }] })}
         className="inline-flex items-center gap-2 rounded-2xl bg-purple-100 px-4 py-2 text-sm font-black text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-100"><Plus className="h-4 w-4" />{copy.addWord}</button>
+    </div>
+  );
+}
+
+function ExampleImageUpload({ image, onUploaded, onRemoved, lang }: { image?: string; onUploaded: (path: string) => void; onRemoved: () => void; lang: Lang }) {
+  const copy = tc(lang);
+  const [uploading, setUploading] = useState(false);
+  const upload = async (file?: File) => {
+    if (!file) return;
+    setUploading(true);
+    const path = await uploadWorkbookAsset(file);
+    setUploading(false);
+    if (!path) return toast.error(copy.imageUploadError);
+    onUploaded(path);
+    toast.success(copy.imageUploaded);
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-purple-100 bg-white px-3 py-2 text-xs font-black text-purple-500 transition hover:border-pink-200 hover:bg-pink-50 hover:text-pink-500 dark:border-purple-700 dark:bg-[#241331] dark:text-purple-200">
+        {uploading ? <Sparkles className="h-4 w-4 animate-spin" /> : <Image className="h-4 w-4" />}
+        {uploading ? copy.loading : image ? copy.replaceExampleImage : copy.addExampleImage}
+        <input type="file" accept="image/*" className="hidden" onChange={e => upload(e.target.files?.[0])} />
+      </label>
+      {image && (
+        <>
+          <span className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-500 dark:bg-emerald-500/10 dark:text-emerald-100">{copy.exampleImageReady}</span>
+          <button type="button" onClick={onRemoved} className="rounded-xl border border-red-100 bg-white px-3 py-2 text-xs font-black text-red-400 hover:bg-red-50 dark:border-red-900 dark:bg-[#241331]">
+            {copy.removeExampleImage}
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -677,6 +786,9 @@ function ExamplesEditor({ block, onChange, lessonId, voiceId, modelId, lang }: {
           <input className={inputClass} value={item.sentence} onChange={e => updateItem(index, { sentence: e.target.value })} placeholder="I have a cat." />
           <input className={inputClass} value={item.translation} onChange={e => updateItem(index, { translation: e.target.value })} placeholder={copy.exampleTranslation} />
           <input className={`${inputClass} sm:col-span-2`} value={item.note} onChange={e => updateItem(index, { note: e.target.value })} placeholder={copy.exampleNote} />
+          <div className="sm:col-span-2">
+            <ExampleImageUpload image={item.image} lang={lang} onUploaded={image => updateItem(index, { image })} onRemoved={() => updateItem(index, { image: '' })} />
+          </div>
           <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
             <VocabularyAudioUpload audio={item.audio} lang={lang} onUploaded={audio => updateItem(index, { audio })} />
             <button type="button" className="w-fit rounded-xl bg-red-50 px-3 py-2 text-xs font-black text-red-400 hover:bg-red-100 dark:bg-red-950/30" onClick={() => onChange({ ...block, items: block.items.filter((_, i) => i !== index) })}>{copy.deleteExample}</button>
@@ -686,7 +798,7 @@ function ExamplesEditor({ block, onChange, lessonId, voiceId, modelId, lang }: {
           </div>
         </div>
       ))}
-      <button type="button" onClick={() => onChange({ ...block, items: [...block.items, { id: theoryId(), sentence: '', translation: '', note: '' }] })} className="inline-flex items-center gap-2 rounded-2xl bg-purple-100 px-4 py-2 text-sm font-black text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-100"><Plus className="h-4 w-4" />{copy.addExample}</button>
+      <button type="button" onClick={() => onChange({ ...block, items: [...block.items, { id: theoryId(), sentence: '', translation: '', note: '', image: '' }] })} className="inline-flex items-center gap-2 rounded-2xl bg-purple-100 px-4 py-2 text-sm font-black text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-100"><Plus className="h-4 w-4" />{copy.addExample}</button>
     </div>
   );
 }
@@ -834,6 +946,37 @@ export default function TheoryLessonEditor({ lessonTitle, task, onCreate, onSave
         <input className={inputClass} value={content.eyebrow} onChange={e => setContent({ ...content, eyebrow: e.target.value })} placeholder={copy.eyebrowPlaceholder} />
         <input className={`${inputClass} sm:col-span-2`} value={content.title} onChange={e => setContent({ ...content, title: e.target.value })} placeholder={copy.lessonTitlePlaceholder} />
         <input className={`${inputClass} sm:col-span-3`} value={content.subtitle} onChange={e => setContent({ ...content, subtitle: e.target.value })} placeholder={copy.subtitlePlaceholder} />
+      </div>
+      <div className="rounded-3xl border border-purple-100 bg-gradient-to-r from-purple-50/80 via-white to-pink-50/80 p-3 dark:border-purple-700 dark:from-purple-500/10 dark:via-white/5 dark:to-pink-500/10">
+        <div className="mb-3 flex items-center gap-2 font-display text-sm font-black text-purple-700 dark:text-purple-100">
+          <Lightbulb className="h-4 w-4 text-amber-400" />{copy.sideCards}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <input
+            className={inputClass}
+            value={content.planTitle || ''}
+            onChange={e => setContent({ ...content, planTitle: e.target.value })}
+            placeholder={copy.planTitlePlaceholder}
+          />
+          <input
+            className={inputClass}
+            value={content.tipTitle || ''}
+            onChange={e => setContent({ ...content, tipTitle: e.target.value })}
+            placeholder={copy.tipTitlePlaceholder}
+          />
+          <textarea
+            className={`${inputClass} min-h-28 resize-y leading-7`}
+            value={(content.planSteps || []).join('\n')}
+            onChange={e => setContent({ ...content, planSteps: e.target.value.split('\n') })}
+            placeholder={copy.planStepsPlaceholder}
+          />
+          <textarea
+            className={`${inputClass} min-h-28 resize-y leading-7`}
+            value={content.tipBody || ''}
+            onChange={e => setContent({ ...content, tipBody: e.target.value })}
+            placeholder={copy.tipBodyPlaceholder}
+          />
+        </div>
       </div>
       <div className="rounded-3xl border border-purple-100 bg-gradient-to-r from-purple-50/80 via-white to-pink-50/80 p-3 dark:border-purple-700 dark:from-purple-500/10 dark:via-white/5 dark:to-pink-500/10">
         <div className="flex items-start gap-3">

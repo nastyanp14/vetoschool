@@ -267,6 +267,7 @@ export type Database = {
           created_at: string
           emoji: string
           id: string
+          image_url: string | null
           lesson: string
           translation: string
           user_id: string
@@ -278,6 +279,7 @@ export type Database = {
           created_at?: string
           emoji?: string
           id?: string
+          image_url?: string | null
           lesson?: string
           translation: string
           user_id: string
@@ -289,6 +291,7 @@ export type Database = {
           created_at?: string
           emoji?: string
           id?: string
+          image_url?: string | null
           lesson?: string
           translation?: string
           user_id?: string
