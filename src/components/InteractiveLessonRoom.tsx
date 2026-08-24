@@ -2072,7 +2072,8 @@ function CategorySortingTask({ payload, onDone, onEvent, lang }: { payload: any;
               key={item.id}
               layout
               draggable
-              onDragStart={event => {
+              onDragStart={rawEvent => {
+                const event = rawEvent as unknown as React.DragEvent<HTMLElement>;
                 event.dataTransfer.setData('text/category-item', item.id);
                 event.dataTransfer.effectAllowed = 'move';
                 setCardDragPreview(event);
