@@ -119,10 +119,15 @@ async function handlePreview(req: Request): Promise<Response> {
     return new Response(null, { headers: previewCorsHeaders })
   }
 
-  const apiKey = Deno.env.get('LOVABLE_API_KEY')
+  // Preview is authorized with the email preview token (or, on Lovable Cloud,
+  // the Lovable API key). Without a configured token preview stays disabled.
+  const previewTokens = [
+    Deno.env.get('AUTH_EMAIL_PREVIEW_TOKEN'),
+    Deno.env.get('LOVABLE_API_KEY'),
+  ].filter((value): value is string => Boolean(value))
   const authHeader = req.headers.get('Authorization')
 
-  if (!apiKey || authHeader !== `Bearer ${apiKey}`) {
+  if (!previewTokens.some((token) => authHeader === `Bearer ${token}`)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { ...previewCorsHeaders, 'Content-Type': 'application/json' },
