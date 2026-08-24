@@ -40,20 +40,30 @@
 
 ## F. Migration scripts
 
+Старый service role key в Lovable Cloud недоступен, поэтому источник читается **сессией админа**
+(политики `content_read_own_or_admin`, `wba_read_auth`, `lesson_audio_authenticated_read` дают
+этой сессии SELECT на все три бакета). Ключ на приёмнике — service role нового проекта.
+
 ```bash
 # сначала прогон без записи
 DRY_RUN=1 \
-OLD_SUPABASE_URL=... OLD_SERVICE_ROLE_KEY=... \
-NEW_SUPABASE_URL=... NEW_SERVICE_ROLE_KEY=... \
+OLD_SUPABASE_URL=https://teapriepxqctgjfhposm.supabase.co \
+OLD_ANON_KEY=<VITE_SUPABASE_PUBLISHABLE_KEY из .env> \
+OLD_ADMIN_EMAIL=<email админа> OLD_ADMIN_PASSWORD=<пароль> \
+NEW_SUPABASE_URL=https://ggflcriakiudnejmiuwh.supabase.co \
+NEW_SERVICE_ROLE_KEY=<service role нового проекта> \
 node scripts/migrate-storage.mjs
 
 # реальный перенос (идемпотентный, повторный запуск догоняет остаток)
-OLD_SUPABASE_URL=... OLD_SERVICE_ROLE_KEY=... \
+OLD_SUPABASE_URL=... OLD_ANON_KEY=... OLD_ADMIN_EMAIL=... OLD_ADMIN_PASSWORD=... \
 NEW_SUPABASE_URL=... NEW_SERVICE_ROLE_KEY=... \
 node scripts/migrate-storage.mjs
 ```
 
-Скрипт: рекурсивно обходит папки, сохраняет пути/UUID-папки/имена/MIME, создаёт бакет с теми же настройками приватности, пропускает уже существующие файлы того же размера, ничего не удаляет из старого Storage, печатает лог и итог.
+Скрипт: рекурсивно обходит папки, сохраняет пути/UUID-папки/имена/MIME, создаёт бакет с теми же
+настройками приватности (из конфигурации миграций, т.к. `getBucket` под сессией админа недоступен),
+пропускает уже существующие файлы того же размера, ничего не удаляет из старого Storage, печатает
+лог и итог. Production не затрагивается — источник открывается только на чтение.
 
 ## G. Secrets для нового Supabase
 
