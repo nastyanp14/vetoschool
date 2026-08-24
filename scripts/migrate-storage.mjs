@@ -112,14 +112,19 @@ async function listAll(client, bucket, prefix = '') {
 async function ensureBucket(bucket) {
   const { data } = await target.storage.getBucket(bucket);
   if (data) return;
-  const { data: srcBucket } = await source.storage.getBucket(bucket);
+  // With an admin session getBucket() on the source is not permitted; fall back to known config.
+  const { data: srcBucket } = usingAdminSession
+    ? { data: null }
+    : await source.storage.getBucket(bucket);
+  const known = BUCKET_CONFIG[bucket] || { public: false };
+  const isPublic = srcBucket?.public ?? known.public ?? false;
   const { error } = await target.storage.createBucket(bucket, {
-    public: srcBucket?.public ?? false,
-    fileSizeLimit: srcBucket?.file_size_limit ?? undefined,
-    allowedMimeTypes: srcBucket?.allowed_mime_types ?? undefined,
+    public: isPublic,
+    fileSizeLimit: srcBucket?.file_size_limit ?? known.fileSizeLimit ?? undefined,
+    allowedMimeTypes: srcBucket?.allowed_mime_types ?? known.allowedMimeTypes ?? undefined,
   });
   if (error && !/already exists/i.test(error.message)) throw new Error(`createBucket ${bucket}: ${error.message}`);
-  console.log(`[bucket] created ${bucket} (public=${srcBucket?.public ?? false})`);
+  console.log(`[bucket] created ${bucket} (public=${isPublic})`);
 }
 
 async function existsIdentical(bucket, file) {
