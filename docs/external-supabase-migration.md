@@ -11,7 +11,7 @@
 | Storage | `src/lib/content.ts` (`content`), `src/lib/workbooks.ts` (`workbook-assets`), `src/lib/cardAudio.ts` (`lesson-audio`), `src/lib/avatarUrl.ts` + `src/lib/teachers.ts` (`avatars`) | обращение по **имени бакета и относительному пути**, домен не хардкодится → после переноса файлов ссылки останутся валидными |
 | Edge Functions | `supabase/functions/*` | вызовы из фронта через `supabase.functions.invoke` (без путей `/api/...`) |
 | Cron | `supabase/migrations/20260805014116_*.sql` | `cron.schedule('telegram-process-due')` c **хардкоженным URL старого проекта** — нужно перезаписать (см. §I) |
-| Email | `supabase/functions/auth-email-hook`, `process-email-queue` | `LOVABLE_API_KEY` + `npm:@lovable.dev/email-js` — **работает только внутри Lovable Cloud**, это главный блокер (см. §D) |
+| Email | `supabase/functions/auth-email-hook`, `process-email-queue` | транспорт переведён на **SendPulse** (`SENDPULSE_CLIENT_ID/SECRET`), `@lovable.dev/email-js` в очереди больше не используется; `auth-email-hook` принимает native Supabase Send Email Hook (`SEND_EMAIL_HOOK_SECRET`) |
 | DB-функции | `email_queue_dispatch()`, `email_queue_wake()` | внутри тела хардкожен URL старого проекта + vault-секрет `email_queue_service_role_key` |
 
 ## C. Что уже готово
@@ -27,7 +27,7 @@
 
 1. **Файлы Storage**: `content`, `workbook-assets`, `lesson-audio` (bucket `avatars` пустой, `database_export_24_08_26` не переносим).
 2. **Storage RLS-политики и настройки бакетов** — они в миграциях; если бэкап их не принёс, применить миграции `20260704002544`, `20260707010609`, `20260711001000_lesson_audio_storage`, `20260723090000_teacher_avatars_storage`, `20260805161921`, `20260805162500`.
-3. **Email**: `@lovable.dev/email-js` вне Lovable Cloud недоступен. Варианты: (a) оставить письма на Lovable Cloud временно, (b) переписать `process-email-queue` и `auth-email-hook` на Resend/SendPulse SMTP. Требуется ваше решение — я не менял этот код.
+3. **Email**: провайдер выбран — **SendPulse**. Транспорт уже переписан (`supabase/functions/_shared/sendpulseEmail.ts`), шаблоны/очередь/retry/DLQ/TTL не изменились. В новом проекте нужны только секреты SendPulse и `SEND_EMAIL_HOOK_SECRET`.
 4. **pg_cron / pg_net + vault-секреты** в новом проекте.
 5. **Auth-настройки нового проекта**: Site URL, Redirect URLs, Google OAuth, шаблоны письма/Auth Hook.
 6. **Stripe и Telegram webhook URL** — переставить на новый домен функций (§J).
@@ -68,12 +68,13 @@ node scripts/migrate-storage.mjs
 - `TELEGRAM_CRON_SECRET`
 - `ELEVENLABS_API_KEY`
 - `APP_URL` (`https://vetoschool.eu`)
-- `SENDPULSE_CLIENT_ID`, `SENDPULSE_CLIENT_SECRET` (+ `SENDPULSE_FROM_EMAIL`, `SENDPULSE_FROM_NAME`, `SENDPULSE_EMAIL_ENDPOINT`) — если письма уходят на SendPulse
+- `SENDPULSE_CLIENT_ID`, `SENDPULSE_CLIENT_SECRET`, `SENDPULSE_FROM_EMAIL` (`noreply@notify.vetoschool.eu`), `SENDPULSE_FROM_NAME` (`Vetoschool`), опц. `SENDPULSE_EMAIL_ENDPOINT`
+- `SEND_EMAIL_HOOK_SECRET` (значение из Auth → Hooks нового проекта, формат `v1,whsec_...`)
 - `TRIAL_BOOKING_ALLOWED_ORIGINS` (опционально)
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` Supabase подставляет сам.
 
-Не нужны: `LOVABLE_API_KEY`, `LOVABLE_SEND_URL` (только Lovable Email), `STRIPE_PUBLISHABLE_KEY` (публичный, живёт в фронте), `GOOGLE_SEARCH_CONSOLE_API_KEY` (это интеграция Lovable, к backend не относится).
+Не нужны: `LOVABLE_API_KEY`, `LOVABLE_SEND_URL` (только старый Lovable Email), `STRIPE_PUBLISHABLE_KEY` (публичный, живёт в фронте), `GOOGLE_SEARCH_CONSOLE_API_KEY` (это интеграция Lovable, к backend не относится).
 
 ## H. Edge Functions к деплою в новый проект
 
@@ -88,8 +89,8 @@ node scripts/migrate-storage.mjs
 | `submit-trial-booking` | публичная форма | — | false |
 | `generate-card-audio` | фронт (`src/lib/cardAudio.ts`) | `ELEVENLABS_API_KEY` | true |
 | `admin-delete-user` | админка | — | true |
-| `auth-email-hook` | Auth Hook | `LOVABLE_API_KEY` → требует замены провайдера | false |
-| `process-email-queue` | cron/триггер | `LOVABLE_API_KEY` → требует замены провайдера | true |
+| `auth-email-hook` | Auth Send Email Hook | `SEND_EMAIL_HOOK_SECRET` (+ опц. `AUTH_EMAIL_PREVIEW_TOKEN`) | false |
+| `process-email-queue` | cron/триггер | `SENDPULSE_CLIENT_ID`, `SENDPULSE_CLIENT_SECRET`, `SENDPULSE_FROM_EMAIL`, `SENDPULSE_FROM_NAME` | true |
 
 `supabase/config.toml` содержит `project_id` старого проекта — при деплое через CLI используйте `supabase link --project-ref <новый ref>`.
 
@@ -98,7 +99,7 @@ node scripts/migrate-storage.mjs
 1. `telegram-process-due` — каждую минуту, POST на `/functions/v1/telegram-notifications` с заголовком `x-cron-secret` из vault (`telegram_cron_secret`).
 2. `process-email-queue` — не постоянный: включается триггером `email_queue_wake` на pgmq-очередях и снимается `email_queue_dispatch()`, когда очередь пуста. Внутри обеих функций URL старого проекта → переписать под новый ref, а также пересоздать vault-секрет `email_queue_service_role_key`.
 
-SQL для нового проекта: `scripts/new-supabase-cron.sql`.
+SQL для нового проекта: `scripts/new-supabase-cron.sql` (Telegram) и `scripts/new-supabase-email-queue.sql` (очередь писем, `email_queue_dispatch()`/`email_queue_wake()` с новым ref, триггеры pgmq, vault-секрет).
 
 ## J. Порядок переключения
 
