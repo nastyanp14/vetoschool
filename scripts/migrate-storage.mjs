@@ -2,19 +2,28 @@
 /**
  * Copies Storage objects from the OLD Supabase project (Lovable Cloud) to the NEW one.
  *
+ * SOURCE AUTH (Lovable Cloud): the old service_role key is NOT accessible, so the source is
+ * read with an ADMIN USER SESSION instead. All three buckets grant SELECT to that session:
+ *   content         -> content_read_own_or_admin (admin sees every folder)
+ *   workbook-assets -> wba_read_* (authenticated read)
+ *   lesson-audio    -> lesson_audio_authenticated_read (authenticated read)
+ *
  * Safety guarantees:
  *  - read-only on the source (never deletes or modifies anything there)
  *  - keeps bucket names, full object paths (including UUID folders), file names and MIME types
  *  - skips objects that already exist in the target with the same size (idempotent, resumable)
  *  - prints a per-object log plus a final summary of successes / skips / failures
  *
- * Run locally (never in the browser bundle — these are service_role keys):
+ * Run locally:
  *
  *   OLD_SUPABASE_URL=https://<old-ref>.supabase.co \
- *   OLD_SERVICE_ROLE_KEY=<old service role key> \
- *   NEW_SUPABASE_URL=https://<new-ref>.supabase.co \
- *   NEW_SERVICE_ROLE_KEY=<new service role key> \
+ *   OLD_ANON_KEY=<old publishable/anon key from .env> \
+ *   OLD_ADMIN_EMAIL=<admin login> OLD_ADMIN_PASSWORD=<admin password> \
+ *   NEW_SUPABASE_URL=https://ggflcriakiudnejmiuwh.supabase.co \
+ *   NEW_SERVICE_ROLE_KEY=<new project service role key> \
  *   node scripts/migrate-storage.mjs
+ *
+ * OLD_SERVICE_ROLE_KEY still works instead of the admin login if you ever have one.
  *
  * Optional:
  *   BUCKETS=content,workbook-assets,lesson-audio   # default, comma separated
@@ -25,6 +34,9 @@ import { createClient } from '@supabase/supabase-js';
 
 const OLD_URL = process.env.OLD_SUPABASE_URL;
 const OLD_KEY = process.env.OLD_SERVICE_ROLE_KEY;
+const OLD_ANON_KEY = process.env.OLD_ANON_KEY;
+const OLD_ADMIN_EMAIL = process.env.OLD_ADMIN_EMAIL;
+const OLD_ADMIN_PASSWORD = process.env.OLD_ADMIN_PASSWORD;
 const NEW_URL = process.env.NEW_SUPABASE_URL;
 const NEW_KEY = process.env.NEW_SERVICE_ROLE_KEY;
 const DRY_RUN = process.env.DRY_RUN === '1';
@@ -33,13 +45,39 @@ const BUCKETS = (process.env.BUCKETS || 'content,workbook-assets,lesson-audio')
   .map(b => b.trim())
   .filter(Boolean);
 
-if (!OLD_URL || !OLD_KEY || !NEW_URL || !NEW_KEY) {
-  console.error('Missing env: OLD_SUPABASE_URL, OLD_SERVICE_ROLE_KEY, NEW_SUPABASE_URL, NEW_SERVICE_ROLE_KEY');
+const usingAdminSession = !OLD_KEY;
+
+if (!OLD_URL || !NEW_URL || !NEW_KEY) {
+  console.error('Missing env: OLD_SUPABASE_URL, NEW_SUPABASE_URL, NEW_SERVICE_ROLE_KEY');
+  process.exit(1);
+}
+if (usingAdminSession && !(OLD_ANON_KEY && OLD_ADMIN_EMAIL && OLD_ADMIN_PASSWORD)) {
+  console.error('Source auth: provide OLD_SERVICE_ROLE_KEY, or OLD_ANON_KEY + OLD_ADMIN_EMAIL + OLD_ADMIN_PASSWORD');
   process.exit(1);
 }
 
-const source = createClient(OLD_URL, OLD_KEY, { auth: { persistSession: false } });
+const source = createClient(OLD_URL, OLD_KEY || OLD_ANON_KEY, { auth: { persistSession: false } });
 const target = createClient(NEW_URL, NEW_KEY, { auth: { persistSession: false } });
+
+if (usingAdminSession) {
+  const { data, error } = await source.auth.signInWithPassword({
+    email: OLD_ADMIN_EMAIL,
+    password: OLD_ADMIN_PASSWORD,
+  });
+  if (error || !data?.session) {
+    console.error(`Source sign-in failed: ${error?.message || 'no session'}`);
+    process.exit(1);
+  }
+  console.log(`[auth] signed in to source as ${data.user?.email} (admin session, read-only)`);
+}
+
+// Bucket settings are known from the migrations, so the target bucket can be created
+// without reading storage.buckets on the source (not possible with an admin session).
+const BUCKET_CONFIG = {
+  content: { public: false },
+  'workbook-assets': { public: false },
+  'lesson-audio': { public: false, fileSizeLimit: 10485760, allowedMimeTypes: ['audio/mpeg'] },
+};
 
 const PAGE = 100;
 const stats = { copied: 0, skipped: 0, failed: 0 };
