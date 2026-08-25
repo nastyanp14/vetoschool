@@ -12,6 +12,8 @@ interface Env {
   STRIPE_PORTAL_CONFIGURATION_ID?: string;
   SUCCESS_URL?: string;
   CANCEL_URL?: string;
+  SUPABASE_URL?: string;
+  SUPABASE_ANON_KEY?: string;
   VITE_SUPABASE_URL?: string;
   VITE_SUPABASE_PUBLISHABLE_KEY?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;

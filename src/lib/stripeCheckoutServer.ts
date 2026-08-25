@@ -33,6 +33,9 @@ type StripeCheckoutEnv = {
   STRIPE_PORTAL_CONFIGURATION_ID?: string;
   SUCCESS_URL?: string;
   CANCEL_URL?: string;
+  SUPABASE_URL?: string;
+  SUPABASE_ANON_KEY?: string;
+  SUPABASE_PUBLISHABLE_KEY?: string;
   VITE_SUPABASE_URL?: string;
   VITE_SUPABASE_PUBLISHABLE_KEY?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
@@ -585,7 +588,10 @@ function supabaseHeaders(env: StripeCheckoutEnv) {
 }
 
 function supabaseUserHeaders(env: StripeCheckoutEnv, accessToken: string) {
-  const apiKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+  const apiKey = env.SUPABASE_ANON_KEY
+    || env.SUPABASE_PUBLISHABLE_KEY
+    || env.VITE_SUPABASE_PUBLISHABLE_KEY
+    || env.SUPABASE_SERVICE_ROLE_KEY;
   if (!apiKey) throw new Error('supabase_auth_key_missing');
 
   return {
@@ -596,8 +602,9 @@ function supabaseUserHeaders(env: StripeCheckoutEnv, accessToken: string) {
 }
 
 function requireSupabaseUrl(env: StripeCheckoutEnv) {
-  if (!env.VITE_SUPABASE_URL) throw new Error('supabase_url_missing');
-  return env.VITE_SUPABASE_URL.replace(/\/+$/, '');
+  const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
+  if (!supabaseUrl) throw new Error('supabase_url_missing');
+  return supabaseUrl.replace(/\/+$/, '');
 }
 
 function authorizationBearerToken(request: Request) {
@@ -1554,7 +1561,7 @@ async function applyStripeSubscriptionState(params: {
 }
 
 async function reserveStripeWebhookEvent(event: StripeWebhookLogEvent, env: StripeCheckoutEnv): Promise<StripeWebhookLogReservation> {
-  const supabaseUrl = env.VITE_SUPABASE_URL;
+  const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
   const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceRoleKey) {
     logStripeWebhookSupabaseDebug({
@@ -1694,7 +1701,7 @@ async function reserveStripeWebhookEvent(event: StripeWebhookLogEvent, env: Stri
 }
 
 async function finishStripeWebhookEvent(eventId: string, status: 'processed' | 'failed' | 'ignored', env: StripeCheckoutEnv, errorMessage?: string) {
-  const supabaseUrl = env.VITE_SUPABASE_URL;
+  const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
   const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceRoleKey) {
     logStripeWebhookSupabaseDebug({
