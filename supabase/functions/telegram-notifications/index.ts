@@ -210,6 +210,7 @@ export function templateVars(payload: any, lang: NotifyLang, now = new Date()) {
     recommended_level: payload.recommendedLevel || payload.finalLevel || '',
     communication_language: payload.communicationLanguage || '',
     lesson_language: payload.lessonLanguage || payload.communicationLanguage || '',
+    lesson_timezone: payload.lessonTimezone || payload.timezone || '',
     parent_email: payload.parentEmail || '',
     parent_phone: payload.parentPhone || '',
     preferred_date: lessonAt ? formatDate(lessonAt, lang) : '',
@@ -643,8 +644,10 @@ async function deliverEmail(admin: any, input: {
     channel: 'email',
     language: lang,
     status: 'pending',
-    provider: 'lovable_email',
+    provider: 'sendpulse',
     idempotency_key: key,
+    payload: input.vars,
+    template_variables: input.vars,
   }).select('id').maybeSingle();
   if (claimError) {
     // 23505 = такое письмо уже отправлялось
@@ -682,13 +685,15 @@ async function deliverEmail(admin: any, input: {
     }
 
     await finish({
-      status: 'sent',
-      sent_at: new Date().toISOString(),
+      status: 'pending',
+      queued_at: new Date().toISOString(),
+      provider: 'sendpulse',
       provider_message_id: queued.messageId,
       subject: rendered.subject,
       body_preview: rendered.message.text.slice(0, 500),
+      template_variables: input.vars,
     });
-    return { sent: true };
+    return { queued: true };
   } catch (error) {
     await finish({
       status: 'failed',
@@ -745,7 +750,13 @@ const TRIAL_LINK_STATUSES = ['submitted', 'confirmed'];
 /** Ссылку на пробный урок отправляем только пока он актуален. */
 function trialLessonUrl(booking: any): string {
   if (!booking || !TRIAL_LINK_STATUSES.includes(String(booking.status))) return '';
-  return validLessonUrl(booking.meeting_url || booking.lesson_url);
+  const url = validLessonUrl(booking.meeting_url || booking.lesson_url);
+  if (!url) return '';
+  try {
+    return new URL(url).hostname.toLowerCase() === 'meet.google.com' ? url : '';
+  } catch {
+    return '';
+  }
 }
 
 async function handleScheduleEvent(admin: any, body: any) {
@@ -968,6 +979,7 @@ async function handleTrialEvent(admin: any, body: any) {
     schoolGrade: booking.school_grade || '',
     recommendedLevel: booking.teacher_confirmed_level || booking.preliminary_recommendation || '',
     communicationLanguage: String(booking.preferred_language || '').toUpperCase(),
+    lessonTimezone: booking.timezone || 'Europe/Prague',
     parentEmail: booking.parent_email || '',
     parentPhone: booking.parent_phone || '',
     submittedAt: booking.created_at || '',

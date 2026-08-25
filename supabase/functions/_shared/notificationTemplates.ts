@@ -243,9 +243,9 @@ export const NOTIFICATION_TEMPLATES: Registry = {
       title: L('✅ Пробный урок подтверждён', '✅ Пробний урок підтверджено', '✅ Trial lesson confirmed'),
       subject: L('Пробный урок {child_name} подтверждён', 'Пробний урок {child_name} підтверджено', 'Trial lesson for {child_name} is confirmed'),
       body: B(
-        ['👦 Ученик: {child_name}', '📅 Дата: {lesson_date}', '🕒 Время: {lesson_time}', '👩‍🏫 Преподаватель: {teacher_name}', '🌍 Язык занятия: {lesson_language}', '', 'Ссылка на урок уже готова.'],
-        ['👦 Учень: {child_name}', '📅 Дата: {lesson_date}', '🕒 Час: {lesson_time}', '👩‍🏫 Викладач: {teacher_name}', '🌍 Мова заняття: {lesson_language}', '', 'Посилання на урок уже готове.'],
-        ['👦 Student: {child_name}', '📅 Date: {lesson_date}', '🕒 Time: {lesson_time}', '👩‍🏫 Teacher: {teacher_name}', '🌍 Lesson language: {lesson_language}', '', 'The lesson link is ready.'],
+        ['👦 Ученик: {child_name}', '📅 Дата: {lesson_date}', '🕒 Время: {lesson_time}', '🌍 Часовой пояс: {lesson_timezone}', '👩‍🏫 Преподаватель: {teacher_name}', '🌍 Язык занятия: {lesson_language}', '', '🔗 Google Meet: {lesson_url}'],
+        ['👦 Учень: {child_name}', '📅 Дата: {lesson_date}', '🕒 Час: {lesson_time}', '🌍 Часовий пояс: {lesson_timezone}', '👩‍🏫 Викладач: {teacher_name}', '🌍 Мова заняття: {lesson_language}', '', '🔗 Google Meet: {lesson_url}'],
+        ['👦 Student: {child_name}', '📅 Date: {lesson_date}', '🕒 Time: {lesson_time}', '🌍 Timezone: {lesson_timezone}', '👩‍🏫 Teacher: {teacher_name}', '🌍 Lesson language: {lesson_language}', '', '🔗 Google Meet: {lesson_url}'],
       ),
       buttons: [{ key: 'join_lesson', urlVar: 'lesson_url' }, { key: 'open_request', urlVar: 'request_url' }],
       critical: true,

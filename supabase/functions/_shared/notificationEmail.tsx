@@ -17,11 +17,10 @@ import {
   type RenderedMessage,
 } from './notificationTemplates.ts'
 
-const SENDER_DOMAIN = 'notify.vetoschool.eu'
-const FROM_DOMAIN = 'notify.vetoschool.eu'
+const SENDER_DOMAIN = 'vetoschool.eu'
+const FROM_DOMAIN = 'vetoschool.eu'
 const FROM = `Vetoschool <noreply@${FROM_DOMAIN}>`
-// Единый провайдер отправки: встроенная почта Lovable.
-const PROVIDER = 'lovable_email'
+const PROVIDER = 'sendpulse'
 
 /** Обратное преобразование HTML-экранирования из шаблонов реестра. */
 function unescape(value: string) {
@@ -154,16 +153,8 @@ export async function enqueueNotificationEmail(admin: any, input: {
     .maybeSingle()
   if (suppressed) return { messageId: null, skipped: 'suppressed' as const }
 
-  await admin.from('email_send_log').insert({
-    message_id: messageId,
-    template_name: input.label,
-    recipient_email: input.to,
-    status: 'pending',
-    provider: PROVIDER,
-  })
-
-  // Прикладной журнал писем: тот же провайдер, что и в очереди.
-  await admin.from('transactional_emails').insert({
+  // Прикладной журнал писем: queued означает "в очереди", не provider delivery.
+  const { data: transactionalEmail, error: transactionalError } = await admin.from('transactional_emails').insert({
     notification_log_id: input.notificationLogId || null,
     event_key: input.idempotencyKey,
     event_type: input.label,
@@ -179,7 +170,19 @@ export async function enqueueNotificationEmail(admin: any, input: {
     provider: PROVIDER,
     provider_message_id: messageId,
     status: 'queued',
+  }).select('id').single()
+  if (transactionalError) throw new Error(transactionalError.message)
+
+  const { error: pendingLogError } = await admin.from('email_send_log').insert({
+    message_id: messageId,
+    template_name: input.label,
+    recipient_email: input.to,
+    status: 'pending',
+    provider: PROVIDER,
+    notification_log_id: input.notificationLogId || null,
+    transactional_email_id: transactionalEmail?.id || null,
   })
+  if (pendingLogError) throw new Error(pendingLogError.message)
 
   // Lovable Email требует unsubscribe_token для transactional-писем.
   let unsubscribeToken: string | null = null
@@ -212,6 +215,8 @@ export async function enqueueNotificationEmail(admin: any, input: {
     queue_name: 'transactional_emails',
     payload: {
       message_id: messageId,
+      notification_log_id: input.notificationLogId || null,
+      transactional_email_id: transactionalEmail?.id || null,
       to: input.to,
       from: FROM,
       sender_domain: SENDER_DOMAIN,
@@ -230,4 +235,3 @@ export async function enqueueNotificationEmail(admin: any, input: {
   if (error) throw new Error(error.message)
   return { messageId, skipped: null }
 }
-

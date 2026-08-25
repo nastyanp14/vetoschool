@@ -9,6 +9,7 @@ const DEFAULT_BATCH_SIZE = 10
 const DEFAULT_SEND_DELAY_MS = 200
 const DEFAULT_AUTH_TTL_MINUTES = 15
 const DEFAULT_TRANSACTIONAL_TTL_MINUTES = 60
+const PROVIDER = 'sendpulse'
 
 // Check if an error is a rate-limit (429) response.
 // Uses EmailAPIError.status when available (email-js >=0.x with structured errors),
@@ -55,6 +56,46 @@ function parseJwtClaims(token: string): Record<string, unknown> | null {
   }
 }
 
+function stringValue(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+async function updateTransactionalEmail(
+  supabase: ReturnType<typeof createClient>,
+  payload: Record<string, unknown>,
+  patch: Record<string, unknown>
+): Promise<void> {
+  const transactionalEmailId = stringValue(payload.transactional_email_id)
+  const messageId = stringValue(payload.message_id)
+  if (transactionalEmailId) {
+    await supabase.from('transactional_emails').update(patch).eq('id', transactionalEmailId)
+    return
+  }
+  if (messageId) {
+    await supabase.from('transactional_emails').update(patch).eq('provider_message_id', messageId)
+  }
+}
+
+async function updateNotificationLog(
+  supabase: ReturnType<typeof createClient>,
+  payload: Record<string, unknown>,
+  patch: Record<string, unknown>
+): Promise<void> {
+  const notificationLogId = stringValue(payload.notification_log_id)
+  const messageId = stringValue(payload.message_id)
+  if (notificationLogId) {
+    await supabase.from('notification_log').update(patch).eq('id', notificationLogId)
+    return
+  }
+  if (messageId) {
+    await supabase
+      .from('notification_log')
+      .update(patch)
+      .eq('provider_message_id', messageId)
+      .eq('channel', 'email')
+  }
+}
+
 // Move a message to the dead letter queue and log the reason.
 async function moveToDlq(
   supabase: ReturnType<typeof createClient>,
@@ -63,12 +104,28 @@ async function moveToDlq(
   reason: string
 ): Promise<void> {
   const payload = msg.message
+  const failedAt = new Date().toISOString()
   await supabase.from('email_send_log').insert({
     message_id: payload.message_id,
     template_name: (payload.label || queue) as string,
     recipient_email: payload.to,
     status: 'dlq',
     error_message: reason,
+    provider: PROVIDER,
+    notification_log_id: payload.notification_log_id || null,
+    transactional_email_id: payload.transactional_email_id || null,
+  })
+  await updateTransactionalEmail(supabase, payload, {
+    status: 'dlq',
+    error: reason,
+    provider: PROVIDER,
+    updated_at: failedAt,
+  })
+  await updateNotificationLog(supabase, payload, {
+    status: 'failed',
+    failed_at: failedAt,
+    error_message: reason,
+    provider: PROVIDER,
   })
   const { error } = await supabase.rpc('move_to_dlq', {
     source_queue: queue,
@@ -240,6 +297,20 @@ Deno.serve(async (req) => {
             msg_id: msg.msg_id,
             message_id: payload.message_id,
           })
+          const sentAt = new Date().toISOString()
+          await updateTransactionalEmail(supabase, payload, {
+            status: 'sent',
+            sent_at: sentAt,
+            error: null,
+            provider: PROVIDER,
+            updated_at: sentAt,
+          })
+          await updateNotificationLog(supabase, payload, {
+            status: 'sent',
+            sent_at: sentAt,
+            error_message: null,
+            provider: PROVIDER,
+          })
           const { error: dupDelError } = await supabase.rpc('delete_email', {
             queue_name: queue,
             message_id: msg.msg_id,
@@ -252,9 +323,15 @@ Deno.serve(async (req) => {
       }
 
       try {
+        const processingAt = new Date().toISOString()
+        await updateTransactionalEmail(supabase, payload, {
+          status: 'processing',
+          provider: PROVIDER,
+          updated_at: processingAt,
+        })
         // Transport only: subject/html/text/from come straight from the queued
         // payload, so templates, languages and content stay unchanged.
-        await sendSendPulseEmail(
+        const providerMessageId = await sendSendPulseEmail(
           {
             to: payload.to as string,
             from: payload.from as string | undefined,
@@ -265,12 +342,33 @@ Deno.serve(async (req) => {
           sendpulseEnv
         )
 
+        const sentAt = new Date().toISOString()
         // Log success
         await supabase.from('email_send_log').insert({
           message_id: payload.message_id,
           template_name: payload.label || queue,
           recipient_email: payload.to,
           status: 'sent',
+          provider: PROVIDER,
+          notification_log_id: payload.notification_log_id || null,
+          transactional_email_id: payload.transactional_email_id || null,
+          response: { provider_message_id: providerMessageId },
+        })
+        await updateTransactionalEmail(supabase, payload, {
+          status: 'sent',
+          sent_at: sentAt,
+          error: null,
+          provider: PROVIDER,
+          provider_response: { provider_message_id: providerMessageId },
+          updated_at: sentAt,
+        })
+        await updateNotificationLog(supabase, payload, {
+          status: 'sent',
+          sent_at: sentAt,
+          failed_at: null,
+          error_message: null,
+          provider: PROVIDER,
+          provider_response: { provider_message_id: providerMessageId },
         })
 
         // Delete from queue
@@ -293,12 +391,26 @@ Deno.serve(async (req) => {
         })
 
         if (isRateLimited(error)) {
+          await updateTransactionalEmail(supabase, payload, {
+            status: 'retrying',
+            error: errorMsg.slice(0, 1000),
+            provider: PROVIDER,
+            updated_at: new Date().toISOString(),
+          })
+          await updateNotificationLog(supabase, payload, {
+            status: 'pending',
+            error_message: errorMsg.slice(0, 1000),
+            provider: PROVIDER,
+          })
           await supabase.from('email_send_log').insert({
             message_id: payload.message_id,
             template_name: payload.label || queue,
             recipient_email: payload.to,
-            status: 'rate_limited',
+            status: 'failed',
             error_message: errorMsg.slice(0, 1000),
+            provider: PROVIDER,
+            notification_log_id: payload.notification_log_id || null,
+            transactional_email_id: payload.transactional_email_id || null,
           })
 
           const retryAfterSecs = getRetryAfterSeconds(error)
@@ -330,12 +442,26 @@ Deno.serve(async (req) => {
         }
 
         // Log non-429 failures to track real retry attempts.
+        await updateTransactionalEmail(supabase, payload, {
+          status: 'retrying',
+          error: errorMsg.slice(0, 1000),
+          provider: PROVIDER,
+          updated_at: new Date().toISOString(),
+        })
+        await updateNotificationLog(supabase, payload, {
+          status: 'pending',
+          error_message: errorMsg.slice(0, 1000),
+          provider: PROVIDER,
+        })
         await supabase.from('email_send_log').insert({
           message_id: payload.message_id,
           template_name: payload.label || queue,
           recipient_email: payload.to,
           status: 'failed',
           error_message: errorMsg.slice(0, 1000),
+          provider: PROVIDER,
+          notification_log_id: payload.notification_log_id || null,
+          transactional_email_id: payload.transactional_email_id || null,
         })
         if (payload?.message_id && typeof payload.message_id === 'string') {
           failedAttemptsByMessageId.set(payload.message_id, failedAttempts + 1)

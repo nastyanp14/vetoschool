@@ -181,7 +181,7 @@ export function isValidLessonUrl(value: string): boolean {
   if (!/^https:\/\//i.test(url)) return false;
   try {
     const parsed = new URL(url);
-    return parsed.protocol === 'https:' && parsed.hostname.includes('.');
+    return parsed.protocol === 'https:' && parsed.hostname.toLowerCase() === 'meet.google.com';
   } catch {
     return false;
   }

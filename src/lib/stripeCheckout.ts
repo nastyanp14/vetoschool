@@ -76,12 +76,18 @@ export async function redirectToStripeCustomerPortal() {
     throw new Error('Log in to manage your subscription.');
   }
 
-  const { data: payload, error } = await supabase.functions.invoke<StripeSessionResponse>('create-portal-session', {
-    body: {},
+  const response = await fetch('/api/stripe/create-portal-session', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({}),
   });
+  const payload = await response.json().catch(() => null) as StripeSessionResponse | null;
 
-  if (error || !payload?.url) {
-    throw new Error(payload?.error || error?.message || 'Could not open subscription management.');
+  if (!response.ok || !payload?.url) {
+    throw new Error(stripeErrorMessage(payload, 'Could not open subscription management.'));
   }
 
   window.location.assign(payload.url);

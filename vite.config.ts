@@ -77,7 +77,7 @@ function stripeCheckoutDevServerPlugin(mode: string): Plugin {
       server.middlewares.use("/api/stripe/create-checkout-session", createCheckoutSessionMiddleware);
       server.middlewares.use("/api/create-checkout-session", createCheckoutSessionMiddleware);
 
-      server.middlewares.use("/api/stripe/create-portal-session", async (req, res) => {
+      const createPortalSessionMiddleware = async (req, res) => {
         try {
           const host = req.headers.host || "127.0.0.1:8080";
           const url = new URL(req.url || "", `http://${host}`);
@@ -99,7 +99,10 @@ function stripeCheckoutDevServerPlugin(mode: string): Plugin {
             headers: { "content-type": "application/json; charset=utf-8" },
           }));
         }
-      });
+      };
+
+      server.middlewares.use("/api/stripe/create-portal-session", createPortalSessionMiddleware);
+      server.middlewares.use("/api/stripe/portal", createPortalSessionMiddleware);
 
       server.middlewares.use("/api/stripe/webhook", async (req, res) => {
         try {

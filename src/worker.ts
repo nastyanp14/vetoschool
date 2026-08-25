@@ -145,7 +145,7 @@ export default {
       return handleCreateStripeCheckoutSession(request, env);
     }
 
-    if (pathname === '/api/stripe/create-portal-session') {
+    if (pathname === '/api/stripe/create-portal-session' || pathname === '/api/stripe/portal') {
       return handleCreateStripePortalSession(request, env);
     }
 
