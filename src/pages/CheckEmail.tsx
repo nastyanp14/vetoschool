@@ -82,8 +82,14 @@ export default function CheckEmail({ lang }: { lang: Lang }) {
     setError('');
     setMessage('');
     setLoading(true);
-    const result = await confirmEmailCode(email, code);
-    setLoading(false);
+    let result: Awaited<ReturnType<typeof confirmEmailCode>>;
+    try {
+      result = await confirmEmailCode(email, code);
+    } catch (error) {
+      result = { success: false, error: error instanceof Error ? error.message : 'Could not confirm email.' };
+    } finally {
+      setLoading(false);
+    }
 
     if (result.success && result.data) {
       navigate(homePathForUser(result.data), { replace: true });
@@ -97,9 +103,15 @@ export default function CheckEmail({ lang }: { lang: Lang }) {
     setError('');
     setMessage('');
     setResending(true);
-    const result = await resendConfirmationEmail(email);
-    setResending(false);
-    startCooldown();
+    let result: Awaited<ReturnType<typeof resendConfirmationEmail>>;
+    try {
+      result = await resendConfirmationEmail(email);
+    } catch (error) {
+      result = { success: false, error: error instanceof Error ? error.message : 'Could not resend email' };
+    } finally {
+      setResending(false);
+      startCooldown();
+    }
     if (result.success) setMessage(copy.done);
     else setError(result.error || 'Could not resend email');
   };

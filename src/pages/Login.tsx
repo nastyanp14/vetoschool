@@ -25,8 +25,14 @@ export default function Login({ lang }: { lang: Lang }) {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const result = await login(email, password);
-    setLoading(false);
+    let result: Awaited<ReturnType<typeof login>>;
+    try {
+      result = await login(email, password);
+    } catch (error) {
+      result = { success: false, error: error instanceof Error ? error.message : 'Login failed' };
+    } finally {
+      setLoading(false);
+    }
 
     if (result.success && result.data) {
       navigate(homePathForUser(result.data));

@@ -65,11 +65,21 @@ export default function ResetPassword({ lang }: { lang: Lang }) {
     }
 
     setLoading(true);
-    const result = await updatePassword(password);
-    setLoading(false);
+    let result: Awaited<ReturnType<typeof updatePassword>>;
+    try {
+      result = await updatePassword(password);
+    } catch (error) {
+      result = { success: false, error: error instanceof Error ? error.message : 'Could not update password' };
+    } finally {
+      setLoading(false);
+    }
 
     if (result.success) {
-      await logout();
+      try {
+        await logout();
+      } catch {
+        /* The password is already saved; do not hide success if sign-out cleanup fails. */
+      }
       setSuccess(true);
     } else {
       setError(result.error || 'Could not update password');

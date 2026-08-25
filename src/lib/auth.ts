@@ -39,6 +39,15 @@ export interface User {
 }
 
 type AuthResult<T = undefined> = Promise<{ success: boolean; data?: T; error?: string }>;
+type AuthStep =
+  | 'initialize_profile'
+  | 'load_profile'
+  | 'load_roles'
+  | 'load_auth_user'
+  | 'confirm_email'
+  | 'password_recovery'
+  | 'password_update'
+  | 'login';
 
 const ME_KEY = 'me';
 const USERS_KEY = 'users';
@@ -81,7 +90,23 @@ function friendlyAuthError(message?: string) {
   if (lower.includes('user already registered')) return 'Аккаунт с этим email уже существует. Войдите или восстановите пароль.';
   if (lower.includes('rate limit')) return 'Слишком много запросов. Попробуйте позже.';
   if (lower.includes('same password')) return 'Новый пароль должен отличаться от текущего.';
+  if (lower.includes('permission denied')) return 'Аккаунт подтверждён, но профиль пока недоступен. Обновите страницу или войдите ещё раз.';
   return raw;
+}
+
+function authErrorMessage(error: unknown, fallback: string) {
+  if (!error) return fallback;
+  if (typeof error === 'string') return error;
+  const err = error as { message?: string; error?: string; details?: string; hint?: string; code?: string };
+  return err.error || err.message || err.details || err.hint || fallback;
+}
+
+function logAuthDiagnostics(step: AuthStep, details: Record<string, unknown>) {
+  if (!import.meta.env.DEV) return;
+  const sanitized = Object.fromEntries(
+    Object.entries(details).filter(([key]) => !/token|password|secret|key/i.test(key)),
+  );
+  console.info(`[auth:${step}]`, sanitized);
 }
 
 export function friendlyActionError(error: unknown) {
@@ -141,11 +166,27 @@ async function initializeProfile(authUserId: string, email: string, name?: strin
 }
 
 async function loadCurrentUser(authUserId: string): Promise<User | null> {
-  const [{ data: authData }, { data: profile }, { data: roles }] = await Promise.all([
+  const [authResult, profileResult, rolesResult] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from('profiles').select('*').eq('id', authUserId).maybeSingle(),
     supabase.from('user_roles').select('role').eq('user_id', authUserId),
   ]);
+  const { data: authData, error: authError } = authResult;
+  const { data: profile, error: profileError } = profileResult;
+  const { data: roles, error: rolesError } = rolesResult;
+
+  if (authError) {
+    logAuthDiagnostics('load_auth_user', { message: authError.message });
+    throw authError;
+  }
+  if (profileError) {
+    logAuthDiagnostics('load_profile', { code: profileError.code, message: profileError.message });
+    throw profileError;
+  }
+  if (rolesError) {
+    logAuthDiagnostics('load_roles', { code: rolesError.code, message: rolesError.message });
+    throw rolesError;
+  }
 
   if (!profile || !authData.user) return null;
   const role: Role = roles?.some(r => r.role === 'admin') ? 'admin' : roles?.some(r => r.role === 'teacher') ? 'teacher' : 'student';
@@ -266,18 +307,23 @@ supabase.auth.onAuthStateChange((_event, session) => {
 });
 
 export async function login(email: string, password: string): AuthResult<User> {
-  const { error, data } = await supabase.auth.signInWithPassword({ email, password });
-  if (error || !data.user) return { success: false, error: friendlyAuthError(error?.message) };
-  if (!emailConfirmed(data.user)) {
-    await supabase.auth.signOut();
-    cacheClear();
-    return { success: false, error: 'Подтвердите email перед входом.' };
-  }
+  try {
+    const { error, data } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.user) return { success: false, error: friendlyAuthError(error?.message) };
+    if (!emailConfirmed(data.user)) {
+      await supabase.auth.signOut();
+      cacheClear();
+      return { success: false, error: 'Подтвердите email перед входом.' };
+    }
 
-  const me = await loadCurrentUser(data.user.id);
-  cacheSet(ME_KEY, me);
-  if (me?.role === 'admin') await loadAllUsers();
-  return { success: true, data: me || undefined };
+    const me = await loadCurrentUser(data.user.id);
+    cacheSet(ME_KEY, me);
+    if (me?.role === 'admin') await loadAllUsers();
+    return { success: true, data: me || undefined };
+  } catch (error) {
+    logAuthDiagnostics('login', { message: authErrorMessage(error, 'Login failed') });
+    return { success: false, error: friendlyAuthError(authErrorMessage(error, 'Login failed')) };
+  }
 }
 
 export async function register(name: string, email: string, password: string, lang: 'ru' | 'ua' | 'en' = 'ru'): AuthResult<{ email: string }> {
@@ -395,25 +441,42 @@ export async function confirmEmailCode(email: string, token: string): AuthResult
   }
 
 
-  const { data, error } = await supabase.auth.verifyOtp({
-    email: normalizedEmail,
-    token: cleanToken,
-    type: 'signup',
-  });
+  try {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: normalizedEmail,
+      token: cleanToken,
+      type: 'signup',
+    });
 
+    logAuthDiagnostics('confirm_email', {
+      hasUser: Boolean(data.user),
+      hasSession: Boolean(data.session),
+      message: error?.message,
+    });
 
-  if (error || !data.user) return { success: false, error: friendlyAuthError(error?.message || 'Invalid confirmation code') };
+    if (error || !data.user) return { success: false, error: friendlyAuthError(error?.message || 'Invalid confirmation code') };
 
-  await initializeProfile(
-    data.user.id,
-    data.user.email || normalizedEmail,
-    (data.user.user_metadata?.name || data.user.user_metadata?.full_name) as string | undefined,
-  );
+    try {
+      await initializeProfile(
+        data.user.id,
+        data.user.email || normalizedEmail,
+        (data.user.user_metadata?.name || data.user.user_metadata?.full_name) as string | undefined,
+      );
+    } catch (profileError) {
+      logAuthDiagnostics('initialize_profile', {
+        message: authErrorMessage(profileError, 'Profile initialization failed'),
+      });
+    }
 
-  const me = await loadCurrentUser(data.user.id);
-  cacheSet(ME_KEY, me);
-  if (me?.role === 'admin') await loadAllUsers();
-  return { success: true, data: me || undefined };
+    const me = await loadCurrentUser(data.user.id);
+    if (!me) return { success: false, error: 'Email подтверждён, но профиль ещё создаётся. Обновите страницу или войдите ещё раз.' };
+    cacheSet(ME_KEY, me);
+    if (me?.role === 'admin') await loadAllUsers();
+    return { success: true, data: me };
+  } catch (error) {
+    logAuthDiagnostics('confirm_email', { message: authErrorMessage(error, 'Email confirmation failed') });
+    return { success: false, error: friendlyAuthError(authErrorMessage(error, 'Email confirmation failed')) };
+  }
 }
 
 export async function requestPasswordReset(email: string): AuthResult {
@@ -465,22 +528,39 @@ export async function validateRecoverySession(): AuthResult {
 
   if (errorDescription) return { success: false, error: friendlyAuthError(errorDescription) };
 
-  if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) return { success: false, error: friendlyAuthError(error.message) };
-  }
+  try {
+    if (code) {
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) return { success: false, error: friendlyAuthError(error.message) };
+    }
 
-  const { data } = await supabase.auth.getSession();
-  return data.session ? { success: true } : { success: false, error: 'Ссылка восстановления недействительна или устарела.' };
+    const { data, error } = await supabase.auth.getSession();
+    logAuthDiagnostics('password_recovery', {
+      hasSession: Boolean(data.session),
+      message: error?.message,
+    });
+    if (error) return { success: false, error: friendlyAuthError(error.message) };
+    return data.session ? { success: true } : { success: false, error: 'Ссылка восстановления недействительна или устарела.' };
+  } catch (error) {
+    logAuthDiagnostics('password_recovery', { message: authErrorMessage(error, 'Password recovery failed') });
+    return { success: false, error: friendlyAuthError(authErrorMessage(error, 'Password recovery failed')) };
+  }
 }
 
 export async function updatePassword(newPassword: string): AuthResult {
-  const { data } = await supabase.auth.getSession();
-  if (!data.session) return { success: false, error: 'Нужно снова войти в аккаунт.' };
+  try {
+    const { data, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) return { success: false, error: friendlyAuthError(sessionError.message) };
+    if (!data.session) return { success: false, error: 'Ссылка восстановления недействительна или устарела. Запросите новое письмо.' };
 
-  const { error } = await supabase.auth.updateUser({ password: newPassword });
-  if (error) return { success: false, error: friendlyAuthError(error.message) };
-  return { success: true };
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    logAuthDiagnostics('password_update', { message: error?.message, hasSession: Boolean(data.session) });
+    if (error) return { success: false, error: friendlyAuthError(error.message) };
+    return { success: true };
+  } catch (error) {
+    logAuthDiagnostics('password_update', { message: authErrorMessage(error, 'Could not update password') });
+    return { success: false, error: friendlyAuthError(authErrorMessage(error, 'Could not update password')) };
+  }
 }
 
 export async function logout() {
