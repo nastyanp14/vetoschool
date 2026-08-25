@@ -130,21 +130,41 @@ BEGIN
   END LOOP;
 END $$;
 
-REVOKE EXECUTE ON FUNCTION public.enqueue_email(text, jsonb) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.read_email_batch(text, integer, integer) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.delete_email(text, bigint) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.move_to_dlq(text, text, bigint, jsonb) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.enqueue_email(text, jsonb) TO service_role;
-GRANT EXECUTE ON FUNCTION public.read_email_batch(text, integer, integer) TO service_role;
-GRANT EXECUTE ON FUNCTION public.delete_email(text, bigint) TO service_role;
-GRANT EXECUTE ON FUNCTION public.move_to_dlq(text, text, bigint, jsonb) TO service_role;
+DO $$
+DECLARE
+  fn regprocedure;
+BEGIN
+  FOREACH fn IN ARRAY ARRAY[
+    to_regprocedure('public.enqueue_email(text, jsonb)'),
+    to_regprocedure('public.read_email_batch(text, integer, integer)'),
+    to_regprocedure('public.delete_email(text, bigint)'),
+    to_regprocedure('public.move_to_dlq(text, text, bigint, jsonb)')
+  ] LOOP
+    IF fn IS NOT NULL THEN
+      EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon, authenticated', fn);
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', fn);
+    END IF;
+  END LOOP;
 
-REVOKE EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) TO authenticated, service_role;
+  fn := to_regprocedure('public.has_role(uuid, public.app_role)');
+  IF fn IS NOT NULL THEN
+    EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon', fn);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO authenticated, service_role', fn);
+  END IF;
 
-REVOKE EXECUTE ON FUNCTION public.is_admin(uuid) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.is_admin(uuid) TO service_role;
+  fn := to_regprocedure('public.is_admin(uuid)');
+  IF fn IS NOT NULL THEN
+    EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon, authenticated', fn);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', fn);
+  END IF;
 
-REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.set_updated_at() FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.touch_trial_bookings_updated_at() FROM PUBLIC, anon, authenticated;
+  FOREACH fn IN ARRAY ARRAY[
+    to_regprocedure('public.handle_new_user()'),
+    to_regprocedure('public.set_updated_at()'),
+    to_regprocedure('public.touch_trial_bookings_updated_at()')
+  ] LOOP
+    IF fn IS NOT NULL THEN
+      EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon, authenticated', fn);
+    END IF;
+  END LOOP;
+END $$;
