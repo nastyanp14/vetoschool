@@ -104,6 +104,7 @@ DECLARE
     'telegram_link_tokens',
     'student_parent_links',
     'notification_log',
+    'notification_registry',
     'transactional_emails',
     'email_send_log',
     'email_send_state',
