@@ -131,7 +131,7 @@ export async function sendSendPulseEmail(
         subject: message.subject,
         from: { name: sender.name, email: sender.email },
         to: [{ email: message.to }],
-        html: message.html,
+        html: btoa(unescape(encodeURIComponent(message.html))),
         text: message.text || undefined,
       },
     }),
