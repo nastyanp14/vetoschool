@@ -23,8 +23,26 @@ export async function startCheckout(planId: string) {
 
 /** Opens the Stripe customer portal for the signed-in user. */
 export async function openBillingPortal() {
-  const { url } = await invoke<{ url: string }>('create-portal-session');
-  window.location.href = url;
+  const { data } = await supabase.auth.getSession();
+  const accessToken = data.session?.access_token;
+  if (!accessToken) {
+    throw new Error('Log in to manage your subscription.');
+  }
+
+  const response = await fetch('/api/stripe/create-portal-session', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({}),
+  });
+  const payload = await response.json().catch(() => null) as { url?: string; error?: string } | null;
+  if (!response.ok || !payload?.url) {
+    throw new Error(payload?.error || 'Could not open subscription management.');
+  }
+
+  window.location.href = payload.url;
 }
 
 /** Admin-only. Amount is in the smallest currency unit; omit it for a full refund. */

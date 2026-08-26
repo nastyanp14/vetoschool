@@ -12,6 +12,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 
 import { supabase } from '@/integrations/supabase/client';
+import { openBillingPortal } from './stripe';
 import { redirectToStripeCustomerPortal } from './stripeCheckout';
 
 const mockedSupabase = supabase as unknown as {
@@ -58,6 +59,44 @@ describe('redirectToStripeCustomerPortal', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(redirectToStripeCustomerPortal()).rejects.toThrow('Log in to manage your subscription.');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('openBillingPortal', () => {
+  it('posts the authenticated session to the Worker portal endpoint', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      url: 'https://billing.stripe.com/p/session/legacy-test',
+    }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    mockedSupabase.auth.getSession.mockResolvedValue({
+      data: { session: { access_token: 'legacy_user_access_token' } },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('window', { location: { href: '' } });
+
+    await openBillingPortal();
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/stripe/create-portal-session', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer legacy_user_access_token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    });
+    expect(window.location.href).toBe('https://billing.stripe.com/p/session/legacy-test');
+  });
+
+  it('fails before the endpoint call when there is no auth session', async () => {
+    const fetchMock = vi.fn();
+    mockedSupabase.auth.getSession.mockResolvedValue({ data: { session: null } });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(openBillingPortal()).rejects.toThrow('Log in to manage your subscription.');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
