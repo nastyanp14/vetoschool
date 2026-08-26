@@ -3,6 +3,8 @@ import type { PricingPlanId } from './pricingCurrency';
 
 export const DEFAULT_STRIPE_SUCCESS_URL = 'http://127.0.0.1:8080/payment/success';
 export const DEFAULT_STRIPE_CANCEL_URL = 'http://127.0.0.1:8080/payment/cancel';
+const DEFAULT_SUPABASE_URL = 'https://ggflcriakiudnejmiuwh.supabase.co';
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_B1Sj63c8JWMBzLIh1d8keQ_k7PESTE2';
 function planIdFromMetadataValue(value: unknown): PricingPlanId | null {
   return typeof value === 'string' && isPricingPlanId(value) ? value as PricingPlanId : null;
 }
@@ -611,7 +613,8 @@ function supabaseUserHeaders(env: StripeCheckoutEnv, accessToken: string) {
   const apiKey = env.SUPABASE_ANON_KEY
     || env.SUPABASE_PUBLISHABLE_KEY
     || env.VITE_SUPABASE_PUBLISHABLE_KEY
-    || env.SUPABASE_SERVICE_ROLE_KEY;
+    || env.SUPABASE_SERVICE_ROLE_KEY
+    || DEFAULT_SUPABASE_PUBLISHABLE_KEY;
   if (!apiKey) throw new Error('supabase_auth_key_missing');
 
   return {
@@ -622,7 +625,7 @@ function supabaseUserHeaders(env: StripeCheckoutEnv, accessToken: string) {
 }
 
 function requireSupabaseUrl(env: StripeCheckoutEnv) {
-  const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
+  const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
   if (!supabaseUrl) throw new Error('supabase_url_missing');
   return supabaseUrl.replace(/\/+$/, '');
 }

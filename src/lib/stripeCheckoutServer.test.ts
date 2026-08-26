@@ -178,6 +178,56 @@ describe('handleStripeWebhook', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('uses the production Supabase public defaults for authenticated Customer Portal requests', async () => {
+    let authApiKey = '';
+    let profileApiKey = '';
+    let portalBody = '';
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const headers = new Headers(init?.headers);
+
+      if (url === 'https://ggflcriakiudnejmiuwh.supabase.co/auth/v1/user') {
+        authApiKey = headers.get('apikey') || '';
+        return json({ id: 'user_portal_defaults', email: 'student@example.com' });
+      }
+
+      if (url.includes('https://ggflcriakiudnejmiuwh.supabase.co/rest/v1/profiles?id=eq.user_portal_defaults')) {
+        profileApiKey = headers.get('apikey') || '';
+        return json([{ id: 'user_portal_defaults', email: 'student@example.com', stripe_customer_id: 'cus_profile_owner' }]);
+      }
+
+      if (url === 'https://api.stripe.com/v1/billing_portal/sessions') {
+        portalBody = String(init?.body);
+        return json({ id: 'bps_test_portal', url: 'https://billing.stripe.test/session' });
+      }
+
+      return json({}, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await handleCreateStripePortalSession(new Request('https://vetoschool.eu/api/stripe/create-portal-session', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer user_access_token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    }), {
+      STRIPE_SECRET_KEY: 'sk_test_unit',
+      STRIPE_PORTAL_CONFIGURATION_ID: 'bpc_unit',
+    });
+    const body = await response.json();
+    const params = new URLSearchParams(portalBody);
+
+    expect(response.status).toBe(200);
+    expect(body.url).toBe('https://billing.stripe.test/session');
+    expect(authApiKey).toBe('sb_publishable_B1Sj63c8JWMBzLIh1d8keQ_k7PESTE2');
+    expect(profileApiKey).toBe('sb_publishable_B1Sj63c8JWMBzLIh1d8keQ_k7PESTE2');
+    expect(params.get('customer')).toBe('cus_profile_owner');
+    expect(params.get('return_url')).toBe('https://vetoschool.eu/dashboard');
+    expect(params.get('configuration')).toBe('bpc_unit');
+  });
+
   it('does not create a Customer Portal session without profile stripe_customer_id', async () => {
     let portalCalls = 0;
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
