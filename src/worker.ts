@@ -52,6 +52,9 @@ const VALID_SPA_ROUTES = new Set([
   '/payment/cancel',
 ]);
 
+const WORKBOOK_ASSET_PROXY_PATH = '/api/workbook-asset-proxy';
+const WORKBOOK_ASSET_SIGNED_PATH_PREFIX = '/storage/v1/object/sign/workbook-assets/';
+
 function normalizePathname(pathname: string) {
   if (pathname === '/') return pathname;
   return pathname.replace(/\/+$/, '');
@@ -135,11 +138,98 @@ async function serveIndex(request: Request, env: Env, status = 200) {
   });
 }
 
+function jsonResponse(body: Record<string, unknown>, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'content-type': 'application/json; charset=UTF-8',
+      'cache-control': 'no-store',
+    },
+  });
+}
+
+function allowedSupabaseOrigins(env: Env) {
+  return [env.SUPABASE_URL, env.VITE_SUPABASE_URL]
+    .filter((value): value is string => Boolean(value))
+    .map(value => {
+      try {
+        return new URL(value).origin;
+      } catch {
+        return null;
+      }
+    })
+    .filter((value): value is string => Boolean(value));
+}
+
+function resolveWorkbookAssetProxyTarget(value: unknown, env: Env) {
+  if (typeof value !== 'string' || value.length > 4096) return null;
+
+  try {
+    const url = new URL(value);
+    const allowedOrigins = allowedSupabaseOrigins(env);
+    const allowedHost = allowedOrigins.length > 0
+      ? allowedOrigins.includes(url.origin)
+      : url.hostname.endsWith('.supabase.co');
+
+    if (
+      url.protocol !== 'https:' ||
+      !allowedHost ||
+      !url.pathname.startsWith(WORKBOOK_ASSET_SIGNED_PATH_PREFIX) ||
+      !url.searchParams.has('token')
+    ) {
+      return null;
+    }
+
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+async function handleWorkbookAssetProxy(request: Request, env: Env) {
+  if (request.method !== 'POST') {
+    return jsonResponse({ error: 'method_not_allowed' }, 405);
+  }
+
+  let payload: { url?: unknown };
+  try {
+    payload = await request.json();
+  } catch {
+    return jsonResponse({ error: 'invalid_json' }, 400);
+  }
+
+  const targetUrl = resolveWorkbookAssetProxyTarget(payload.url, env);
+  if (!targetUrl) {
+    return jsonResponse({ error: 'invalid_workbook_asset_url' }, 400);
+  }
+
+  const upstreamResponse = await fetch(targetUrl.toString(), {
+    method: 'GET',
+    headers: {
+      accept: request.headers.get('accept') || 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+    },
+  });
+  const headers = new Headers(upstreamResponse.headers);
+  headers.delete('set-cookie');
+  headers.set('cache-control', 'private, max-age=300');
+  headers.set('x-content-type-options', 'nosniff');
+
+  return new Response(upstreamResponse.body, {
+    status: upstreamResponse.status,
+    statusText: upstreamResponse.statusText,
+    headers,
+  });
+}
+
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const pathname = normalizePathname(url.pathname);
+
+    if (pathname === WORKBOOK_ASSET_PROXY_PATH) {
+      return handleWorkbookAssetProxy(request, env);
+    }
 
     if (pathname === '/api/stripe/create-checkout-session' || pathname === '/api/create-checkout-session') {
       return handleCreateStripeCheckoutSession(request, env);
