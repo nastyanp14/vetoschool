@@ -6,6 +6,7 @@ import { addDictWords, deleteDictWord, DictWord, loadDictionary } from '../lib/d
 import { signedUrlFor, uploadWorkbookAsset } from '../lib/workbooks';
 import type { User } from '../lib/auth';
 import { DEFAULT_ELEVENLABS_MODEL_ID, DEFAULT_ELEVENLABS_VOICE_ID, generateDictionaryWordAudio, deleteDictionaryWordAudio } from '../lib/cardAudio';
+import { WorkbookAssetImage } from './WorkbookAssetImage';
 
 const labels = {
   ru: {
@@ -86,22 +87,11 @@ async function playStoredAudio(path?: string | null) {
 }
 
 function DictionaryWordThumb({ word }: { word: DictWord }) {
-  const [imageSrc, setImageSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    if (!word.imageUrl) {
-      setImageSrc(null);
-      return;
-    }
-    if (/^(https?:|data:|blob:)/.test(word.imageUrl)) setImageSrc(word.imageUrl);
-    else signedUrlFor(word.imageUrl).then(url => { if (alive) setImageSrc(url); });
-    return () => { alive = false; };
-  }, [word.imageUrl]);
-
   return (
     <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-purple-50 text-2xl dark:bg-white/10">
-      {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-contain p-1" /> : word.emoji}
+      {word.imageUrl
+        ? <WorkbookAssetImage path={word.imageUrl} className="h-full w-full object-contain p-1" surface="AdminDictionary.DictionaryWordThumb" fallback={word.emoji} />
+        : word.emoji}
     </span>
   );
 }

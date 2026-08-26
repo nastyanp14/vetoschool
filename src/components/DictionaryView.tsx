@@ -4,24 +4,14 @@ import { Volume2 } from 'lucide-react';
 import { Lang, t } from '../lib/i18n';
 import { DictWord, loadDictionary } from '../lib/dictionary';
 import { signedUrlFor } from '../lib/workbooks';
+import { WorkbookAssetImage } from './WorkbookAssetImage';
 
 function DictionaryVisual({ word }: { word: DictWord }) {
-  const [imageSrc, setImageSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    if (!word.imageUrl) {
-      setImageSrc(null);
-      return;
-    }
-    if (/^(https?:|data:|blob:)/.test(word.imageUrl)) setImageSrc(word.imageUrl);
-    else signedUrlFor(word.imageUrl).then(url => { if (alive) setImageSrc(url); });
-    return () => { alive = false; };
-  }, [word.imageUrl]);
-
   return (
     <div className="mx-auto mb-2 flex h-28 w-28 items-center justify-center text-6xl">
-      {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full scale-[1.35] object-contain" /> : word.emoji}
+      {word.imageUrl
+        ? <WorkbookAssetImage path={word.imageUrl} className="h-full w-full scale-[1.35] object-contain" surface="DictionaryView.DictionaryVisual" fallback={word.emoji} />
+        : word.emoji}
     </div>
   );
 }

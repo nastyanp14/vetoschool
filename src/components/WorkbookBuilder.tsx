@@ -11,7 +11,7 @@ import {
   listLessons, createLesson, updateLesson, deleteLesson,
   listTasks, createTask, updateTaskPayload, deleteTask,
   listWorkbookAssignments, setWorkbookStudentAssignments,
-  uploadWorkbookAsset, signedUrlFor,
+  uploadWorkbookAsset,
 } from '../lib/workbooks';
 import { MECHANICS, MechanicType, canReward, LessonKind } from '../lib/mechanics';
 import { Lang, t } from '../lib/i18n';
@@ -25,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import TheoryLessonEditor from './TheoryLessonEditor';
 import type { TheoryContent } from '../lib/theory';
+import { WorkbookAssetImage } from './WorkbookAssetImage';
 
 const LESSON_KINDS: LessonKind[] = ['theory','class_task','homework','practice','checkpoint'];
 const FULL_MECHANICS: MechanicType[] = [
@@ -492,10 +493,7 @@ const dangerBtn = 'px-4 py-2 rounded-2xl bg-gradient-to-r from-rose-400 to-red-5
 
 // ---------- Asset preview ----------
 function AssetImg({ path, className }: { path: string; className?: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => { let alive = true; signedUrlFor(path).then(u => { if (alive) setUrl(u); }); return () => { alive = false; }; }, [path]);
-  if (!url) return <div className={`bg-purple-100 animate-pulse ${className}`} />;
-  return <img src={url} alt="" className={className} />;
+  return <WorkbookAssetImage path={path} className={className} surface="WorkbookBuilder.AssetImg" />;
 }
 
 // ---------- File upload ----------

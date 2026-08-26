@@ -262,8 +262,160 @@ export async function uploadWorkbookAsset(file: File): Promise<string | null> {
   return path;
 }
 
-function isInlineOrRemoteAsset(path: string) {
-  return /^(https?:|data:|blob:)/i.test(path);
+const WORKBOOK_ASSET_DEBUG_PARAM = 'debugWorkbookAssets';
+const WORKBOOK_ASSET_DEBUG_STORAGE_KEY = 'vetoschool:debugWorkbookAssets';
+
+type WorkbookAssetUrlKind = 'empty' | 'inline' | 'remote' | 'storage-url' | 'storage-path' | 'relative';
+
+type WorkbookAssetUrlResolution =
+  | { kind: 'empty'; path: null; remoteUrl: null }
+  | { kind: 'inline' | 'remote'; path: null; remoteUrl: string }
+  | { kind: 'storage-url' | 'storage-path' | 'relative'; path: string; remoteUrl: null };
+
+function browserDebugTarget() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get(WORKBOOK_ASSET_DEBUG_PARAM);
+    if (fromQuery !== null) {
+      const value = fromQuery.trim() || 'all';
+      window.localStorage?.setItem(WORKBOOK_ASSET_DEBUG_STORAGE_KEY, value);
+      return value;
+    }
+    return window.localStorage?.getItem(WORKBOOK_ASSET_DEBUG_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function workbookAssetDebugEnabled(value?: string | null) {
+  const target = browserDebugTarget();
+  if (!target) return false;
+  const normalized = target.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'all', '*'].includes(normalized)) return true;
+  return Boolean(value && value.toLowerCase().includes(normalized));
+}
+
+function safeDecodePath(path: string) {
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return path;
+  }
+}
+
+function normalizeStoragePath(path: string) {
+  let normalized = path.trim().replace(/^\/+/, '');
+  normalized = normalized.replace(/^storage\/v1\/object\/(?:sign|public|authenticated)\//i, '');
+  normalized = normalized.replace(/^object\/(?:sign|public|authenticated)\//i, '');
+  normalized = normalized.replace(/^(?:sign|public|authenticated)\//i, '');
+  if (normalized.toLowerCase().startsWith(`${WORKBOOK_ASSETS_BUCKET.toLowerCase()}/`)) {
+    normalized = normalized.slice(WORKBOOK_ASSETS_BUCKET.length + 1);
+  }
+  return safeDecodePath(normalized.split('?')[0].split('#')[0]);
+}
+
+function resolveWorkbookAssetUrl(input: string): WorkbookAssetUrlResolution {
+  const raw = String(input || '').trim();
+  if (!raw) return { kind: 'empty', path: null, remoteUrl: null };
+  if (/^(data:|blob:)/i.test(raw)) return { kind: 'inline', path: null, remoteUrl: raw };
+
+  if (/^https?:/i.test(raw)) {
+    try {
+      const url = new URL(raw);
+      const storagePrefix = `/storage/v1/object/`;
+      if (url.pathname.includes(storagePrefix) && url.pathname.toLowerCase().includes(`/${WORKBOOK_ASSETS_BUCKET.toLowerCase()}/`)) {
+        const afterObject = url.pathname.slice(url.pathname.indexOf(storagePrefix) + storagePrefix.length);
+        return { kind: 'storage-url', path: normalizeStoragePath(afterObject), remoteUrl: null };
+      }
+    } catch {
+      return { kind: 'remote', path: null, remoteUrl: raw };
+    }
+    return { kind: 'remote', path: null, remoteUrl: raw };
+  }
+
+  const normalized = normalizeStoragePath(raw);
+  const rawWithoutSlash = raw.replace(/^\/+/, '');
+  const kind: WorkbookAssetUrlKind =
+    rawWithoutSlash.toLowerCase().startsWith(`${WORKBOOK_ASSETS_BUCKET.toLowerCase()}/`) ||
+    rawWithoutSlash.toLowerCase().startsWith('storage/v1/object/')
+      ? 'storage-path'
+      : 'relative';
+  return { kind, path: normalized, remoteUrl: null };
+}
+
+export function sanitizeWorkbookAssetUrl(value: string | null | undefined) {
+  if (!value) return null;
+  try {
+    const url = new URL(value, typeof window !== 'undefined' ? window.location.origin : 'https://vetoschool.eu');
+    return {
+      kind: /^(data:|blob:)/i.test(value) ? value.split(':', 1)[0] : url.protocol.replace(':', ''),
+      host: url.host,
+      pathname: safeDecodePath(url.pathname),
+      hasQuery: url.search.length > 0,
+    };
+  } catch {
+    return { kind: 'relative', host: null, pathname: value.split('?')[0].split('#')[0], hasQuery: /[?#]/.test(value) };
+  }
+}
+
+function sanitizeStorageErrorBody(value: string) {
+  return value
+    .replace(/("token"\s*:\s*")[^"]+/gi, '$1[redacted]')
+    .replace(/([?&](?:token|apikey|authorization|access_token|refresh_token|code)=)[^&"\s]+/gi, '$1[redacted]')
+    .slice(0, 500);
+}
+
+export function workbookAssetDebugLog(event: string, payload: Record<string, unknown>, matchValue?: string | null) {
+  if (!workbookAssetDebugEnabled(matchValue || String(payload.relativePath || payload.input || payload.pathname || ''))) return;
+  console.info('[workbook-asset-debug]', event, payload);
+}
+
+export function installWorkbookAssetFetchDebug() {
+  if (typeof window === 'undefined' || !workbookAssetDebugEnabled()) return;
+  const win = window as Window & { __vetoschoolWorkbookAssetFetchDebug?: boolean };
+  if (win.__vetoschoolWorkbookAssetFetchDebug) return;
+  win.__vetoschoolWorkbookAssetFetchDebug = true;
+
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = async (input, init) => {
+    const startedAt = Date.now();
+    const requestUrl = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+    const requestMethod = init?.method || (input instanceof Request ? input.method : 'GET');
+    const shouldLog =
+      requestUrl.includes('/storage/v1/object/sign/') ||
+      requestUrl.includes('/storage/v1/object/public/') ||
+      requestUrl.includes('/storage/v1/object/authenticated/');
+
+    try {
+      const response = await originalFetch(input, init);
+      if (shouldLog && workbookAssetDebugEnabled(requestUrl)) {
+        const body = !response.ok
+          ? await response.clone().text().then(sanitizeStorageErrorBody).catch(() => null)
+          : null;
+        workbookAssetDebugLog('fetch:response', {
+          method: requestMethod,
+          url: sanitizeWorkbookAssetUrl(requestUrl),
+          status: response.status,
+          ok: response.ok,
+          durationMs: Date.now() - startedAt,
+          contentType: response.headers.get('content-type'),
+          body,
+        }, requestUrl);
+      }
+      return response;
+    } catch (error) {
+      if (shouldLog && workbookAssetDebugEnabled(requestUrl)) {
+        workbookAssetDebugLog('fetch:error', {
+          method: requestMethod,
+          url: sanitizeWorkbookAssetUrl(requestUrl),
+          durationMs: Date.now() - startedAt,
+          message: error instanceof Error ? error.message : 'Fetch failed',
+        }, requestUrl);
+      }
+      throw error;
+    }
+  };
 }
 
 function isStorageAuthReadinessError(error: unknown) {
@@ -309,26 +461,61 @@ async function waitForWorkbookAssetSession(timeoutMs = 2500): Promise<boolean> {
 }
 
 export async function signedUrlFor(path: string, expiresInSec = 3600): Promise<string | null> {
-  if (!path) return null;
-  if (isInlineOrRemoteAsset(path)) return path;
+  const resolved = resolveWorkbookAssetUrl(path);
+  if (resolved.kind === 'empty') return null;
+  if (resolved.remoteUrl) return resolved.remoteUrl;
 
-  await waitForWorkbookAssetSession();
-  const sign = () => supabase.storage.from(WORKBOOK_ASSETS_BUCKET).createSignedUrl(path, expiresInSec);
+  const sessionPresent = await waitForWorkbookAssetSession();
+  workbookAssetDebugLog('signing:start', {
+    input: path,
+    inputKind: resolved.kind,
+    bucket: WORKBOOK_ASSETS_BUCKET,
+    relativePath: resolved.path,
+    sessionPresent,
+    expiresInSec,
+  }, path);
+  const sign = () => supabase.storage.from(WORKBOOK_ASSETS_BUCKET).createSignedUrl(resolved.path, expiresInSec);
   let { data, error } = await sign();
-  if (data?.signedUrl) return data.signedUrl;
+  if (data?.signedUrl) {
+    workbookAssetDebugLog('signing:result', {
+      bucket: WORKBOOK_ASSETS_BUCKET,
+      relativePath: resolved.path,
+      success: true,
+      generatedUrl: sanitizeWorkbookAssetUrl(data.signedUrl),
+    }, path);
+    return data.signedUrl;
+  }
 
   if (isStorageAuthReadinessError(error) && await waitForWorkbookAssetSession(1500)) {
     const retry = await sign();
     data = retry.data;
     error = retry.error;
-    if (data?.signedUrl) return data.signedUrl;
+    if (data?.signedUrl) {
+      workbookAssetDebugLog('signing:result', {
+        bucket: WORKBOOK_ASSETS_BUCKET,
+        relativePath: resolved.path,
+        success: true,
+        retried: true,
+        generatedUrl: sanitizeWorkbookAssetUrl(data.signedUrl),
+      }, path);
+      return data.signedUrl;
+    }
   }
 
-  if (error && import.meta.env.DEV) {
+  if (error) {
     const err = error as { statusCode?: string | number; status?: string | number; message?: string; name?: string };
+    workbookAssetDebugLog('signing:result', {
+      bucket: WORKBOOK_ASSETS_BUCKET,
+      relativePath: resolved.path,
+      success: false,
+      status: err.statusCode ?? err.status ?? null,
+      name: err.name ?? null,
+      message: err.message ?? 'Storage signing failed',
+    }, path);
+    if (!import.meta.env.DEV) return null;
     console.warn('Could not sign workbook asset URL', {
       bucket: WORKBOOK_ASSETS_BUCKET,
-      path,
+      path: resolved.path,
       status: err.statusCode ?? err.status ?? null,
       name: err.name ?? null,
       message: err.message ?? 'Storage signing failed',

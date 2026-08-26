@@ -77,4 +77,31 @@ describe('signedUrlFor', () => {
     await expect(signedUrlFor('https://example.com/image.png')).resolves.toBe('https://example.com/image.png');
     expect(mocks.from).not.toHaveBeenCalled();
   });
+
+  it('re-signs stored Supabase workbook asset URLs instead of rendering stale direct URLs', async () => {
+    mocks.getSession.mockResolvedValue({ data: { session: { access_token: 'user-token' } } });
+    mocks.from.mockReturnValue({ createSignedUrl: mocks.createSignedUrl });
+    mocks.createSignedUrl.mockResolvedValue({
+      data: { signedUrl: 'https://ggflcriakiudnejmiuwh.supabase.co/storage/v1/object/sign/workbook-assets/1785387148381-77xpfb.png?token=new' },
+      error: null,
+    });
+
+    await expect(
+      signedUrlFor('https://ggflcriakiudnejmiuwh.supabase.co/storage/v1/object/sign/workbook-assets/1785387148381-77xpfb.png?token=old'),
+    ).resolves.toContain('/storage/v1/object/sign/workbook-assets/1785387148381-77xpfb.png');
+    expect(mocks.from).toHaveBeenCalledWith('workbook-assets');
+    expect(mocks.createSignedUrl).toHaveBeenCalledWith('1785387148381-77xpfb.png', 3600);
+  });
+
+  it('removes duplicate workbook-assets prefixes before signing', async () => {
+    mocks.getSession.mockResolvedValue({ data: { session: { access_token: 'user-token' } } });
+    mocks.from.mockReturnValue({ createSignedUrl: mocks.createSignedUrl });
+    mocks.createSignedUrl.mockResolvedValue({
+      data: { signedUrl: 'https://ggflcriakiudnejmiuwh.supabase.co/storage/v1/object/sign/workbook-assets/folder/asset.png?token=ok' },
+      error: null,
+    });
+
+    await expect(signedUrlFor('workbook-assets/folder/asset.png')).resolves.toContain('/workbook-assets/folder/asset.png');
+    expect(mocks.createSignedUrl).toHaveBeenCalledWith('folder/asset.png', 3600);
+  });
 });

@@ -5,6 +5,7 @@ import type { TheoryBlock, TheoryContent, TheoryExampleItem, TheoryImageBlock, T
 import { toast } from 'sonner';
 import { signedLessonAudioUrl } from '../lib/cardAudio';
 import type { Lang } from '../lib/i18n';
+import { WorkbookAssetImage } from './WorkbookAssetImage';
 
 const theoryActionGradient = 'linear-gradient(90deg, #EFA4DE 0%, #D7A9E9 45%, #B6BDF9 100%)';
 
@@ -165,22 +166,11 @@ type SpeechRecognitionLike = {
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
 function VocabularyVisual({ image, emoji, alt, className = '' }: { image?: string; emoji?: string; alt?: string; className?: string }) {
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    if (!image) {
-      setImageUrl(null);
-      return;
-    }
-    if (/^(https?:|data:|blob:)/.test(image)) setImageUrl(image);
-    else signedUrlFor(image, 3600).then(value => { if (alive) setImageUrl(value); });
-    return () => { alive = false; };
-  }, [image]);
-
   return (
     <div className={`flex items-center justify-center text-6xl transition ${className}`}>
-      {imageUrl ? <img src={imageUrl} alt={alt || ''} className="h-full w-full scale-[1.35] object-contain" /> : emoji || '✨'}
+      {image
+        ? <WorkbookAssetImage path={image} alt={alt || ''} className="h-full w-full scale-[1.35] object-contain" surface="TheoryLessonView.VocabularyVisual" fallback={emoji || '✨'} />
+        : emoji || '✨'}
     </div>
   );
 }
@@ -922,18 +912,12 @@ function ExamplesSection({ title, items, lang }: { title: string; items: TheoryE
 }
 
 function TheoryImage({ block, lang }: { block: TheoryImageBlock; lang: Lang }) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    let alive = true;
-    if (!block.image) return setUrl(null);
-    if (/^(https?:|data:|blob:)/.test(block.image)) setUrl(block.image);
-    else signedUrlFor(block.image, 3600).then(value => { if (alive) setUrl(value); });
-    return () => { alive = false; };
-  }, [block.image]);
   return (
     <section className="rounded-[1.75rem] border border-sky-100 bg-gradient-to-br from-sky-50/80 via-white to-purple-50/60 p-5 dark:border-sky-400/15 dark:from-sky-500/10 dark:via-white/5 dark:to-purple-500/10">
       {block.title && <h3 className="mb-4 font-display text-2xl font-black text-purple-800 dark:text-purple-100">{translateDefaultTitle(lang, block.title)}</h3>}
-      {url ? <img src={url} alt={block.caption || block.title || 'Theory'} className={`mx-auto rounded-3xl object-contain shadow-lg ${block.size === 'small' ? 'max-h-52 max-w-sm' : 'max-h-96 max-w-2xl'}`} /> : <div className="mx-auto flex h-40 max-w-md items-center justify-center rounded-3xl border border-dashed border-purple-200 bg-white/70 text-purple-300 dark:border-purple-700 dark:bg-white/5"><ImageIcon className="h-10 w-10" /></div>}
+      {block.image
+        ? <WorkbookAssetImage path={block.image} alt={block.caption || block.title || 'Theory'} className={`mx-auto rounded-3xl object-contain shadow-lg ${block.size === 'small' ? 'max-h-52 max-w-sm' : 'max-h-96 max-w-2xl'}`} surface="TheoryLessonView.TheoryImage" fallback={<div className="mx-auto flex h-40 max-w-md items-center justify-center rounded-3xl border border-dashed border-purple-200 bg-white/70 text-purple-300 dark:border-purple-700 dark:bg-white/5"><ImageIcon className="h-10 w-10" /></div>} />
+        : <div className="mx-auto flex h-40 max-w-md items-center justify-center rounded-3xl border border-dashed border-purple-200 bg-white/70 text-purple-300 dark:border-purple-700 dark:bg-white/5"><ImageIcon className="h-10 w-10" /></div>}
       {block.caption && <p className="mx-auto mt-4 max-w-2xl text-center font-body text-sm font-bold leading-6 text-purple-500 dark:text-purple-200">{block.caption}</p>}
     </section>
   );

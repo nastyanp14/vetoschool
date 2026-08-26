@@ -5,7 +5,7 @@ import { TeacherDictionaryWord, TeacherGrade, TeacherHomework, TeacherLesson, Te
 import { formatLessonMoment, formatTeacherDate, gradeCategoryLabel, lessonStatusLabel, missingValue, studentStatusLabel } from '@/lib/teacherUi';
 import { TeacherAvatar } from './TeacherAvatar';
 import { TeacherEmptyState } from './TeacherEmptyState';
-import { signedUrlFor } from '@/lib/workbooks';
+import { WorkbookAssetImage } from '../WorkbookAssetImage';
 
 export type TeacherStudentTab = 'overview' | 'schedule' | 'grades' | 'homework' | 'dictionary' | 'analytics' | 'notes';
 
@@ -112,22 +112,11 @@ function InfoRow({ label, value }: { label: string; value: string | number }) {
 }
 
 function TeacherDictionaryVisual({ word }: { word: TeacherDictionaryWord }) {
-  const [imageSrc, setImageSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    if (!word.imageUrl) {
-      setImageSrc(null);
-      return;
-    }
-    if (/^(https?:|data:|blob:)/.test(word.imageUrl)) setImageSrc(word.imageUrl);
-    else signedUrlFor(word.imageUrl).then(url => { if (alive) setImageSrc(url); });
-    return () => { alive = false; };
-  }, [word.imageUrl]);
-
   return (
     <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-purple-50 text-2xl">
-      {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-contain p-1" /> : word.emoji}
+      {word.imageUrl
+        ? <WorkbookAssetImage path={word.imageUrl} className="h-full w-full object-contain p-1" surface="TeacherStudentProfile.TeacherDictionaryVisual" fallback={word.emoji} />
+        : word.emoji}
     </span>
   );
 }

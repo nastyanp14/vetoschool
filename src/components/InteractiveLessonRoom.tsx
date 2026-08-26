@@ -15,6 +15,7 @@ import type { Lang } from '../lib/i18n';
 import { supabase } from '@/integrations/supabase/client';
 import { findAvatar } from '../lib/stars';
 import OwlPlayer, { type OwlPlayerState } from './OwlPlayer';
+import { WorkbookAssetImage } from './WorkbookAssetImage';
 
 type TaskTelemetryPayload = Record<string, unknown>;
 type TaskTelemetry = (eventType: string, payload?: TaskTelemetryPayload) => void;
@@ -795,10 +796,7 @@ function CompletionCelebration({ stars, summary, showScore, copy, onExit }: { st
 
 // ==================== Utility: signed image ====================
 function SignedImg({ path, className, placeholderClassName, draggable }: { path: string; className?: string; placeholderClassName?: string; draggable?: boolean }) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => { let a = true; signedUrlFor(path).then(u => { if (a) setUrl(u); }); return () => { a = false; }; }, [path]);
-  if (!url) return <div className={placeholderClassName || `bg-purple-100 animate-pulse ${className}`} />;
-  return <img src={url} alt="" className={className} draggable={draggable} />;
+  return <WorkbookAssetImage path={path} className={className} placeholderClassName={placeholderClassName} draggable={draggable} surface="InteractiveLessonRoom" />;
 }
 
 function normalizeSpeechText(value: string) {
