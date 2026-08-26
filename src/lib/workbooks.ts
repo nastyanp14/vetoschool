@@ -261,10 +261,80 @@ export async function uploadWorkbookAsset(file: File): Promise<string | null> {
   if (error) { console.error(error); return null; }
   return path;
 }
+
+function isInlineOrRemoteAsset(path: string) {
+  return /^(https?:|data:|blob:)/i.test(path);
+}
+
+function isStorageAuthReadinessError(error: unknown) {
+  const err = error as { statusCode?: string | number; status?: string | number; message?: string; name?: string };
+  const status = String(err?.statusCode ?? err?.status ?? '');
+  const text = `${err?.name || ''} ${err?.message || ''}`.toLowerCase();
+  return (
+    status === '401' ||
+    status === '403' ||
+    status === '404' ||
+    text.includes('object not found') ||
+    text.includes('unauthorized') ||
+    text.includes('jwt')
+  );
+}
+
+async function waitForWorkbookAssetSession(timeoutMs = 2500): Promise<boolean> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (data.session) return true;
+  } catch {
+    // Storage signing below will surface the actual failure.
+  }
+
+  if (typeof supabase.auth.onAuthStateChange !== 'function') return false;
+
+  return new Promise(resolve => {
+    let settled = false;
+    let subscription: { unsubscribe: () => void } | undefined;
+    const done = (ready: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      subscription?.unsubscribe();
+      resolve(ready);
+    };
+    const timer = setTimeout(() => done(false), timeoutMs);
+    const result = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) done(true);
+    });
+    subscription = result.data.subscription;
+  });
+}
+
 export async function signedUrlFor(path: string, expiresInSec = 3600): Promise<string | null> {
   if (!path) return null;
-  const { data } = await supabase.storage.from(WORKBOOK_ASSETS_BUCKET).createSignedUrl(path, expiresInSec);
-  return data?.signedUrl ?? null;
+  if (isInlineOrRemoteAsset(path)) return path;
+
+  await waitForWorkbookAssetSession();
+  const sign = () => supabase.storage.from(WORKBOOK_ASSETS_BUCKET).createSignedUrl(path, expiresInSec);
+  let { data, error } = await sign();
+  if (data?.signedUrl) return data.signedUrl;
+
+  if (isStorageAuthReadinessError(error) && await waitForWorkbookAssetSession(1500)) {
+    const retry = await sign();
+    data = retry.data;
+    error = retry.error;
+    if (data?.signedUrl) return data.signedUrl;
+  }
+
+  if (error && import.meta.env.DEV) {
+    const err = error as { statusCode?: string | number; status?: string | number; message?: string; name?: string };
+    console.warn('Could not sign workbook asset URL', {
+      bucket: WORKBOOK_ASSETS_BUCKET,
+      path,
+      status: err.statusCode ?? err.status ?? null,
+      name: err.name ?? null,
+      message: err.message ?? 'Storage signing failed',
+    });
+  }
+  return null;
 }
 
 // ==================== PROGRESS ====================
