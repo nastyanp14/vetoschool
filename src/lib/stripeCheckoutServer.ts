@@ -169,6 +169,26 @@ type StripeInvoice = {
   } | null;
 };
 
+class StripeApiError extends Error {
+  status: number;
+  stripeType: string;
+  stripeCode: string;
+
+  constructor(status: number, message: string, stripeType = '', stripeCode = '') {
+    super(message);
+    this.name = 'StripeApiError';
+    this.status = status;
+    this.stripeType = stripeType;
+    this.stripeCode = stripeCode;
+  }
+}
+
+function sanitizeStripeErrorMessage(value: unknown) {
+  return String(value || 'Stripe API request failed.')
+    .replace(/\b(cus|sub|bpc|bps|price|cs|pi|in|ch|acct)_[A-Za-z0-9_]+\b/g, '$1_...')
+    .slice(0, 240);
+}
+
 type StripePaymentIntent = {
   id?: string;
   last_payment_error?: {
@@ -876,8 +896,16 @@ async function stripeApiGet<T>(path: string, env: StripeCheckoutEnv): Promise<T>
     },
   });
 
-  if (!response.ok) throw new Error(`stripe_api_get_failed_${response.status}`);
-  return await response.json() as T;
+  const payload = await response.json().catch(() => ({})) as { error?: { message?: string; type?: string; code?: string } };
+  if (!response.ok) {
+    throw new StripeApiError(
+      response.status,
+      sanitizeStripeErrorMessage(payload.error?.message || `stripe_api_get_failed_${response.status}`),
+      payload.error?.type || '',
+      payload.error?.code || '',
+    );
+  }
+  return payload as T;
 }
 
 async function stripeApiPostForm<T>(path: string, body: URLSearchParams, env: StripeCheckoutEnv, idempotencyKey?: string): Promise<T> {
@@ -893,8 +921,16 @@ async function stripeApiPostForm<T>(path: string, body: URLSearchParams, env: St
     body,
   });
 
-  if (!response.ok) throw new Error(`stripe_api_post_failed_${response.status}`);
-  return await response.json() as T;
+  const payload = await response.json().catch(() => ({})) as { error?: { message?: string; type?: string; code?: string } };
+  if (!response.ok) {
+    throw new StripeApiError(
+      response.status,
+      sanitizeStripeErrorMessage(payload.error?.message || `stripe_api_post_failed_${response.status}`),
+      payload.error?.type || '',
+      payload.error?.code || '',
+    );
+  }
+  return payload as T;
 }
 
 async function createStripeCustomerForProfile(profile: VetoschoolProfile, authUser: SupabaseAuthUser, env: StripeCheckoutEnv) {
@@ -2401,10 +2437,23 @@ export async function handleCreateStripePortalSession(request: Request, env: Str
     }, status);
   }
 
-  const profile = await loadProfileById(authUser.id, env, accessToken);
+  let profile: VetoschoolProfile | null = null;
+  try {
+    profile = await loadProfileById(authUser.id, env, accessToken);
+  } catch (error) {
+    console.warn('[Stripe Portal debug]', {
+      stage: 'profile_lookup',
+      error: error instanceof Error ? error.message : 'profile_lookup_failed',
+    });
+    return jsonResponse({ code: 'profile_lookup_failed', error: 'Vetoschool profile lookup failed.' }, 500);
+  }
+
   const stripeCustomerId = profile?.stripe_customer_id?.trim();
   if (!profile || !stripeCustomerId) {
-    return jsonResponse({ error: 'No Stripe subscription is connected to this Vetoschool account yet.' }, 409);
+    return jsonResponse({
+      code: 'stripe_customer_missing',
+      error: 'No Stripe subscription is connected to this Vetoschool account yet.',
+    }, 409);
   }
 
   const portalBody = new URLSearchParams({
@@ -2420,8 +2469,38 @@ export async function handleCreateStripePortalSession(request: Request, env: Str
     const portalPayload = await stripeApiPostForm<{ id?: string; url?: string }>('/billing_portal/sessions', portalBody, env);
     if (!portalPayload.url) throw new Error('stripe_portal_session_missing_url');
     return jsonResponse({ url: portalPayload.url });
-  } catch {
-    return jsonResponse({ error: 'Could not open subscription management. Please try again later.' }, 502);
+  } catch (error) {
+    const stripeError = error instanceof StripeApiError ? error : null;
+    const diagnostic = stripeError
+      ? {
+          status: stripeError.status,
+          type: stripeError.stripeType || null,
+          code: stripeError.stripeCode || null,
+          message: stripeError.message,
+        }
+      : {
+          status: null,
+          type: null,
+          code: null,
+          message: error instanceof Error ? sanitizeStripeErrorMessage(error.message) : 'stripe_portal_session_failed',
+        };
+
+    console.warn('[Stripe Portal debug]', {
+      stage: 'stripe_portal_session',
+      customerPresent: Boolean(stripeCustomerId),
+      configurationPresent: Boolean(env.STRIPE_PORTAL_CONFIGURATION_ID),
+      returnUrl: stripePortalReturnUrl(request),
+      stripeStatus: diagnostic.status,
+      stripeErrorType: diagnostic.type,
+      stripeErrorCode: diagnostic.code,
+      stripeErrorMessage: diagnostic.message,
+    });
+
+    return jsonResponse({
+      code: 'stripe_portal_error',
+      error: `Stripe portal error: ${diagnostic.message}`,
+      diagnostic,
+    }, stripeError?.status === 400 ? 400 : 502);
   }
 }
 

@@ -918,6 +918,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
           ? 'До цього акаунта ще не підключена Stripe-підписка.'
           : 'К этому аккаунту пока не подключена Stripe-подписка.';
     }
+    if (message.startsWith('Stripe portal error:')) return message;
     return lang === 'en'
       ? 'Could not open subscription management.'
       : lang === 'ua'

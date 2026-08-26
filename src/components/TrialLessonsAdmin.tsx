@@ -17,10 +17,11 @@ import {
   loadTrialBookings,
   updateTrialBooking,
   confirmTrialLesson,
-  isValidLessonUrl,
+  getTrialConfirmationState,
   type TrialBookingRecord,
   type TrialBookingStatus,
   type TrialBookingUpdate,
+  type TrialConfirmationBlockReason,
 } from '@/lib/trialBookings';
 
 type FilterState = {
@@ -78,7 +79,18 @@ const copy = {
     lessonUrlLabel: 'Ссылка на урок (Google Meet)',
     lessonUrlHint: 'Обязательно для подтверждения. Будет отправлена родителю и преподавателю.',
     confirmSend: 'Подтвердить и отправить',
-    lessonUrlInvalid: 'Укажите корректную ссылку Google Meet',
+    lessonUrlInvalid: 'Введите ссылку Google Meet вида https://meet.google.com/...',
+    confirmBlocked: {
+      saving: 'Сохранение уже выполняется.',
+      closed_status: 'Эту заявку нельзя подтвердить повторно, потому что она уже отменена, завершена, отмечена как no-show или конвертирована.',
+      missing_date: 'Укажите дату пробного урока.',
+      invalid_date: 'Укажите дату в формате YYYY-MM-DD.',
+      missing_time: 'Укажите время пробного урока.',
+      invalid_time: 'Укажите время в формате HH:MM.',
+      missing_timezone: 'У заявки не указан часовой пояс.',
+      invalid_timezone: 'У заявки указан некорректный часовой пояс.',
+      invalid_lesson_url: 'Введите ссылку Google Meet вида https://meet.google.com/...',
+    },
     timezone: 'Часовой пояс',
     privacy: 'Privacy Policy',
     guardian: 'Подтверждение родителя',
@@ -144,7 +156,18 @@ const copy = {
     lessonUrlLabel: 'Lesson link (Google Meet)',
     lessonUrlHint: 'Required to confirm. It will be sent to the parent and the teacher.',
     confirmSend: 'Confirm and send',
-    lessonUrlInvalid: 'Enter a valid Google Meet link',
+    lessonUrlInvalid: 'Enter a Google Meet link like https://meet.google.com/...',
+    confirmBlocked: {
+      saving: 'Saving is already in progress.',
+      closed_status: 'This booking cannot be confirmed again because it is already cancelled, completed, no-show, or converted.',
+      missing_date: 'Enter the trial lesson date.',
+      invalid_date: 'Enter the date as YYYY-MM-DD.',
+      missing_time: 'Enter the trial lesson time.',
+      invalid_time: 'Enter the time as HH:MM.',
+      missing_timezone: 'This booking has no timezone.',
+      invalid_timezone: 'This booking has an invalid timezone.',
+      invalid_lesson_url: 'Enter a Google Meet link like https://meet.google.com/...',
+    },
     timezone: 'Timezone',
     privacy: 'Privacy Policy',
     guardian: 'Guardian confirmation',
@@ -210,7 +233,18 @@ const copy = {
     lessonUrlLabel: 'Посилання на урок (Google Meet)',
     lessonUrlHint: 'Обовʼязкове для підтвердження. Буде надіслане батькам і викладачу.',
     confirmSend: 'Підтвердити і надіслати',
-    lessonUrlInvalid: 'Вкажіть коректне посилання Google Meet',
+    lessonUrlInvalid: 'Введіть посилання Google Meet виду https://meet.google.com/...',
+    confirmBlocked: {
+      saving: 'Збереження вже виконується.',
+      closed_status: 'Цю заявку не можна підтвердити повторно, бо вона вже скасована, завершена, позначена як no-show або конвертована.',
+      missing_date: 'Вкажіть дату пробного уроку.',
+      invalid_date: 'Вкажіть дату у форматі YYYY-MM-DD.',
+      missing_time: 'Вкажіть час пробного уроку.',
+      invalid_time: 'Вкажіть час у форматі HH:MM.',
+      missing_timezone: 'У заявки не вказано часовий пояс.',
+      invalid_timezone: 'У заявки вказано некоректний часовий пояс.',
+      invalid_lesson_url: 'Введіть посилання Google Meet виду https://meet.google.com/...',
+    },
     timezone: 'Часовий пояс',
     privacy: 'Privacy Policy',
     guardian: 'Підтвердження батьків',
@@ -323,6 +357,19 @@ export default function TrialLessonsAdmin({ lang }: { lang: Lang }) {
   const [draft, setDraft] = useState<TrialBookingUpdate>({});
 
   const selected = bookings.find(booking => booking.id === selectedId) || bookings[0];
+  const confirmationState = selected
+    ? getTrialConfirmationState({
+        status: selected.status,
+        selectedDate: draft.selected_date,
+        selectedTime: draft.selected_time,
+        timezone: selected.timezone,
+        lessonUrl: draft.lesson_url,
+        saving,
+      })
+    : { enabled: false, reason: null };
+  const confirmationBlockMessage = confirmationState.reason
+    ? labels.confirmBlocked[confirmationState.reason as TrialConfirmationBlockReason]
+    : '';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -389,8 +436,8 @@ export default function TrialLessonsAdmin({ lang }: { lang: Lang }) {
     try {
       const updated = await updateTrialBooking(selected.id, patch);
       replaceBooking(updated);
-    } catch {
-      setError(labels.error);
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : labels.error);
     } finally {
       setSaving(false);
     }
@@ -409,8 +456,8 @@ export default function TrialLessonsAdmin({ lang }: { lang: Lang }) {
 
   const confirmWithLink = async () => {
     if (!selected) return;
-    if (!isValidLessonUrl(String(draft.lesson_url || ''))) {
-      setError(labels.lessonUrlInvalid);
+    if (!confirmationState.enabled) {
+      setError(confirmationBlockMessage || labels.lessonUrlInvalid);
       return;
     }
     setSaving(true);
@@ -421,8 +468,8 @@ export default function TrialLessonsAdmin({ lang }: { lang: Lang }) {
         selected_time: draft.selected_time,
       });
       replaceBooking(updated);
-    } catch {
-      setError(labels.error);
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : labels.error);
     } finally {
       setSaving(false);
     }
@@ -584,10 +631,13 @@ export default function TrialLessonsAdmin({ lang }: { lang: Lang }) {
                   className="rounded-2xl border border-purple-100 bg-white/80 px-3 py-2 font-body text-sm font-semibold text-purple-700 outline-none focus:border-pink-300 focus:ring-4 focus:ring-pink-100 dark:border-purple-700 dark:bg-[#1b0c2f] dark:text-purple-100"
                 />
                 <p className="font-body text-xs font-semibold text-purple-400 dark:text-purple-300">{labels.lessonUrlHint}</p>
+                {confirmationBlockMessage && confirmationState.reason !== 'saving' && (
+                  <p className="font-body text-xs font-bold text-red-500 dark:text-red-200">{confirmationBlockMessage}</p>
+                )}
                 <button
                   type="button"
                   onClick={() => void confirmWithLink()}
-                  disabled={saving || !isValidLessonUrl(String(draft.lesson_url || '')) || selected.status === 'cancelled' || selected.status === 'completed'}
+                  disabled={!confirmationState.enabled}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-400 to-green-500 px-4 py-3 font-display text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
@@ -610,7 +660,7 @@ export default function TrialLessonsAdmin({ lang }: { lang: Lang }) {
                       key={status}
                       type="button"
                       onClick={() => status === 'confirmed' ? void confirmWithLink() : void savePatch({ status })}
-                      disabled={saving || selected.status === status || (status === 'confirmed' && !isValidLessonUrl(String(draft.lesson_url || '')))}
+                      disabled={saving || selected.status === status || (status === 'confirmed' && !confirmationState.enabled)}
                       className={`rounded-2xl px-3 py-2 font-body text-xs font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pink-100 disabled:cursor-not-allowed disabled:opacity-60 ${selected.status === status ? 'bg-gradient-to-r from-pink-400 to-purple-400 text-white' : 'bg-purple-50 text-purple-600 hover:bg-pink-50 dark:bg-white/10 dark:text-purple-100'}`}
                     >
                       {labels.statuses[status]}

@@ -57,6 +57,22 @@ export type TrialBookingUpdate = Partial<
   >
 >;
 
+export type TrialConfirmationBlockReason =
+  | 'saving'
+  | 'closed_status'
+  | 'missing_date'
+  | 'invalid_date'
+  | 'missing_time'
+  | 'invalid_time'
+  | 'missing_timezone'
+  | 'invalid_timezone'
+  | 'invalid_lesson_url';
+
+export type TrialConfirmationState = {
+  enabled: boolean;
+  reason: TrialConfirmationBlockReason | null;
+};
+
 type TrialBookingSchema = {
   __InternalSupabase: {
     PostgrestVersion: '14.5';
@@ -185,6 +201,47 @@ export function isValidLessonUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+const closedTrialConfirmationStatuses = new Set<TrialBookingStatus>(['cancelled', 'completed', 'no_show', 'converted']);
+
+function isIsoDate(value: string | null | undefined) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+}
+
+function isLocalTime(value: string | null | undefined) {
+  return /^\d{2}:\d{2}(:\d{2})?$/.test(String(value || ''));
+}
+
+function isTimezone(value: string | null | undefined) {
+  const timezone = String(value || '').trim();
+  if (!timezone) return false;
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: timezone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getTrialConfirmationState(input: {
+  status: TrialBookingStatus;
+  selectedDate?: string | null;
+  selectedTime?: string | null;
+  timezone?: string | null;
+  lessonUrl?: string | null;
+  saving?: boolean;
+}): TrialConfirmationState {
+  if (input.saving) return { enabled: false, reason: 'saving' };
+  if (closedTrialConfirmationStatuses.has(input.status)) return { enabled: false, reason: 'closed_status' };
+  if (!input.selectedDate) return { enabled: false, reason: 'missing_date' };
+  if (!isIsoDate(input.selectedDate)) return { enabled: false, reason: 'invalid_date' };
+  if (!input.selectedTime) return { enabled: false, reason: 'missing_time' };
+  if (!isLocalTime(input.selectedTime)) return { enabled: false, reason: 'invalid_time' };
+  if (!input.timezone) return { enabled: false, reason: 'missing_timezone' };
+  if (!isTimezone(input.timezone)) return { enabled: false, reason: 'invalid_timezone' };
+  if (!isValidLessonUrl(String(input.lessonUrl || ''))) return { enabled: false, reason: 'invalid_lesson_url' };
+  return { enabled: true, reason: null };
 }
 
 /** Подтверждение пробного урока: без валидной ссылки подтвердить нельзя. */

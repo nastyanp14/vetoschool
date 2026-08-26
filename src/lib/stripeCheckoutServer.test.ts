@@ -255,6 +255,55 @@ describe('handleStripeWebhook', () => {
     expect(params.get('configuration')).toBe('bpc_at_period_end');
   });
 
+  it('returns sanitized Stripe Portal diagnostics when Stripe rejects the customer or configuration', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith('/auth/v1/user')) {
+        return json({ id: 'user_portal_1', email: 'student@example.com' });
+      }
+
+      if (url.includes('/rest/v1/profiles?id=eq.user_portal_1')) {
+        return json([{ id: 'user_portal_1', email: 'student@example.com', stripe_customer_id: 'cus_profile_owner' }]);
+      }
+
+      if (url === 'https://api.stripe.com/v1/billing_portal/sessions') {
+        return json({
+          error: {
+            type: 'invalid_request_error',
+            code: 'resource_missing',
+            message: "No such customer: 'cus_profile_owner'",
+          },
+        }, 400);
+      }
+
+      return json({}, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await handleCreateStripePortalSession(new Request('http://127.0.0.1:8080/api/stripe/create-portal-session', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer user_access_token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    }), testEnv);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toMatchObject({
+      code: 'stripe_portal_error',
+      error: "Stripe portal error: No such customer: 'cus_...'",
+      diagnostic: {
+        status: 400,
+        type: 'invalid_request_error',
+        code: 'resource_missing',
+        message: "No such customer: 'cus_...'",
+      },
+    });
+  });
+
   it('rejects Stripe refunds for non-admin users', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

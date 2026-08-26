@@ -176,4 +176,46 @@ describe('create-portal-session Edge Function', () => {
     expect(body.error).toBe('Stripe Customer Portal is not configured on the server.');
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('returns sanitized Stripe diagnostics when Portal creation fails', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith('/auth/v1/user')) {
+        return json({ id: 'user_portal_edge_1', email: 'student@example.com' });
+      }
+
+      if (url.includes('/rest/v1/profiles?id=eq.user_portal_edge_1')) {
+        return json([{ id: 'user_portal_edge_1', email: 'student@example.com', stripe_customer_id: 'cus_profile_owner' }]);
+      }
+
+      if (url === 'https://api.stripe.com/v1/billing_portal/sessions') {
+        return json({
+          error: {
+            type: 'invalid_request_error',
+            code: 'resource_missing',
+            message: "No such customer: 'cus_profile_owner'",
+          },
+        }, 400);
+      }
+
+      return json({}, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await handleCreatePortalSession(portalRequest(), env());
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toMatchObject({
+      code: 'stripe_portal_error',
+      error: "Stripe portal error: No such customer: 'cus_...'",
+      diagnostic: {
+        status: 400,
+        type: 'invalid_request_error',
+        code: 'resource_missing',
+        message: "No such customer: 'cus_...'",
+      },
+    });
+  });
 });

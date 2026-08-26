@@ -28,6 +28,26 @@ type StripePortalSessionResponse = {
   };
 };
 
+class StripePortalError extends Error {
+  status: number;
+  stripeType: string;
+  stripeCode: string;
+
+  constructor(status: number, message: string, stripeType = '', stripeCode = '') {
+    super(message);
+    this.name = 'StripePortalError';
+    this.status = status;
+    this.stripeType = stripeType;
+    this.stripeCode = stripeCode;
+  }
+}
+
+function sanitizeStripeErrorMessage(value: unknown) {
+  return String(value || 'Stripe API request failed.')
+    .replace(/\b(cus|sub|bpc|bps|price|cs|pi|in|ch|acct)_[A-Za-z0-9_]+\b/g, '$1_...')
+    .slice(0, 240);
+}
+
 function envValue(env: RuntimeEnv, names: string[]) {
   for (const name of names) {
     const value = env.get(name)?.trim();
@@ -189,8 +209,14 @@ async function createStripePortalUrl(input: {
       status: stripeResponse.status,
       stripeErrorType: stripePayload.error?.type || null,
       stripeErrorCode: stripePayload.error?.code || null,
+      stripeErrorMessage: sanitizeStripeErrorMessage(stripePayload.error?.message),
     });
-    throw new Error('stripe_portal_session_failed');
+    throw new StripePortalError(
+      stripeResponse.status,
+      sanitizeStripeErrorMessage(stripePayload.error?.message || 'stripe_portal_session_failed'),
+      stripePayload.error?.type || '',
+      stripePayload.error?.code || '',
+    );
   }
 
   return stripePayload.url;
@@ -258,10 +284,23 @@ export async function handleCreatePortalSession(request: Request, env: RuntimeEn
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
     const status = message === 'stripe_secret_key_missing' || message === 'stripe_portal_configuration_id_missing' ? 500 : 502;
+    if (error instanceof StripePortalError) {
+      const diagnostic = {
+        status: error.status,
+        type: error.stripeType || null,
+        code: error.stripeCode || null,
+        message: error.message,
+      };
+      return jsonResponse({
+        code: 'stripe_portal_error',
+        error: `Stripe portal error: ${error.message}`,
+        diagnostic,
+      }, error.status === 400 ? 400 : 502, origin, env);
+    }
     const responseMessage = status === 500
       ? 'Stripe Customer Portal is not configured on the server.'
       : 'Could not open subscription management. Please try again later.';
-    return jsonResponse({ error: responseMessage }, status, origin, env);
+    return jsonResponse({ code: status === 500 ? 'stripe_portal_configuration_missing' : 'stripe_portal_error', error: responseMessage }, status, origin, env);
   }
 }
 
