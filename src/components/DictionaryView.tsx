@@ -23,7 +23,7 @@ function FlipCard({ word, hint }: { word: DictWord; hint: string }) {
     setPlaying(true);
     try {
       if (word.audioUrl) {
-        const url = await signedUrlFor(word.audioUrl);
+        const url = await signedLessonAudioUrl(word.audioUrl);
         if (url) {
           const audio = new Audio(url);
           audio.volume = 0.95;
