@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Volume2 } from 'lucide-react';
 import { Lang, t } from '../lib/i18n';
 import { DictWord, loadDictionary } from '../lib/dictionary';
-import { signedUrlFor } from '../lib/workbooks';
+import { signedLessonAudioUrl } from '../lib/cardAudio';
 import { WorkbookAssetImage } from './WorkbookAssetImage';
 
 function DictionaryVisual({ word }: { word: DictWord }) {
