@@ -452,7 +452,9 @@ function usePronunciation(lang: Lang, generatedAudioPath?: string, uploadedAudio
       return;
     }
     if (/^(https?:|data:|blob:)/.test(audioPath)) setAudioUrl(audioPath);
-    else (generatedAudioPath ? signedLessonAudioUrl(audioPath, 3600) : signedUrlFor(audioPath, 3600)).then(value => { if (alive) setAudioUrl(value); });
+    else signedLessonAudioUrl(audioPath, 3600)
+      .then(value => value || signedUrlFor(audioPath, 3600))
+      .then(value => { if (alive) setAudioUrl(value); });
     return () => { alive = false; };
   }, [generatedAudioPath, uploadedAudioPath]);
 
