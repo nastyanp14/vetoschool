@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Volume2 } from 'lucide-react';
 import { Lang, t } from '../lib/i18n';
 import { DictWord, loadDictionary } from '../lib/dictionary';
-import { signedUrlFor } from '../lib/workbooks';
+import { signedLessonAudioUrl } from '../lib/cardAudio';
 import { WorkbookAssetImage } from './WorkbookAssetImage';
 
 function DictionaryVisual({ word }: { word: DictWord }) {
@@ -23,7 +23,7 @@ function FlipCard({ word, hint }: { word: DictWord; hint: string }) {
     setPlaying(true);
     try {
       if (word.audioUrl) {
-        const url = await signedUrlFor(word.audioUrl);
+        const url = await signedLessonAudioUrl(word.audioUrl);
         if (url) {
           const audio = new Audio(url);
           audio.volume = 0.95;
