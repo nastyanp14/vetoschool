@@ -77,7 +77,7 @@ function stripeCheckoutDevServerPlugin(mode: string): Plugin {
       server.middlewares.use("/api/stripe/create-checkout-session", createCheckoutSessionMiddleware);
       server.middlewares.use("/api/create-checkout-session", createCheckoutSessionMiddleware);
 
-      const createPortalSessionMiddleware = async (req, res) => {
+      const createPortalSessionMiddleware = async (req: IncomingMessage, res: ServerResponse) => {
         try {
           const host = req.headers.host || "127.0.0.1:8080";
           const url = new URL(req.url || "", `http://${host}`);
