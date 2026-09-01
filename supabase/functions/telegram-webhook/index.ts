@@ -9,6 +9,7 @@ const corsHeaders = {
 
 const encoder = new TextEncoder();
 type Lang = 'ru' | 'ua' | 'en';
+const PARENT_COLUMNS = 'id,sendpulse_contact_id,telegram_chat_id,telegram_user_id,telegram_username,parent_name,language,notify_lesson_reminders,notify_homework,notify_grades,notify_schedule_changes,updated_at';
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -76,14 +77,14 @@ async function upsertParent(admin: any, body: any) {
     language,
   };
 
-  const { data: existing } = await admin.from('telegram_parent_accounts').select('*').eq(identityColumn, identityValue).maybeSingle();
+  const { data: existing } = await admin.from('telegram_parent_accounts').select(PARENT_COLUMNS).eq(identityColumn, identityValue).maybeSingle();
   if (existing) {
-    const { data, error } = await admin.from('telegram_parent_accounts').update(payload).eq('id', existing.id).select('*').single();
+    const { data, error } = await admin.from('telegram_parent_accounts').update(payload).eq('id', existing.id).select(PARENT_COLUMNS).single();
     if (error) throw error;
     return data;
   }
 
-  const { data, error } = await admin.from('telegram_parent_accounts').insert(payload).select('*').single();
+  const { data, error } = await admin.from('telegram_parent_accounts').insert(payload).select(PARENT_COLUMNS).single();
   if (error) throw error;
   return data;
 }
@@ -92,7 +93,7 @@ async function linkByToken(admin: any, token: string, parent: any, source: strin
   const tokenHash = await sha256(token);
   const { data: link, error } = await admin
     .from('telegram_link_tokens')
-    .select('*')
+    .select('id,student_id')
     .eq('token_hash', tokenHash)
     .is('used_at', null)
     .gt('expires_at', new Date().toISOString())
@@ -197,7 +198,7 @@ function detectLang(code?: string | null): Lang {
 }
 
 async function findParent(admin: any, chatId: string) {
-  const { data } = await admin.from('telegram_parent_accounts').select('*').eq('telegram_chat_id', chatId).maybeSingle();
+  const { data } = await admin.from('telegram_parent_accounts').select(PARENT_COLUMNS).eq('telegram_chat_id', chatId).maybeSingle();
   return data;
 }
 
@@ -218,7 +219,7 @@ async function handleTelegramUpdate(admin: any, update: any) {
         .from('telegram_parent_accounts')
         .update({ [column]: !parent[column], updated_at: new Date().toISOString() })
         .eq('id', parent.id)
-        .select('*')
+        .select(PARENT_COLUMNS)
         .single();
       await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: T[lang].saved });
       await telegramApi('editMessageReplyMarkup', {
@@ -234,7 +235,7 @@ async function handleTelegramUpdate(admin: any, update: any) {
         .from('telegram_parent_accounts')
         .update({ language: nextLang, updated_at: new Date().toISOString() })
         .eq('id', parent.id)
-        .select('*')
+        .select(PARENT_COLUMNS)
         .single();
       await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: T[nextLang].langSet });
       await telegramApi('editMessageReplyMarkup', {

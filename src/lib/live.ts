@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { cachedQuery, invalidateQueryCache, QUERY_LIMITS } from './queryCache';
 
 export interface LiveSession {
   id: string;
@@ -30,6 +31,8 @@ export interface LiveEvent {
 
 const LIVE_TABLE_MISSING = 'Live mode tables are not ready yet.';
 const STALE_SESSION_MINUTES = 6;
+const LIVE_SESSION_COLUMNS = 'id,lesson_id,student_id,status,current_task_id,current_task_index,started_at,last_seen_at,completed_at';
+const LIVE_EVENT_COLUMNS = 'id,session_id,lesson_id,student_id,actor_user_id,actor_role,event_type,task_id,payload_json,created_at';
 
 function normalizeSession(row: any): LiveSession {
   return {
@@ -61,7 +64,7 @@ export async function startLiveSession(lessonId: string, studentId: string): Pro
 
   const existing = await (supabase as any)
     .from('lesson_live_sessions')
-    .select('*')
+    .select(LIVE_SESSION_COLUMNS)
     .eq('lesson_id', lessonId)
     .eq('student_id', studentId)
     .eq('status', 'active')
@@ -82,7 +85,7 @@ export async function startLiveSession(lessonId: string, studentId: string): Pro
       .from('lesson_live_sessions')
       .update({ current_task_id: null, current_task_index: 0, last_seen_at: now })
       .eq('id', existing.data.id)
-      .select('*')
+      .select(LIVE_SESSION_COLUMNS)
       .single();
     if (!error) return normalizeSession(data);
   }
@@ -90,7 +93,7 @@ export async function startLiveSession(lessonId: string, studentId: string): Pro
   const { data, error } = await (supabase as any)
     .from('lesson_live_sessions')
     .insert({ lesson_id: lessonId, student_id: studentId })
-    .select('*')
+    .select(LIVE_SESSION_COLUMNS)
     .single();
   if (error) {
     console.warn(LIVE_TABLE_MISSING, error.message);
@@ -138,7 +141,8 @@ export async function cleanupDuplicateActiveSessions() {
     .from('lesson_live_sessions')
     .select('id, student_id, last_seen_at')
     .eq('status', 'active')
-    .order('last_seen_at', { ascending: false });
+    .order('last_seen_at', { ascending: false })
+    .limit(QUERY_LIMITS.smallList);
   if (error) {
     console.warn('Live duplicate cleanup failed', error.message);
     return;
@@ -185,39 +189,57 @@ export async function recordLiveEvent(input: {
 }
 
 export async function listLiveSessions(): Promise<LiveSession[]> {
-  await cleanupStaleLiveSessions();
-  await cleanupDuplicateActiveSessions();
-  const rpc = await (supabase as any).rpc('get_visible_live_sessions');
-  if (!rpc.error) return ((rpc.data as any[]) || []).map(normalizeSession);
+  return cachedQuery('postgrest:live-sessions', 2_000, async () => {
+    await cleanupStaleLiveSessions();
+    await cleanupDuplicateActiveSessions();
+    const rpc = await (supabase as any).rpc('get_visible_live_sessions');
+    if (!rpc.error) return ((rpc.data as any[]) || []).slice(0, 30).map(normalizeSession);
 
-  const query = (supabase as any)
-    .from('lesson_live_sessions')
-    .select('*, lessons(title), profiles(name,email)')
-    .order('last_seen_at', { ascending: false })
-    .limit(30);
-  const { data, error } = await query;
-  if (!error) return ((data as any[]) || []).map(normalizeSession);
+    const query = (supabase as any)
+      .from('lesson_live_sessions')
+      .select(`${LIVE_SESSION_COLUMNS}, lessons(title), profiles(name,email)`)
+      .order('last_seen_at', { ascending: false })
+      .limit(30);
+    const { data, error } = await query;
+    if (!error) return ((data as any[]) || []).map(normalizeSession);
 
-  // Some Supabase projects need a schema cache refresh before nested profile joins work.
-  // The live monitor can still function with raw sessions and local user names from Admin.
-  const fallback = await (supabase as any)
-    .from('lesson_live_sessions')
-    .select('*')
-    .order('last_seen_at', { ascending: false })
-    .limit(30);
-  if (fallback.error) throw fallback.error;
-  return ((fallback.data as any[]) || []).map(normalizeSession);
+    // Some Supabase projects need a schema cache refresh before nested profile joins work.
+    // The live monitor can still function with raw sessions and local user names from Admin.
+    const fallback = await (supabase as any)
+      .from('lesson_live_sessions')
+      .select(LIVE_SESSION_COLUMNS)
+      .order('last_seen_at', { ascending: false })
+      .limit(30);
+    if (fallback.error) throw fallback.error;
+    return ((fallback.data as any[]) || []).map(normalizeSession);
+  });
 }
 
 export async function listLiveEvents(sessionId: string): Promise<LiveEvent[]> {
+  return cachedQuery(`postgrest:live-events:${sessionId}`, 2_000, async () => {
+    const { data, error } = await (supabase as any)
+      .from('lesson_live_events')
+      .select(LIVE_EVENT_COLUMNS)
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: false })
+      .limit(QUERY_LIMITS.liveEvents);
+    if (error) throw error;
+    return (data as LiveEvent[]) || [];
+  });
+}
+
+export async function listLatestTeacherHint(sessionId: string): Promise<LiveEvent | null> {
   const { data, error } = await (supabase as any)
     .from('lesson_live_events')
-    .select('*')
+    .select(LIVE_EVENT_COLUMNS)
     .eq('session_id', sessionId)
+    .eq('actor_role', 'teacher')
+    .eq('event_type', 'teacher_hint')
     .order('created_at', { ascending: false })
-    .limit(80);
+    .limit(1)
+    .maybeSingle();
   if (error) throw error;
-  return (data as LiveEvent[]) || [];
+  return (data as LiveEvent | null) || null;
 }
 
 export async function sendTeacherHint(session: LiveSession, message: string) {
@@ -239,7 +261,10 @@ export function subscribeLiveSessionEvents(sessionId: string, onEvent: (event: L
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'lesson_live_events', filter: `session_id=eq.${sessionId}` },
-      payload => onEvent(payload.new as LiveEvent),
+      payload => {
+        invalidateQueryCache(`postgrest:live-events:${sessionId}`);
+        onEvent(payload.new as LiveEvent);
+      },
     )
     .subscribe();
   return () => { supabase.removeChannel(channel); };
@@ -248,8 +273,10 @@ export function subscribeLiveSessionEvents(sessionId: string, onEvent: (event: L
 export function subscribeLiveSessions(onChange: () => void) {
   const channel = supabase
     .channel('live-sessions-admin')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_live_sessions' }, onChange)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'lesson_live_events' }, onChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_live_sessions' }, () => {
+      invalidateQueryCache('postgrest:live-sessions');
+      onChange();
+    })
     .subscribe();
   return () => { supabase.removeChannel(channel); };
 }

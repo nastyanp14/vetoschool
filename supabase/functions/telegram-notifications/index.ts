@@ -21,6 +21,8 @@ type ParentRow = {
   notify_trials: boolean;
   notify_weekly: boolean;
 };
+const PARENT_COLUMNS = 'id,telegram_chat_id,telegram_user_id,telegram_username,parent_name,language,notify_lesson_reminders,notify_homework,notify_grades,notify_schedule_changes,notify_billing,notify_trials,notify_weekly';
+const TRIAL_EVENT_COLUMNS = 'id,parent_name,parent_email,parent_phone,preferred_language,child_name,child_age,school_grade,preliminary_recommendation,selected_date,selected_time,timezone,status,teacher_confirmed_level,teacher_confirmed_direction,internal_notes,meeting_url,lesson_url,created_at,updated_at';
 
 const encoder = new TextEncoder();
 
@@ -402,7 +404,7 @@ async function studentName(admin: any, studentId: string) {
 async function parentsFor(admin: any, studentId: string): Promise<ParentRow[]> {
   const { data, error } = await admin
     .from('student_parent_links')
-    .select('telegram_parent_accounts(*)')
+    .select(`telegram_parent_accounts(${PARENT_COLUMNS})`)
     .eq('student_id', studentId)
     .eq('active', true);
   if (error) throw error;
@@ -935,7 +937,7 @@ const TRIAL_PARENT_EVENTS = [
 async function handleTrialEvent(admin: any, body: any) {
   const bookingId = String(body.bookingId || '');
   if (!bookingId) throw new Error('bookingId is required');
-  const { data: booking, error } = await admin.from('trial_bookings').select('*').eq('id', bookingId).single();
+  const { data: booking, error } = await admin.from('trial_bookings').select(TRIAL_EVENT_COLUMNS).eq('id', bookingId).single();
   if (error) throw error;
 
   const { data: profile } = await admin.from('profiles').select('id').ilike('email', booking.parent_email).maybeSingle();
@@ -1067,7 +1069,9 @@ async function handleTrialEvent(admin: any, body: any) {
 /* ------------------------------------------------- weekly summary (opt-in) */
 
 async function handleWeeklySummary(admin: any, body: any) {
-  const studentIds: string[] = Array.isArray(body.studentIds) ? body.studentIds.map(String) : [];
+  const studentIds: string[] = Array.isArray(body.studentIds)
+    ? Array.from(new Set(body.studentIds.map(String).filter(Boolean))).slice(0, 100)
+    : [];
   if (!studentIds.length) throw new Error('studentIds is required');
   const since = new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString();
   const weekTag = since.slice(0, 10);
@@ -1075,18 +1079,42 @@ async function handleWeeklySummary(admin: any, body: any) {
   const now = new Date().toISOString();
   const results: Array<{ studentId: string; queued: number }> = [];
 
+  const [lessonResult, contentResult, profileResult, parentLinkResult] = await Promise.all([
+    admin.from('schedules').select('id,user_id').in('user_id', studentIds).eq('is_conducted', true).gte('updated_at', since).limit(5_000),
+    admin.from('content_items').select('user_id,star_rating,checked_at').in('user_id', studentIds).gte('checked_at', since).limit(5_000),
+    admin.from('profiles').select('id,email,name,lang').in('id', studentIds).limit(100),
+    admin.from('student_parent_links').select(`student_id,telegram_parent_accounts(${PARENT_COLUMNS})`).in('student_id', studentIds).eq('active', true).limit(500),
+  ]);
+  const firstError = lessonResult.error || contentResult.error || profileResult.error || parentLinkResult.error;
+  if (firstError) throw firstError;
+
+  const lessonsByStudent = new Map<string, number>();
+  for (const row of lessonResult.data || []) lessonsByStudent.set(row.user_id, (lessonsByStudent.get(row.user_id) || 0) + 1);
+  const contentByStudent = new Map<string, any[]>();
+  for (const row of contentResult.data || []) {
+    const list = contentByStudent.get(row.user_id) || [];
+    list.push(row);
+    contentByStudent.set(row.user_id, list);
+  }
+  const profilesByStudent = new Map((profileResult.data || []).map((row: any) => [row.id, row]));
+  const parentsByStudent = new Map<string, ParentRow[]>();
+  for (const row of parentLinkResult.data || []) {
+    const nested = Array.isArray(row.telegram_parent_accounts) ? row.telegram_parent_accounts[0] : row.telegram_parent_accounts;
+    if (!nested?.telegram_chat_id) continue;
+    const list = parentsByStudent.get(row.student_id) || [];
+    list.push(nested);
+    parentsByStudent.set(row.student_id, list);
+  }
+
   for (const studentId of studentIds) {
-    const [{ data: lessons }, { data: content }] = await Promise.all([
-      admin.from('schedules').select('id').eq('user_id', studentId).eq('is_conducted', true).gte('updated_at', since),
-      admin.from('content_items').select('star_rating,checked_at').eq('user_id', studentId).gte('checked_at', since),
-    ]);
+    const content = contentByStudent.get(studentId) || [];
     const graded = (content || []).filter((row: any) => Number(row.star_rating) > 0);
     const average = graded.length
       ? (graded.reduce((sum: number, row: any) => sum + Number(row.star_rating), 0) / graded.length).toFixed(1)
       : '';
     const payload = {
-      studentName: await studentName(admin, studentId),
-      lessonsCompleted: lessons?.length ?? 0,
+      studentName: profilesByStudent.get(studentId)?.name || profilesByStudent.get(studentId)?.email?.split('@')[0] || 'ученик',
+      lessonsCompleted: lessonsByStudent.get(studentId) || 0,
       homeworkCompleted: graded.length,
       averageScore: average,
       learningStreak: body.learningStreak ?? '',
@@ -1097,7 +1125,7 @@ async function handleWeeklySummary(admin: any, body: any) {
 
     let queued = 0;
     // Еженедельный отчёт выключен по умолчанию: только явное согласие родителя.
-    for (const parent of (await parentsFor(admin, studentId)).filter(parent => parent.notify_weekly)) {
+    for (const parent of (parentsByStudent.get(studentId) || []).filter(parent => parent.notify_weekly)) {
       await enqueue(admin, {
         event_key: `weekly:${studentId}:${parent.id}:${weekTag}`,
         notification_type: 'weekly_progress_summary',
@@ -1107,7 +1135,7 @@ async function handleWeeklySummary(admin: any, body: any) {
         payload,
       });
       queued++;
-      const contact = await studentContact(admin, studentId);
+      const contact = profilesByStudent.get(studentId);
       if (contact?.email) {
         await deliverEmail(admin, {
           event: 'weekly_progress_summary',
@@ -1166,7 +1194,7 @@ async function reminderStillValid(admin: any, notification: any): Promise<{ ok: 
 async function processDue(admin: any, limit = 25) {
   const { data, error } = await admin
     .from('telegram_notifications')
-    .select('*, telegram_parent_accounts(*)')
+    .select(`id,attempts,notification_type,payload,scheduled_for,trial_booking_id,student_id,event_key,telegram_parent_accounts(${PARENT_COLUMNS})`)
     .eq('status', 'pending')
     .lte('scheduled_for', new Date().toISOString())
     .order('scheduled_for', { ascending: true })

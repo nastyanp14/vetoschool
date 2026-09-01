@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Activity, Eye, Lightbulb, RefreshCw, Send, Wifi } from 'lucide-react';
 import { User } from '../lib/auth';
@@ -114,51 +114,59 @@ export default function LiveLessonMonitor({ users, lang = 'ru' }: { users: User[
     [activeSessionId, activeSessions],
   );
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     try {
       setError('');
       const list = await listLiveSessions();
       setSessions(list);
       const firstActive = list.find(session => session.status === 'active');
-      if (!firstActive) setActiveSessionId(null);
-      else if (!activeSessionId || !list.some(session => session.id === activeSessionId && session.status === 'active')) {
-        setActiveSessionId(firstActive.id);
-      }
+      setActiveSessionId(current => {
+        if (!firstActive) return null;
+        return current && list.some(session => session.id === current && session.status === 'active') ? current : firstActive.id;
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : '';
       setError(message ? `${copy.needsDb} (${message})` : copy.needsDb);
     } finally {
       setLoading(false);
     }
-  };
+  }, [copy.needsDb]);
 
-  const loadEvents = async (sessionId: string) => {
+  const loadEvents = useCallback(async (sessionId: string) => {
     try {
       setEvents(await listLiveEvents(sessionId));
     } catch {
       setEvents([]);
     }
-  };
-
-  useEffect(() => {
-    loadSessions();
-    const interval = window.setInterval(loadSessions, 3000);
-    const unsubscribe = subscribeLiveSessions(loadSessions);
-    return () => { window.clearInterval(interval); unsubscribe(); };
   }, []);
 
   useEffect(() => {
-    if (!activeSession) {
+    void loadSessions();
+    const unsubscribe = subscribeLiveSessions(loadSessions);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void loadSessions();
+    };
+    window.addEventListener('focus', refreshWhenVisible);
+    return () => { window.removeEventListener('focus', refreshWhenVisible); unsubscribe(); };
+  }, [loadSessions]);
+
+  const selectedSessionId = activeSession?.id || null;
+
+  useEffect(() => {
+    if (!selectedSessionId) {
       setEvents([]);
       return;
     }
-    loadEvents(activeSession.id);
-    const interval = window.setInterval(() => loadEvents(activeSession.id), 2500);
-    const unsubscribe = subscribeLiveSessionEvents(activeSession.id, event => {
+    void loadEvents(selectedSessionId);
+    const unsubscribe = subscribeLiveSessionEvents(selectedSessionId, event => {
       setEvents(prev => [event, ...prev.filter(item => item.id !== event.id)].slice(0, 80));
     });
-    return () => { window.clearInterval(interval); unsubscribe(); };
-  }, [activeSession?.id]);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void loadEvents(selectedSessionId);
+    };
+    window.addEventListener('focus', refreshWhenVisible);
+    return () => { window.removeEventListener('focus', refreshWhenVisible); unsubscribe(); };
+  }, [selectedSessionId, loadEvents]);
 
   const sendHint = async () => {
     if (!activeSession || !hint.trim()) return;

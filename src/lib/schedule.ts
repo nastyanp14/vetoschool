@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { cacheGet, cacheSet } from './storage';
 import { notifyLessonConducted, notifyScheduleSaved } from './telegram';
+import { cachedQuery, invalidateQueryCache, QUERY_LIMITS } from './queryCache';
 
 export interface ScheduleSlot {
   id: string;
@@ -35,6 +36,7 @@ type ScheduleRow = {
 };
 
 const key = (uid: string) => `schedule:${uid}`;
+const SCHEDULE_COLUMNS = 'id,user_id,group_id,day,scheduled_date,time,topic,is_conducted,source_lesson_id,lesson_status,teacher_id,duration_minutes,room,online_url,position';
 const INACTIVE_STATUSES = new Set(['completed', 'cancelled', 'rescheduled', 'student_absent', 'teacher_absent']);
 
 export function isActiveScheduleSlot(slot: ScheduleSlot): boolean {
@@ -50,35 +52,38 @@ export function getStudentSchedule(userId: string): ScheduleSlot[] {
   return cacheGet<ScheduleSlot[]>(key(userId)) ?? [];
 }
 
-export async function loadStudentSchedule(userId: string): Promise<ScheduleSlot[]> {
-  const { data: memberships, error: membershipError } = await (supabase as any)
-    .from('student_group_members')
-    .select('group_id')
-    .eq('user_id', userId);
-  const groupIds = membershipError ? [] : (((memberships as any[]) || []).map(row => row.group_id).filter(Boolean));
-  const query = groupIds.length
-    ? (supabase as any).from('schedules').select('*').or(`user_id.eq.${userId},group_id.in.(${groupIds.join(',')})`).order('position', { ascending: true })
-    : (supabase as any).from('schedules').select('*').eq('user_id', userId).order('position', { ascending: true });
-  const { data, error } = await query;
-  if (error) { console.error(error); return []; }
-  const uniqueRows = Array.from(new Map(((data || []) as ScheduleRow[]).map(row => [row.id, row])).values());
-  const slots: ScheduleSlot[] = uniqueRows.map(r => ({
-    id: r.id,
-    day: r.day,
-    date: r.scheduled_date ?? null,
-    time: r.time,
-    topic: r.topic,
-    isConducted: !!r.is_conducted || r.lesson_status === 'completed',
-    sourceLessonId: r.source_lesson_id ?? null,
-    status: r.lesson_status ?? null,
-    groupId: r.group_id ?? null,
-    teacherId: r.teacher_id ?? null,
-    durationMinutes: r.duration_minutes ?? null,
-    room: r.room ?? null,
-    onlineUrl: r.online_url ?? null,
-  })).sort((a, b) => scheduleSlotTimeValue(a) - scheduleSlotTimeValue(b));
-  cacheSet(key(userId), slots);
-  return slots;
+export async function loadStudentSchedule(userId: string, options: { force?: boolean } = {}): Promise<ScheduleSlot[]> {
+  return cachedQuery(`postgrest:schedule:${userId}`, 60_000, async () => {
+    const { data: memberships, error: membershipError } = await (supabase as any)
+      .from('student_group_members')
+      .select('group_id')
+      .eq('user_id', userId)
+      .limit(QUERY_LIMITS.smallList);
+    const groupIds = membershipError ? [] : (((memberships as any[]) || []).map(row => row.group_id).filter(Boolean));
+    const query = groupIds.length
+      ? (supabase as any).from('schedules').select(SCHEDULE_COLUMNS).or(`user_id.eq.${userId},group_id.in.(${groupIds.join(',')})`).order('position', { ascending: true }).limit(QUERY_LIMITS.userList)
+      : (supabase as any).from('schedules').select(SCHEDULE_COLUMNS).eq('user_id', userId).order('position', { ascending: true }).limit(QUERY_LIMITS.userList);
+    const { data, error } = await query;
+    if (error) { console.error(error); return []; }
+    const uniqueRows = Array.from(new Map(((data || []) as ScheduleRow[]).map(row => [row.id, row])).values());
+    const slots: ScheduleSlot[] = uniqueRows.map(r => ({
+      id: r.id,
+      day: r.day,
+      date: r.scheduled_date ?? null,
+      time: r.time,
+      topic: r.topic,
+      isConducted: !!r.is_conducted || r.lesson_status === 'completed',
+      sourceLessonId: r.source_lesson_id ?? null,
+      status: r.lesson_status ?? null,
+      groupId: r.group_id ?? null,
+      teacherId: r.teacher_id ?? null,
+      durationMinutes: r.duration_minutes ?? null,
+      room: r.room ?? null,
+      onlineUrl: r.online_url ?? null,
+    })).sort((a, b) => scheduleSlotTimeValue(a) - scheduleSlotTimeValue(b));
+    cacheSet(key(userId), slots);
+    return slots;
+  }, { force: options.force });
 }
 
 export async function saveStudentSchedule(userId: string, slots: ScheduleSlot[]): Promise<void> {
@@ -106,7 +111,8 @@ export async function saveStudentSchedule(userId: string, slots: ScheduleSlot[])
     if (error) throw error;
   }
   await notifyScheduleSaved(userId, before, slots);
-  await loadStudentSchedule(userId);
+  invalidateQueryCache(`postgrest:schedule:${userId}`);
+  await loadStudentSchedule(userId, { force: true });
 }
 
 export async function setSlotConducted(slotId: string, value: boolean, studentId?: string): Promise<void> {
@@ -115,6 +121,7 @@ export async function setSlotConducted(slotId: string, value: boolean, studentId
     .update({ is_conducted: value } as never)
     .eq('id', slotId);
   if (error) throw error;
+  if (studentId) invalidateQueryCache(`postgrest:schedule:${studentId}`);
   if (value && studentId) {
     const slot = getStudentSchedule(studentId).find(s => s.id === slotId);
     if (slot) await notifyLessonConducted(studentId, { ...slot, isConducted: true });
@@ -130,5 +137,6 @@ export async function deleteScheduleSlot(slotId: string, studentId?: string): Pr
   await (supabase as any).from('grades').delete().eq('lesson_id', slotId);
   const { error } = await supabase.from('schedules').delete().eq('id', slotId);
   if (error) throw error;
+  if (studentId) invalidateQueryCache(`postgrest:schedule:${studentId}`);
   if (studentId && before) await notifyScheduleSaved(studentId, [before], []);
 }

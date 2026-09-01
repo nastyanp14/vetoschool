@@ -4,7 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Check, Clock, Crown, Lock, Unlock } from 'lucide-react';
 import { getCurrentUser, logout } from '../lib/auth';
 import { getStudentSchedule } from '../lib/schedule';
-import { ensureStudentContent, ContentItem, getStudentRating, isGradedContentType, loadStudentContent, openOrDownload, submitStudentContentWork } from '../lib/content';
+import { ensureStudentContent, ContentItem, getStudentRating, isGradedContentType, loadContentItemFile, loadStudentContentSummary, openOrDownload, submitStudentContentWork } from '../lib/content';
 import { loadStudentSchedule } from '../lib/schedule';
 import { Lang, t } from '../lib/i18n';
 import ThemeToggle from '../components/ThemeToggle';
@@ -833,7 +833,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
     }
   }, [effectiveUserId, isPreview]);
 
-  const refreshStudentData = useCallback(async () => {
+  const refreshStudentData = useCallback(async (options: { force?: boolean } = {}) => {
     if (!effectiveUserId) return;
     const billingQuery = supabase
       .from('profiles')
@@ -853,35 +853,58 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
     }
 
     const [freshContent, billingResult] = await Promise.all([
-      loadStudentContent(effectiveUserId),
+      loadStudentContentSummary(effectiveUserId, options),
       billingQuery,
       refreshStars(),
     ]);
     setContent(freshContent);
     if (billingResult.data) setBilling(billingResult.data);
-    setSelectedItem(prev => prev ? freshContent.find(item => item.id === prev.id) || prev : prev);
+    setSelectedItem(prev => {
+      if (!prev) return prev;
+      const fresh = freshContent.find(item => item.id === prev.id);
+      return fresh ? { ...fresh, fileUrl: fresh.fileUrl === undefined ? prev.fileUrl : fresh.fileUrl } : prev;
+    });
   }, [effectiveUserId, isLimitedAccess, refreshStars]);
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
     const h = new Date().getHours();
     setGreeting(h < 12 ? t(lang, 'dash_morning') : h < 17 ? t(lang, 'dash_afternoon') : t(lang, 'dash_evening'));
-    loadStudentSchedule(effectiveUserId).then(setSchedule);
-    refreshStudentData();
-  }, [user, navigate, lang, effectiveUserId, refreshStudentData]);
+  }, [user, navigate, lang]);
+
+  useEffect(() => {
+    if (!effectiveUserId) return;
+    void loadStudentSchedule(effectiveUserId).then(setSchedule);
+    void refreshStudentData();
+  }, [effectiveUserId, refreshStudentData]);
 
   useEffect(() => {
     if (!effectiveUserId || isPreview) return;
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') void refreshStudentData();
+    let refreshTimer = 0;
+    const scheduleRefresh = () => {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => void refreshStudentData({ force: true }), 350);
     };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      void Promise.all([
+        refreshStudentData(),
+        loadStudentSchedule(effectiveUserId).then(setSchedule),
+      ]);
+    };
+    const channel = supabase
+      .channel(`student-dashboard-${effectiveUserId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'content_items', filter: `user_id=eq.${effectiveUserId}` }, scheduleRefresh)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${effectiveUserId}` }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_progress', filter: `user_id=eq.${effectiveUserId}` }, scheduleRefresh)
+      .subscribe();
     window.addEventListener('focus', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
-    const interval = window.setInterval(() => void refreshStudentData(), 15000);
     return () => {
+      window.clearTimeout(refreshTimer);
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
-      window.clearInterval(interval);
+      void supabase.removeChannel(channel);
     };
   }, [effectiveUserId, isPreview, refreshStudentData]);
 
@@ -905,7 +928,19 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
     setActiveTab('overview');
     window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
   };
-  const handleItemClick = (item: ContentItem) => { setSelectedItem(item); setShowModal(true); };
+  const handleItemClick = async (item: ContentItem) => {
+    let selected = item;
+    if (item.fileUrl === undefined) {
+      try {
+        const file = await loadContentItemFile(effectiveUserId, item.id);
+        selected = { ...item, ...file, fileDataUrl: file.fileUrl };
+      } catch (error) {
+        console.warn('Could not load content file metadata', error);
+      }
+    }
+    setSelectedItem(selected);
+    setShowModal(true);
+  };
   const friendlyPortalError = (error: unknown) => {
     const message = error instanceof Error ? error.message : '';
     if (message.includes('Log in')) {

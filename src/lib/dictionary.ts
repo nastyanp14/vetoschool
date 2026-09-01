@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { cachedQuery, invalidateQueryCache, QUERY_LIMITS } from './queryCache';
 
 export interface DictWord {
   id: string;
@@ -12,6 +13,8 @@ export interface DictWord {
   imageUrl?: string | null;
   createdAt?: string;
 }
+
+const DICTIONARY_COLUMNS = 'id,user_id,lesson,category,word,translation,emoji,audio_url,image_url,created_at';
 
 function rowToWord(r: any): DictWord {
   return {
@@ -29,13 +32,16 @@ function rowToWord(r: any): DictWord {
 }
 
 export async function loadDictionary(userId: string): Promise<DictWord[]> {
-  const { data, error } = await supabase
-    .from('dictionary_words')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true });
-  if (error) { console.error(error); return []; }
-  return (data || []).map(rowToWord);
+  return cachedQuery(`postgrest:dictionary:${userId}`, 60_000, async () => {
+    const { data, error } = await (supabase as any)
+      .from('dictionary_words')
+      .select(DICTIONARY_COLUMNS)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+      .limit(QUERY_LIMITS.userList);
+    if (error) { console.error(error); return []; }
+    return (data || []).map(rowToWord);
+  });
 }
 
 export async function addDictWord(input: Omit<DictWord, 'id' | 'createdAt'>): Promise<DictWord | null> {
@@ -52,14 +58,14 @@ export async function addDictWord(input: Omit<DictWord, 'id' | 'createdAt'>): Pr
   let { data, error } = await (supabase as any)
     .from('dictionary_words')
     .insert(row)
-    .select()
+    .select(DICTIONARY_COLUMNS)
     .single();
   if (error && /image_url|schema cache|column/i.test(error.message || '')) {
     const { image_url, ...legacyRow } = row;
     const retry = await (supabase as any)
       .from('dictionary_words')
       .insert(legacyRow)
-      .select()
+      .select('id,user_id,lesson,category,word,translation,emoji,audio_url,created_at')
       .single();
     data = retry.data;
     error = retry.error;
@@ -69,12 +75,13 @@ export async function addDictWord(input: Omit<DictWord, 'id' | 'createdAt'>): Pr
     const retry = await (supabase as any)
       .from('dictionary_words')
       .insert(legacyRow)
-      .select()
+      .select('id,user_id,lesson,category,word,translation,emoji,created_at')
       .single();
     data = retry.data;
     error = retry.error;
   }
   if (error) { console.error(error); return null; }
+  invalidateQueryCache(`postgrest:dictionary:${input.userId}`);
   return rowToWord(data);
 }
 
@@ -91,4 +98,5 @@ export async function addDictWords(userIds: string[], input: Omit<DictWord, 'id'
 export async function deleteDictWord(id: string): Promise<void> {
   const { error } = await supabase.from('dictionary_words').delete().eq('id', id);
   if (error) console.error(error);
+  invalidateQueryCache('postgrest:dictionary:');
 }

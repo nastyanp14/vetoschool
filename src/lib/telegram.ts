@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { ContentItem } from './content';
 import type { ScheduleSlot } from './schedule';
+import { QUERY_LIMITS } from './queryCache';
 
 export type TelegramNotifyType =
   | 'lesson_scheduled'
@@ -126,15 +127,17 @@ export async function listTelegramParents(studentId: string): Promise<TelegramPa
     .select(selectWithExplicitRelation)
     .eq('student_id', studentId)
     .eq('active', true)
-    .order('linked_at', { ascending: false });
+    .order('linked_at', { ascending: false })
+    .limit(QUERY_LIMITS.smallList);
 
   const { data, error } = firstResult.error
     ? await asAnySupabase()
       .from('student_parent_links')
-      .select('linked_at,created_at,active,telegram_parent_accounts(*)')
+      .select(`linked_at,created_at,active,telegram_parent_accounts(id,parent_name,display_name,first_name,last_name,telegram_username,language,linked_at,notify_lesson_reminders,notify_homework,notify_grades,notify_schedule_changes)`)
       .eq('student_id', studentId)
       .eq('active', true)
       .order('linked_at', { ascending: false })
+      .limit(QUERY_LIMITS.smallList)
     : firstResult;
 
   if (error) {
@@ -152,7 +155,8 @@ export async function listTelegramParents(studentId: string): Promise<TelegramPa
     .from('student_parent_links')
     .select('parent_id,linked_at,created_at,active')
     .eq('student_id', studentId)
-    .eq('active', true);
+    .eq('active', true)
+    .limit(QUERY_LIMITS.smallList);
   if (linksError || !links?.length) {
     if (linksError) console.warn('Could not load Telegram parent links', linksError);
     return [];
@@ -161,8 +165,9 @@ export async function listTelegramParents(studentId: string): Promise<TelegramPa
   const parentIds = links.map((row: any) => row.parent_id).filter(Boolean);
   const { data: accounts, error: accountsError } = await asAnySupabase()
     .from('telegram_parent_accounts')
-    .select('*')
-    .in('id', parentIds);
+    .select('id,parent_name,display_name,first_name,last_name,telegram_username,language,linked_at,notify_lesson_reminders,notify_homework,notify_grades,notify_schedule_changes')
+    .in('id', parentIds)
+    .limit(QUERY_LIMITS.smallList);
   if (accountsError) {
     console.warn('Could not load Telegram parent accounts', accountsError);
     return [];

@@ -8,7 +8,7 @@ import {
 import { MechanicType, InteractiveScoreSummary, calculateInteractiveScore } from '../lib/mechanics';
 import {
   LiveSession, abandonLiveSession, completeLiveSession, recordLiveEvent, startLiveSession,
-  listLiveEvents, subscribeLiveSessionEvents, updateLiveSession,
+  listLatestTeacherHint, subscribeLiveSessionEvents, updateLiveSession,
 } from '../lib/live';
 import TheoryLessonView from './TheoryLessonView';
 import type { Lang } from '../lib/i18n';
@@ -3224,7 +3224,7 @@ export default function InteractiveLessonRoom({
     introOwlPlayedRef.current = false;
     setScoreVersion(0);
     listTasks(lesson.id).then(t => { setTasks(t); setLoading(false); });
-  }, [lesson.id, userId]);
+  }, [lesson.id, lesson.title, userId]);
 
   useEffect(() => {
     let alive = true;
@@ -3272,23 +3272,24 @@ export default function InteractiveLessonRoom({
     return () => { alive = false; };
   }, [lesson.id, userId]);
 
+  const liveSessionId = liveSession?.id || null;
+
   useEffect(() => {
-    if (!liveSession) return;
-    return subscribeLiveSessionEvents(liveSession.id, event => {
+    if (!liveSessionId) return;
+    return subscribeLiveSessionEvents(liveSessionId, event => {
       if (event.actor_role !== 'teacher' || event.event_type !== 'teacher_hint') return;
       const message = event.payload_json?.message || copy.teacherHint;
       showTeacherHint(event.id, message);
     });
-  }, [liveSession?.id]);
+  }, [copy.teacherHint, liveSessionId]);
 
   useEffect(() => {
-    if (!liveSession) return;
+    if (!liveSessionId) return;
     let alive = true;
     const checkHints = async () => {
       try {
-        const events = await listLiveEvents(liveSession.id);
+        const latestHint = await listLatestTeacherHint(liveSessionId);
         if (!alive) return;
-        const latestHint = events.find(event => event.actor_role === 'teacher' && event.event_type === 'teacher_hint');
         if (!latestHint) return;
         const message = latestHint.payload_json?.message || copy.teacherHint;
         showTeacherHint(latestHint.id, message);
@@ -3296,47 +3297,52 @@ export default function InteractiveLessonRoom({
         // Realtime remains primary; polling is only a quiet backup for missed hint events.
       }
     };
-    checkHints();
-    const interval = window.setInterval(checkHints, 2500);
-    return () => { alive = false; window.clearInterval(interval); };
-  }, [liveSession?.id]);
+    void checkHints();
+    const checkWhenVisible = () => {
+      if (document.visibilityState === 'visible') void checkHints();
+    };
+    window.addEventListener('focus', checkWhenVisible);
+    return () => { alive = false; window.removeEventListener('focus', checkWhenVisible); };
+  }, [copy.teacherHint, liveSessionId]);
 
   useEffect(() => {
-    if (!liveSession) return;
+    if (!liveSessionId) return;
     const closeUnfinishedSession = () => {
-      if (finishedRef.current === null) abandonLiveSession(liveSession.id);
+      if (finishedRef.current === null) abandonLiveSession(liveSessionId);
     };
     window.addEventListener('pagehide', closeUnfinishedSession);
     return () => {
       window.removeEventListener('pagehide', closeUnfinishedSession);
     };
-  }, [liveSession?.id]);
+  }, [liveSessionId]);
 
   useEffect(() => {
     const curTask = displayedTasks[idx];
-    if (!liveSession || !curTask) return;
-    updateLiveSession(liveSession.id, { current_task_id: curTask.id, current_task_index: idx });
+    if (!liveSessionId || !curTask) return;
+    updateLiveSession(liveSessionId, { current_task_id: curTask.id, current_task_index: idx });
     recordLiveEvent({
-      sessionId: liveSession.id,
+      sessionId: liveSessionId,
       lessonId: lesson.id,
       studentId: userId,
       eventType: 'task_opened',
       taskId: curTask.id,
       payload: { index: idx, mechanic: curTask.mechanic_type },
     });
-  }, [liveSession?.id, displayedTasks, idx, lesson.id, userId]);
+  }, [liveSessionId, displayedTasks, idx, lesson.id, userId]);
+
+  const currentTaskId = displayedTasks[idx]?.id || null;
 
   useEffect(() => {
     if (finishedRef.current !== null) return;
     setMasterTaskReady(false);
-    if (lesson.type !== 'theory' && displayedTasks[idx]?.id && !introOwlPlayedRef.current) {
+    if (lesson.type !== 'theory' && currentTaskId && !introOwlPlayedRef.current) {
       introOwlPlayedRef.current = true;
       setOwlState('intro');
     } else {
       setOwlState('wave');
     }
     setActivityVersion(version => version + 1);
-  }, [idx, displayedTasks[idx]?.id, lesson.type]);
+  }, [currentTaskId, idx, lesson.type]);
 
   useEffect(() => {
     if (finished === null) return;

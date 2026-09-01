@@ -4,6 +4,7 @@ import { User } from './auth';
 import { awardStars } from './stars';
 import { notifyHomeworkAssigned, notifyHomeworkChanged, notifyHomeworkReviewed, notifyLessonGradePublished, notifyLessonNoShow, notifyLessonResultPublished, notifyScheduleSaved } from './telegram';
 import type { ScheduleSlot } from './schedule';
+import { cachedQuery, invalidateQueryCache, QUERY_LIMITS } from './queryCache';
 
 export type TeacherStatus = 'active' | 'inactive' | 'vacation' | 'blocked';
 export type LessonStatus = 'scheduled' | 'upcoming' | 'ready' | 'in_progress' | 'completed' | 'cancelled' | 'rescheduled' | 'student_absent' | 'teacher_absent';
@@ -299,6 +300,19 @@ export interface TeacherNotificationPersistInput {
 }
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const TEACHER_COLUMNS = 'id,teacher_user_id,first_name,last_name,email,phone,avatar_url,teaching_languages,levels,description,admin_note,status,last_login_at,invite_email_sent_at,created_at,updated_at';
+const GROUP_COLUMNS = 'id,name,description,teacher_id,created_at,updated_at,level,course,current_unit,current_lesson,progress,status,lesson_duration_minutes,weekly_frequency,start_date,lesson_url';
+const STUDENT_PROFILE_COLUMNS = 'id,name,email,access_status,has_access,payment_status,created_at,avatar_id';
+const SCHEDULE_COLUMNS = 'id,user_id,group_id,teacher_id,source_lesson_id,day,scheduled_date,time,topic,lesson_type,lesson_status,comment,is_conducted,room,online_url,duration_minutes,started_at,completed_at,homework_brief,carry_over_to_next_lesson';
+const CONTENT_HOMEWORK_COLUMNS = 'id,user_id,module_id,title,type,due_date,scheduled_date,submitted_at,checked_at,result_percent,errors_count,teacher_comment,student_result,star_rating,unlocked,homework_status,reviewed_by_teacher_id,review_comment,submitted_attachment_url,submitted_attachment_name,external_link,interactive_lesson_id,interactive_completed_at,interactive_score_percent,material_mode,created_at,updated_at';
+const GRADE_COLUMNS = 'id,user_id,group_id,lesson_id,category,score,comment,created_at';
+const DICTIONARY_COLUMNS = 'id,user_id,lesson,category,word,translation,emoji,audio_url,image_url,created_at';
+const ATTENDANCE_COLUMNS = 'id,lesson_id,student_id,teacher_id,status,note,created_at,updated_at';
+const NOTE_COLUMNS = 'id,teacher_id,student_id,author_id,text,target_type,target_id,note_type,attachment_label,pinned,visible_to_admin,created_at,updated_at';
+const PLAN_BLOCK_COLUMNS = 'id,schedule_id,block_kind,source_lesson_id,material_title,material_url,admin_note,material_mode,position';
+const SOURCE_LESSON_COLUMNS = 'id,unit_id,title,lesson_number,order,type,stars_reward';
+const TASK_METADATA_COLUMNS = 'id,lesson_id,mechanic_type,order';
+const LESSON_RESULT_COLUMNS = 'id,lesson_id,teacher_id,summary,teacher_comment,homework_brief,carry_over_to_next_lesson,admin_note,actual_duration_seconds:payload->>actual_duration_seconds,created_at,updated_at';
 
 function todayName() {
   return dayNames[new Date().getDay()];
@@ -488,7 +502,7 @@ function rowToLessonResult(row: any): TeacherLessonResult {
     homeworkBrief: row.homework_brief || '',
     carryOverToNextLesson: row.carry_over_to_next_lesson || '',
     adminNote: row.admin_note || '',
-    payload: row.payload || {},
+    payload: { actual_duration_seconds: Number(row.actual_duration_seconds || 0) },
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -666,19 +680,6 @@ function isSchemaNotReadyError(error: unknown) {
   );
 }
 
-async function repairStudentsInteractiveCompletion(studentIds: string[]) {
-  const uniqueIds = Array.from(new Set(studentIds.filter(Boolean)));
-  if (!uniqueIds.length) return;
-  await Promise.all(uniqueIds.map(async studentId => {
-    const { error } = await (supabase as any).rpc('repair_student_interactive_completion', {
-      _user_id: studentId,
-    });
-    if (error && !isSchemaNotReadyError(error)) {
-      console.warn('repair_student_interactive_completion RPC failed', error.message || error);
-    }
-  }));
-}
-
 async function assignTeacherRole(profileId: string) {
   await (supabase as any)
     .from('user_roles')
@@ -694,8 +695,8 @@ async function assignTeacherRole(profileId: string) {
 
 export async function listGroupsForAdmin(): Promise<StudentGroup[]> {
   const [{ data: groups, error: groupsError }, { data: members, error: membersError }] = await Promise.all([
-    (supabase as any).from('student_groups').select('*').order('created_at', { ascending: false }),
-    (supabase as any).from('student_group_members').select('group_id,user_id'),
+    (supabase as any).from('student_groups').select(GROUP_COLUMNS).order('created_at', { ascending: false }).limit(QUERY_LIMITS.adminList),
+    (supabase as any).from('student_group_members').select('group_id,user_id').limit(QUERY_LIMITS.adminList),
   ]);
   if (groupsError) throw groupsError;
   if (membersError) throw membersError;
@@ -711,12 +712,14 @@ export async function listGroupsForAdmin(): Promise<StudentGroup[]> {
 }
 
 export async function listTeacherDirectory(students: User[] = []): Promise<{ teachers: TeacherDirectoryItem[]; groups: StudentGroup[] }> {
-  const [{ data: teacherRows, error: teacherError }, { data: assignments, error: assignmentsError }, groups, { data: schedules, error: schedulesError }] = await Promise.all([
-    (supabase as any).from('teachers').select('*').order('created_at', { ascending: false }),
-    (supabase as any).from('teacher_students').select('teacher_id,student_id'),
-    listGroupsForAdmin(),
-    (supabase as any).from('schedules').select('user_id,group_id,day,time,is_conducted,lesson_status'),
-  ]);
+  const cacheKey = `postgrest:teacher-directory:${students.map(student => student.id).sort().join(',')}`;
+  return cachedQuery(cacheKey, 10_000, async () => {
+    const [{ data: teacherRows, error: teacherError }, { data: assignments, error: assignmentsError }, groups, { data: schedules, error: schedulesError }] = await Promise.all([
+      (supabase as any).from('teachers').select(TEACHER_COLUMNS).order('created_at', { ascending: false }).limit(QUERY_LIMITS.adminList),
+      (supabase as any).from('teacher_students').select('teacher_id,student_id').limit(QUERY_LIMITS.adminList),
+      listGroupsForAdmin(),
+      (supabase as any).from('schedules').select('user_id,group_id,day,time,is_conducted,lesson_status').limit(QUERY_LIMITS.adminList),
+    ]);
   if (teacherError) throw teacherError;
   if (assignmentsError) throw assignmentsError;
   if (schedulesError) throw schedulesError;
@@ -764,7 +767,8 @@ export async function listTeacherDirectory(students: User[] = []): Promise<{ tea
     };
   });
 
-  return { teachers, groups };
+    return { teachers, groups };
+  });
 }
 
 export async function createTeacher(input: TeacherInput): Promise<TeacherRecord> {
@@ -777,10 +781,11 @@ export async function createTeacher(input: TeacherInput): Promise<TeacherRecord>
   if (profileError) throw profileError;
 
   const payload = { ...teacherToRow(input), teacher_user_id: existingProfile?.id ?? null };
-  const { data, error } = await (supabase as any).from('teachers').insert(payload).select('*').single();
+  const { data, error } = await (supabase as any).from('teachers').insert(payload).select(TEACHER_COLUMNS).single();
   if (error) throw error;
 
   if (existingProfile?.id) await assignTeacherRole(existingProfile.id);
+  invalidateQueryCache('postgrest:teacher-directory:');
   return rowToTeacher(data);
 }
 
@@ -789,9 +794,10 @@ export async function updateTeacher(id: string, input: TeacherInput): Promise<Te
     .from('teachers')
     .update(teacherToRow(input))
     .eq('id', id)
-    .select('*')
+    .select(TEACHER_COLUMNS)
     .single();
   if (error) throw error;
+  invalidateQueryCache('postgrest:teacher-directory:');
   return rowToTeacher(data);
 }
 
@@ -805,6 +811,7 @@ export async function updateOwnTeacherProfile(id: string, patch: Partial<Teacher
   if (patch.levels !== undefined) payload.levels = patch.levels;
   const { error } = await (supabase as any).from('teachers').update(payload).eq('id', id);
   if (error) throw error;
+  invalidateQueryCache('postgrest:teacher-directory:');
 }
 
 const AVATAR_BUCKET = 'avatars';
@@ -870,11 +877,13 @@ export async function clearTeacherAvatar(teacherId: string, currentUrl?: string 
 export async function deleteTeacher(id: string) {
   const { error } = await (supabase as any).from('teachers').delete().eq('id', id);
   if (error) throw error;
+  invalidateQueryCache('postgrest:teacher-directory:');
 }
 
 export async function setTeacherStatus(id: string, status: TeacherStatus) {
   const { error } = await (supabase as any).from('teachers').update({ status }).eq('id', id);
   if (error) throw error;
+  invalidateQueryCache('postgrest:teacher-directory:');
 }
 
 export async function setTeacherStudents(teacherId: string, studentIds: string[]) {
@@ -882,11 +891,15 @@ export async function setTeacherStudents(teacherId: string, studentIds: string[]
   const { error: deleteError } = await (supabase as any).from('teacher_students').delete().eq('teacher_id', teacherId);
   if (deleteError) throw deleteError;
 
-  if (!unique.length) return;
+  if (!unique.length) {
+    invalidateQueryCache('postgrest:teacher-directory:');
+    return;
+  }
   const { error } = await (supabase as any)
     .from('teacher_students')
     .insert(unique.map(studentId => ({ teacher_id: teacherId, student_id: studentId })));
   if (error) throw error;
+  invalidateQueryCache('postgrest:teacher-directory:');
 }
 
 export async function setTeacherGroups(teacherId: string, groupIds: string[]) {
@@ -894,9 +907,13 @@ export async function setTeacherGroups(teacherId: string, groupIds: string[]) {
   const { error: clearError } = await (supabase as any).from('student_groups').update({ teacher_id: null }).eq('teacher_id', teacherId);
   if (clearError) throw clearError;
 
-  if (!unique.length) return;
+  if (!unique.length) {
+    invalidateQueryCache('postgrest:teacher-directory:');
+    return;
+  }
   const { error } = await (supabase as any).from('student_groups').update({ teacher_id: teacherId }).in('id', unique);
   if (error) throw error;
+  invalidateQueryCache('postgrest:teacher-directory:');
 }
 
 export async function setStudentGroupMembers(groupId: string, studentIds: string[]) {
@@ -904,11 +921,15 @@ export async function setStudentGroupMembers(groupId: string, studentIds: string
   const { error: deleteError } = await (supabase as any).from('student_group_members').delete().eq('group_id', groupId);
   if (deleteError) throw deleteError;
 
-  if (!unique.length) return;
+  if (!unique.length) {
+    invalidateQueryCache('postgrest:teacher-directory:');
+    return;
+  }
   const { error } = await (supabase as any)
     .from('student_group_members')
     .insert(unique.map(studentId => ({ group_id: groupId, user_id: studentId })));
   if (error) throw error;
+  invalidateQueryCache('postgrest:teacher-directory:');
 }
 
 export async function createStudentGroupForAdmin(input: StudentGroupInput): Promise<StudentGroup> {
@@ -924,17 +945,18 @@ export async function createStudentGroupForAdmin(input: StudentGroupInput): Prom
     status: 'active',
   };
 
-  let result = await (supabase as any).from('student_groups').insert(payload).select('*').single();
+  let result = await (supabase as any).from('student_groups').insert(payload).select(GROUP_COLUMNS).single();
   if (result.error && isSchemaNotReadyError(result.error)) {
     const compatiblePayload = { ...payload };
     delete compatiblePayload.level;
     delete compatiblePayload.course;
     delete compatiblePayload.status;
-    result = await (supabase as any).from('student_groups').insert(compatiblePayload).select('*').single();
+    result = await (supabase as any).from('student_groups').insert(compatiblePayload).select(GROUP_COLUMNS).single();
   }
   if (result.error) throw result.error;
 
   await setStudentGroupMembers(result.data.id, input.studentIds || []);
+  invalidateQueryCache('postgrest:teacher-directory:');
   return rowToStudentGroup(result.data, input.studentIds || []);
 }
 
@@ -949,6 +971,7 @@ export async function setStudentGroupLessonUrl(groupId: string, lessonUrl: strin
     .update({ lesson_url: value || null })
     .eq('id', groupId);
   if (error) throw error;
+  invalidateQueryCache('postgrest:teacher-directory:');
   return value || null;
 }
 
@@ -970,6 +993,7 @@ export async function deleteStudentGroupForAdmin(groupId: string) {
     .delete()
     .eq('id', groupId);
   if (error) throw error;
+  invalidateQueryCache('postgrest:teacher-directory:');
 }
 
 export async function loadTeacherWorkspace(currentUserId?: string): Promise<TeacherWorkspace> {
@@ -982,7 +1006,7 @@ export async function loadTeacherWorkspace(currentUserId?: string): Promise<Teac
 
   const { data: initialTeacherRow, error: teacherError } = await (supabase as any)
     .from('teachers')
-    .select('*')
+    .select(TEACHER_COLUMNS)
     .eq('teacher_user_id', authUserId)
     .maybeSingle();
   if (teacherError) throw teacherError;
@@ -995,7 +1019,7 @@ export async function loadTeacherWorkspace(currentUserId?: string): Promise<Teac
     }
     const retry = await (supabase as any)
       .from('teachers')
-      .select('*')
+      .select(TEACHER_COLUMNS)
       .eq('teacher_user_id', authUserId)
       .maybeSingle();
     if (retry.error) throw retry.error;
@@ -1019,8 +1043,8 @@ export async function loadTeacherWorkspace(currentUserId?: string): Promise<Teac
 
   const teacher = rowToTeacher(teacherRow);
   const [{ data: directRows, error: directError }, { data: groupRows, error: groupError }] = await Promise.all([
-    (supabase as any).from('teacher_students').select('student_id').eq('teacher_id', teacher.id),
-    (supabase as any).from('student_groups').select('*').eq('teacher_id', teacher.id),
+    (supabase as any).from('teacher_students').select('student_id').eq('teacher_id', teacher.id).limit(QUERY_LIMITS.userList),
+    (supabase as any).from('student_groups').select(GROUP_COLUMNS).eq('teacher_id', teacher.id).limit(QUERY_LIMITS.userList),
   ]);
   if (directError && !isSchemaNotReadyError(directError)) throw directError;
   if (groupError && !isSchemaNotReadyError(groupError)) throw groupError;
@@ -1028,7 +1052,7 @@ export async function loadTeacherWorkspace(currentUserId?: string): Promise<Teac
   const groups = ((groupError ? [] : groupRows as any[]) || []).map(group => rowToStudentGroup(group, []));
   const groupIds = groups.map(group => group.id);
   const { data: memberRows, error: memberError } = groupIds.length
-    ? await (supabase as any).from('student_group_members').select('group_id,user_id').in('group_id', groupIds)
+    ? await (supabase as any).from('student_group_members').select('group_id,user_id').in('group_id', groupIds).limit(QUERY_LIMITS.userList)
     : { data: [], error: null };
   if (memberError && !isSchemaNotReadyError(memberError)) throw memberError;
 
@@ -1040,7 +1064,6 @@ export async function loadTeacherWorkspace(currentUserId?: string): Promise<Teac
   });
 
   const ids = Array.from(visibleStudentIds);
-  await repairStudentsInteractiveCompletion(ids);
   const empty = { data: [], error: null };
   const [
     { data: profileRows, error: profileError },
@@ -1050,24 +1073,25 @@ export async function loadTeacherWorkspace(currentUserId?: string): Promise<Teac
     { data: attendanceRows, error: attendanceError },
   ] = ids.length
     ? await Promise.all([
-        supabase.from('profiles').select('*').in('id', ids),
-        (supabase as any).from('content_items').select('*').in('user_id', ids).order('created_at', { ascending: false }),
-        (supabase as any).from('grades').select('*').in('user_id', ids).order('created_at', { ascending: false }),
-        (supabase as any).from('dictionary_words').select('*').in('user_id', ids).order('created_at', { ascending: false }),
-        (supabase as any).from('lesson_attendance').select('*').eq('teacher_id', teacher.id).in('student_id', ids).order('updated_at', { ascending: false }),
+        supabase.from('profiles').select(STUDENT_PROFILE_COLUMNS).in('id', ids).limit(QUERY_LIMITS.userList),
+        (supabase as any).from('content_items').select(CONTENT_HOMEWORK_COLUMNS).in('user_id', ids).order('created_at', { ascending: false }).limit(QUERY_LIMITS.adminList),
+        (supabase as any).from('grades').select(GRADE_COLUMNS).in('user_id', ids).order('created_at', { ascending: false }).limit(QUERY_LIMITS.adminList),
+        (supabase as any).from('dictionary_words').select(DICTIONARY_COLUMNS).in('user_id', ids).order('created_at', { ascending: false }).limit(QUERY_LIMITS.adminList),
+        (supabase as any).from('lesson_attendance').select(ATTENDANCE_COLUMNS).eq('teacher_id', teacher.id).in('student_id', ids).order('updated_at', { ascending: false }).limit(QUERY_LIMITS.adminList),
       ])
     : [empty, empty, empty, empty, empty, empty];
   const [{ data: teacherScheduleRows, error: teacherScheduleError }, { data: studentScheduleRows, error: studentScheduleError }] = await Promise.all([
-    (supabase as any).from('schedules').select('*').eq('teacher_id', teacher.id).order('time', { ascending: true }),
+    (supabase as any).from('schedules').select(SCHEDULE_COLUMNS).eq('teacher_id', teacher.id).order('time', { ascending: true }).limit(QUERY_LIMITS.adminList),
     ids.length
-      ? (supabase as any).from('schedules').select('*').in('user_id', ids).order('time', { ascending: true })
+      ? (supabase as any).from('schedules').select(SCHEDULE_COLUMNS).in('user_id', ids).order('time', { ascending: true }).limit(QUERY_LIMITS.adminList)
       : Promise.resolve(empty),
   ]);
   const { data: noteRows, error: noteError } = await (supabase as any)
     .from('teacher_student_notes')
-    .select('*')
+    .select(NOTE_COLUMNS)
     .eq('teacher_id', teacher.id)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(QUERY_LIMITS.adminList);
   if (profileError && !isSchemaNotReadyError(profileError)) throw profileError;
   if (teacherScheduleError && !isSchemaNotReadyError(teacherScheduleError)) throw teacherScheduleError;
   if (studentScheduleError && !isSchemaNotReadyError(studentScheduleError)) throw studentScheduleError;
@@ -1083,7 +1107,7 @@ export async function loadTeacherWorkspace(currentUserId?: string): Promise<Teac
   ].map(row => [row.id, row])).values());
   const rawLessonIds = rawLessonRows.map(row => row.id).filter(Boolean);
   const { data: planBlockRows, error: planBlockError } = rawLessonIds.length
-    ? await (supabase as any).from('lesson_plan_blocks').select('*').in('schedule_id', rawLessonIds).order('position', { ascending: true })
+    ? await (supabase as any).from('lesson_plan_blocks').select(PLAN_BLOCK_COLUMNS).in('schedule_id', rawLessonIds).order('position', { ascending: true }).limit(QUERY_LIMITS.adminList)
     : { data: [], error: null };
   if (planBlockError && !isSchemaNotReadyError(planBlockError)) throw planBlockError;
 
@@ -1094,13 +1118,13 @@ export async function loadTeacherWorkspace(currentUserId?: string): Promise<Teac
   ]));
   const [{ data: sourceLessonRows, error: sourceLessonError }, { data: sourceTaskRows, error: sourceTaskError }, { data: resultRows, error: resultError }] = await Promise.all([
     sourceLessonIds.length
-      ? (supabase as any).from('lessons').select('*').in('id', sourceLessonIds)
+      ? (supabase as any).from('lessons').select(SOURCE_LESSON_COLUMNS).in('id', sourceLessonIds).limit(QUERY_LIMITS.adminList)
       : Promise.resolve({ data: [], error: null }),
     sourceLessonIds.length
-      ? (supabase as any).from('interactive_tasks').select('*').in('lesson_id', sourceLessonIds).order('order', { ascending: true })
+      ? (supabase as any).from('interactive_tasks').select(TASK_METADATA_COLUMNS).in('lesson_id', sourceLessonIds).order('order', { ascending: true }).limit(QUERY_LIMITS.adminList)
       : Promise.resolve({ data: [], error: null }),
     rawLessonRows.length
-      ? (supabase as any).from('lesson_results').select('*').eq('teacher_id', teacher.id).in('lesson_id', rawLessonIds)
+      ? (supabase as any).from('lesson_results').select(LESSON_RESULT_COLUMNS).eq('teacher_id', teacher.id).in('lesson_id', rawLessonIds).limit(QUERY_LIMITS.adminList)
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (sourceLessonError && !isSchemaNotReadyError(sourceLessonError)) throw sourceLessonError;
@@ -1227,7 +1251,7 @@ export async function saveTeacherLesson(input: {
   assignedBlocks?: TeacherLessonPlanBlockInput[];
 }) {
   const { data: previousRow } = input.id
-    ? await (supabase as any).from('schedules').select('*').eq('id', input.id).maybeSingle()
+    ? await (supabase as any).from('schedules').select(SCHEDULE_COLUMNS).eq('id', input.id).maybeSingle()
     : { data: null };
   const row = {
     user_id: input.studentId,
@@ -1247,8 +1271,8 @@ export async function saveTeacherLesson(input: {
     is_conducted: input.status === 'completed',
   };
   const write = (payload: Record<string, unknown>) => input.id
-    ? (supabase as any).from('schedules').update(payload).eq('id', input.id).select('*').single()
-    : (supabase as any).from('schedules').insert(payload).select('*').single();
+    ? (supabase as any).from('schedules').update(payload).eq('id', input.id).select(SCHEDULE_COLUMNS).single()
+    : (supabase as any).from('schedules').insert(payload).select(SCHEDULE_COLUMNS).single();
   let { data, error } = await write(row);
   if (error && isSchemaNotReadyError(error)) {
     const { duration_minutes, room, online_url, ...fallbackRow } = row;
@@ -1291,7 +1315,7 @@ export async function saveLessonPlanBlocks(scheduleId: string, blocks: TeacherLe
 }
 
 export async function deleteTeacherLesson(lessonId: string) {
-  const { data: lessonBefore } = await (supabase as any).from('schedules').select('*').eq('id', lessonId).maybeSingle();
+  const { data: lessonBefore } = await (supabase as any).from('schedules').select(SCHEDULE_COLUMNS).eq('id', lessonId).maybeSingle();
   await (supabase as any).from('content_items').delete().like('module_id', `lesson-block:${lessonId}:%`);
   await (supabase as any).from('lesson_plan_blocks').delete().eq('schedule_id', lessonId);
   await (supabase as any).from('lesson_attendance').delete().eq('lesson_id', lessonId);
@@ -1327,9 +1351,10 @@ export async function syncLessonBlockContentForStudents(input: {
   const moduleIds = reviewableBlocks.map(block => `lesson-block:${input.lessonId}:${block.blockKind}`);
   const { data: existingRows, error: existingError } = await (supabase as any)
     .from('content_items')
-    .select('*')
+    .select(CONTENT_HOMEWORK_COLUMNS)
     .in('user_id', students)
-    .like('module_id', `lesson-block:${input.lessonId}:%`);
+    .like('module_id', `lesson-block:${input.lessonId}:%`)
+    .limit(QUERY_LIMITS.adminList);
   if (existingError && !isSchemaNotReadyError(existingError)) throw existingError;
   const allExisting = (((existingError ? [] : existingRows) as any[]) || []);
   const staleIds = allExisting
@@ -1545,7 +1570,7 @@ export async function completeTeacherLesson(input: {
       },
       updated_at: now,
     }, { onConflict: 'lesson_id' })
-    .select('*')
+    .select(LESSON_RESULT_COLUMNS)
     .single();
   if (resultError) throw resultError;
 
@@ -1934,7 +1959,7 @@ export async function addTeacherNote(input: {
     pinned: !!input.pinned,
     visible_to_admin: input.noteType === 'Visible to Admin' || input.target === 'Admin',
     text: input.text,
-  }).select('*').single();
+  }).select(NOTE_COLUMNS).single();
   if (error) throw error;
   return rowToNote(data);
 }

@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { cacheGet, cacheSet, cacheClear, subscribe } from './storage';
 import { safeRedirectPath } from './authRedirects';
+import { clearQueryCache, QUERY_LIMITS } from './queryCache';
 
 export type Role = 'admin' | 'teacher' | 'student';
 export type PaymentStatus = 'unpaid' | 'pending_review' | 'paid' | 'refunded' | 'failed';
@@ -51,6 +52,7 @@ type AuthStep =
 
 const ME_KEY = 'me';
 const USERS_KEY = 'users';
+const PROFILE_COLUMNS = 'id,name,email,access_status,has_access,payment_status,created_at,avatar_id,stripe_customer_id,stripe_subscription_id,stripe_price_id,subscription_status,plan_id,lesson_format,lessons_total,lessons_remaining,current_period_start,current_period_end,next_payment_date,payment_failed_at,cancel_at_period_end,canceled_at,manual_access_override,manual_access_override_by,manual_access_override_at,manual_access_override_reason';
 
 export const getCurrentUser = (): User | null => cacheGet<User>(ME_KEY) ?? null;
 export const getUsers = (): User[] => cacheGet<User[]>(USERS_KEY) ?? [];
@@ -168,8 +170,8 @@ async function initializeProfile(authUserId: string, email: string, name?: strin
 async function loadCurrentUser(authUserId: string): Promise<User | null> {
   const [authResult, profileResult, rolesResult] = await Promise.all([
     supabase.auth.getUser(),
-    supabase.from('profiles').select('*').eq('id', authUserId).maybeSingle(),
-    supabase.from('user_roles').select('role').eq('user_id', authUserId),
+    supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', authUserId).maybeSingle(),
+    supabase.from('user_roles').select('role').eq('user_id', authUserId).limit(10),
   ]);
   const { data: authData, error: authError } = authResult;
   const { data: profile, error: profileError } = profileResult;
@@ -228,8 +230,8 @@ async function loadCurrentUser(authUserId: string): Promise<User | null> {
 
 export async function loadAllUsers(): Promise<User[]> {
   const [{ data: profiles }, { data: roles }] = await Promise.all([
-    supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-    supabase.from('user_roles').select('user_id, role'),
+    supabase.from('profiles').select(PROFILE_COLUMNS).order('created_at', { ascending: false }).limit(QUERY_LIMITS.adminList),
+    supabase.from('user_roles').select('user_id, role').limit(QUERY_LIMITS.adminList),
   ]);
 
   const roleMap = new Map<string, Role>();
@@ -566,6 +568,7 @@ export async function updatePassword(newPassword: string): AuthResult {
 export async function logout() {
   await supabase.auth.signOut();
   cacheClear();
+  clearQueryCache();
 }
 
 export async function setAccessStatus(userId: string, accessStatus: AccessStatus, paymentStatus?: PaymentStatus) {

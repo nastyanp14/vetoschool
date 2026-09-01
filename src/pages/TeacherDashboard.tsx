@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -1121,26 +1121,34 @@ export default function TeacherDashboard({
   const [lessonTab, setLessonTab] = useState<LessonWorkspaceTab>('Theory');
   const [localNotes, setLocalNotes] = useState<LocalNote[]>([]);
   const [notifications, setNotifications] = useState<TeacherNotification[]>([]);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const visibleStudentKey = useMemo(
     () => workspace?.students.map(student => student.id).sort().join(',') || '',
     [workspace?.students],
   );
 
-  const refresh = useCallback(async () => {
-    setLoadError('');
-    const data = withLocalLessonStarts(await loadTeacherWorkspace(user?.id));
-    setWorkspace(data);
-    setLocalNotes(data.notes.map(teacherNoteToLocal));
-    const generatedNotifications = makeNotifications(data);
-    if (!data.teacher) {
-      setNotifications(generatedNotifications);
-      return;
-    }
-    const persistedStates = await loadTeacherNotificationStates(data.teacher.id);
-    setNotifications(generatedNotifications.map(notification => ({
-      ...notification,
-      read: persistedStates[notification.id]?.read ?? notification.read,
-    })));
+  const refresh = useCallback(() => {
+    if (refreshInFlightRef.current) return refreshInFlightRef.current;
+    const request = (async () => {
+      setLoadError('');
+      const data = withLocalLessonStarts(await loadTeacherWorkspace(user?.id));
+      setWorkspace(data);
+      setLocalNotes(data.notes.map(teacherNoteToLocal));
+      const generatedNotifications = makeNotifications(data);
+      if (!data.teacher) {
+        setNotifications(generatedNotifications);
+        return;
+      }
+      const persistedStates = await loadTeacherNotificationStates(data.teacher.id);
+      setNotifications(generatedNotifications.map(notification => ({
+        ...notification,
+        read: persistedStates[notification.id]?.read ?? notification.read,
+      })));
+    })().finally(() => {
+      refreshInFlightRef.current = null;
+    });
+    refreshInFlightRef.current = request;
+    return request;
   }, [user?.id]);
 
   useEffect(() => {
@@ -1154,27 +1162,42 @@ export default function TeacherDashboard({
 
   useEffect(() => {
     if (!visibleStudentKey) return;
-    const visibleStudentIds = new Set(visibleStudentKey.split(',').filter(Boolean));
+    const visibleStudentList = visibleStudentKey.split(',').filter(Boolean);
+    const visibleStudentIds = new Set(visibleStudentList);
+    const visibleStudentFilter = `user_id=in.(${visibleStudentList.slice(0, 100).join(',')})`;
+    const liveStudentFilter = `student_id=in.(${visibleStudentList.slice(0, 100).join(',')})`;
+    const teacherId = workspace?.teacher?.id;
+    if (!teacherId) return;
     let refreshTimer = 0;
     const scheduleRefresh = () => {
       window.clearTimeout(refreshTimer);
       refreshTimer = window.setTimeout(() => void refresh(), 350);
     };
     const channel = supabase
-      .channel(`teacher-workspace-${workspace?.teacher?.id || 'active'}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'content_items' }, payload => {
+      .channel(`teacher-workspace-${teacherId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'content_items', filter: visibleStudentFilter }, payload => {
         const row = (payload.new || payload.old) as { user_id?: string } | null;
         if (row?.user_id && visibleStudentIds.has(row.user_id)) scheduleRefresh();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_live_sessions' }, payload => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_live_sessions', filter: liveStudentFilter }, payload => {
         const row = (payload.new || payload.old) as { student_id?: string; status?: string } | null;
         if (row?.student_id && visibleStudentIds.has(row.student_id) && row.status === 'completed') scheduleRefresh();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules', filter: `teacher_id=eq.${teacherId}` }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'grades', filter: `teacher_id=eq.${teacherId}` }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_attendance', filter: `teacher_id=eq.${teacherId}` }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_results', filter: `teacher_id=eq.${teacherId}` }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teacher_student_notes', filter: `teacher_id=eq.${teacherId}` }, scheduleRefresh)
       .subscribe();
-    const interval = window.setInterval(() => void refresh(), 20000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {
       window.clearTimeout(refreshTimer);
-      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
       void supabase.removeChannel(channel);
     };
   }, [refresh, visibleStudentKey, workspace?.teacher?.id]);
@@ -1994,15 +2017,17 @@ function TeacherLiveLessons({ workspace, copy }: { workspace: TeacherWorkspace; 
       const list = await listLiveSessions();
       setSessions(list);
       const first = list.find(session => session.status === 'active' && studentIds.has(session.student_id));
-      if (!first) setActiveSessionId(null);
-      else if (!activeSessionId || !list.some(session => session.id === activeSessionId && session.status === 'active')) setActiveSessionId(first.id);
+      setActiveSessionId(current => {
+        if (!first) return null;
+        return current && list.some(session => session.id === current && session.status === 'active') ? current : first.id;
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : '';
       setError(message ? `${copy.liveNeedsDb} (${message})` : copy.liveNeedsDb);
     } finally {
       setLoading(false);
     }
-  }, [activeSessionId, copy.liveNeedsDb, studentIds]);
+  }, [copy.liveNeedsDb, studentIds]);
 
   const loadEvents = useCallback(async (sessionId: string) => {
     try {
@@ -2014,9 +2039,12 @@ function TeacherLiveLessons({ workspace, copy }: { workspace: TeacherWorkspace; 
 
   useEffect(() => {
     void loadSessions();
-    const interval = window.setInterval(() => void loadSessions(), 3000);
     const unsubscribe = subscribeLiveSessions(() => void loadSessions());
-    return () => { window.clearInterval(interval); unsubscribe(); };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void loadSessions();
+    };
+    window.addEventListener('focus', refreshWhenVisible);
+    return () => { window.removeEventListener('focus', refreshWhenVisible); unsubscribe(); };
   }, [loadSessions]);
 
   useEffect(() => {
@@ -2025,11 +2053,14 @@ function TeacherLiveLessons({ workspace, copy }: { workspace: TeacherWorkspace; 
       return;
     }
     void loadEvents(activeSessionEventId);
-    const interval = window.setInterval(() => void loadEvents(activeSessionEventId), 2500);
     const unsubscribe = subscribeLiveSessionEvents(activeSessionEventId, event => {
       setEvents(prev => [event, ...prev.filter(item => item.id !== event.id)].slice(0, 80));
     });
-    return () => { window.clearInterval(interval); unsubscribe(); };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void loadEvents(activeSessionEventId);
+    };
+    window.addEventListener('focus', refreshWhenVisible);
+    return () => { window.removeEventListener('focus', refreshWhenVisible); unsubscribe(); };
   }, [activeSessionEventId, loadEvents]);
 
   const sendHint = async () => {

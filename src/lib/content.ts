@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { cacheGet, cacheSet, fileToDataUrl as _fileToDataUrl } from './storage';
 import { notifyContentChanges, notifyContentDeleted, notifyHomeworkChanged } from './telegram';
+import { cachedQuery, invalidateQueryCache, QUERY_LIMITS } from './queryCache';
 
 export type ContentType = 'lesson' | 'homework' | 'practice' | 'grammar' | 'listening' | 'checkpoint';
 
@@ -40,6 +41,10 @@ export interface ContentItem {
 export const fileToDataUrl = _fileToDataUrl;
 
 const key = (uid: string) => `content:${uid}`;
+const CONTENT_CACHE_TTL_MS = 60_000;
+const CONTENT_COLUMNS = 'id,user_id,module_id,type,title,emoji,file_url,file_name,external_link,due_date,scheduled_date,scheduled_time,unlocked,star_rating,submitted_at,checked_at,homework_status,teacher_comment,review_comment,student_result,result_percent,submitted_attachment_url,submitted_attachment_name,interactive_lesson_id,interactive_completed_at,interactive_score_percent,material_mode,rewarded_stars,updated_at,created_at';
+const CONTENT_SUMMARY_COLUMNS = 'id,user_id,module_id,type,title,emoji,file_name,external_link,due_date,scheduled_date,scheduled_time,unlocked,star_rating,submitted_at,checked_at,homework_status,teacher_comment,review_comment,student_result,result_percent,submitted_attachment_url,submitted_attachment_name,interactive_lesson_id,interactive_completed_at,interactive_score_percent,material_mode,rewarded_stars,updated_at,created_at';
+const repairedStudents = new Set<string>();
 export const GRADED_CONTENT_TYPES: ContentType[] = ['homework', 'practice', 'grammar', 'listening', 'checkpoint'];
 
 export function isGradedContentType(type?: ContentType | null) {
@@ -101,6 +106,12 @@ export async function repairStudentInteractiveCompletion(userId: string): Promis
   if (error && !isSchemaNotReadyError(error)) {
     console.warn('repair_student_interactive_completion RPC failed', error.message || error);
   }
+}
+
+async function repairStudentInteractiveCompletionOnce(userId: string) {
+  if (repairedStudents.has(userId)) return;
+  repairedStudents.add(userId);
+  await repairStudentInteractiveCompletion(userId);
 }
 
 function parseLessonBlockModuleId(moduleId?: string | null): { scheduleId: string; blockKind: string } | null {
@@ -261,21 +272,22 @@ async function reconcileInteractiveCompletionRows(userId: string, rows: any[]): 
   return reconciled;
 }
 
-export async function loadStudentContent(userId: string): Promise<ContentItem[]> {
-  await repairStudentInteractiveCompletion(userId);
+async function loadStudentContentRows(userId: string, includeFileData: boolean): Promise<ContentItem[]> {
+  await repairStudentInteractiveCompletionOnce(userId);
   const { data, error } = await supabase
     .from('content_items')
-    .select('*')
+    .select(includeFileData ? CONTENT_COLUMNS : CONTENT_SUMMARY_COLUMNS)
     .eq('user_id', userId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true })
+    .limit(QUERY_LIMITS.userList);
   let rows = (data || []) as any[];
 
-  if (error || rows.length === 0) {
+  if (error) {
     const fallback = await (supabase as any).rpc('get_student_content_items', {
       _user_id: userId,
     });
-    if (!fallback.error) rows = (fallback.data || []) as any[];
-    else if (error) {
+    if (!fallback.error) rows = ((fallback.data || []) as any[]).slice(0, QUERY_LIMITS.userList);
+    else {
       console.error(error);
       console.warn('get_student_content_items RPC failed', fallback.error.message);
       return [];
@@ -287,6 +299,37 @@ export async function loadStudentContent(userId: string): Promise<ContentItem[]>
   const items = reconciledRows.map(rowToItem);
   cacheSet(key(userId), items);
   return items;
+}
+
+export async function loadStudentContent(
+  userId: string,
+  options: { force?: boolean; includeFileData?: boolean } = {},
+): Promise<ContentItem[]> {
+  const includeFileData = options.includeFileData !== false;
+  const queryKey = `postgrest:content:${userId}:${includeFileData ? 'full' : 'summary'}`;
+  return cachedQuery(
+    queryKey,
+    CONTENT_CACHE_TTL_MS,
+    () => loadStudentContentRows(userId, includeFileData),
+    { force: options.force },
+  );
+}
+
+export async function loadStudentContentSummary(userId: string, options: { force?: boolean } = {}) {
+  return loadStudentContent(userId, { ...options, includeFileData: false });
+}
+
+export async function loadContentItemFile(userId: string, itemId: string) {
+  return cachedQuery(`postgrest:content-file:${userId}:${itemId}`, 5 * 60_000, async () => {
+    const { data, error } = await supabase
+      .from('content_items')
+      .select('file_url,file_name')
+      .eq('id', itemId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) throw error;
+    return { fileUrl: data?.file_url ?? null, fileName: data?.file_name ?? null };
+  });
 }
 
 /** Sync getter for components — reads cache populated by loadStudentContent */
@@ -322,7 +365,8 @@ export async function saveStudentContent(userId: string, items: ContentItem[]): 
     const { error } = await (supabase as any).from('content_items').upsert(rows);
     if (error) { console.error('saveStudentContent error', error); throw error; }
   }
-  const fresh = await loadStudentContent(userId);
+  invalidateQueryCache(`postgrest:content:${userId}:`);
+  const fresh = await loadStudentContent(userId, { force: true });
   await notifyContentChanges(userId, before, fresh);
 }
 
@@ -330,7 +374,9 @@ export async function deleteContentItem(userId: string, id: string): Promise<voi
   const deletedItem = ensureStudentContent(userId).find(item => item.id === id);
   const { error } = await supabase.from('content_items').delete().eq('id', id);
   if (error) { console.error('deleteContentItem error', error); throw error; }
-  await loadStudentContent(userId);
+  invalidateQueryCache(`postgrest:content:${userId}:`);
+  invalidateQueryCache(`postgrest:content-file:${userId}:${id}`);
+  await loadStudentContent(userId, { force: true });
   await notifyContentDeleted(userId, deletedItem);
   if (deletedItem?.type === 'homework') {
     await notifyHomeworkChanged(userId, { id: deletedItem.id, title: deletedItem.title, eventId: new Date().toISOString(), canceled: true });
@@ -345,7 +391,8 @@ export async function deleteModule(userId: string, moduleId: string): Promise<vo
     .eq('user_id', userId)
     .eq('module_id', moduleId);
   if (error) { console.error('deleteModule error', error); throw error; }
-  await loadStudentContent(userId);
+  invalidateQueryCache(`postgrest:content:${userId}:`);
+  await loadStudentContent(userId, { force: true });
   await Promise.all(deletedHomework.map(item => notifyHomeworkChanged(userId, { id: item.id, title: item.title, eventId: new Date().toISOString(), canceled: true })));
 }
 
@@ -375,7 +422,8 @@ export async function submitStudentContentWork(userId: string, itemId: string, f
     _attachment_name: uploaded.name,
   });
   if (!rpcError) {
-    await loadStudentContent(userId);
+    invalidateQueryCache(`postgrest:content:${userId}:`);
+    await loadStudentContent(userId, { force: true, includeFileData: false });
     return;
   }
   if (!/submit_student_homework|pgrst202|42883|schema cache/i.test(rpcError.message || '')) {
@@ -399,7 +447,8 @@ export async function submitStudentContentWork(userId: string, itemId: string, f
     .eq('id', itemId)
     .eq('user_id', userId);
   if (error) throw error;
-  await loadStudentContent(userId);
+  invalidateQueryCache(`postgrest:content:${userId}:`);
+  await loadStudentContent(userId, { force: true, includeFileData: false });
 }
 
 export async function resolveFileUrl(stored: string): Promise<string> {

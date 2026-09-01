@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Award,
@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import {
   Workbook, Unit, Lesson,
-  listAvailableWorkbooks, listUnits, listLessons, getLessonProgress,
+  listAvailableWorkbooks, listUnitsForWorkbooks, listLessonsForUnits, getLessonProgress,
 } from '../lib/workbooks';
 import { canReward } from '../lib/mechanics';
 import InteractiveLessonRoom from './InteractiveLessonRoom';
@@ -349,19 +349,20 @@ export default function InteractiveLessonMap({ userId, hasAccess, lang = 'ru', a
   const [loading, setLoading] = useState(true);
   const [openUnits, setOpenUnits] = useState<Record<string, boolean>>({});
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
-    const wbs = await listAvailableWorkbooks(userId);
+    const [wbs, nextProgress] = await Promise.all([
+      listAvailableWorkbooks(userId),
+      getLessonProgress(userId),
+    ]);
     setWorkbooks(wbs);
-    const u: Record<string, Unit[]> = {};
-    const l: Record<string, Lesson[]> = {};
-    for (const w of wbs) {
-      u[w.id] = await listUnits(w.id);
-      for (const un of u[w.id]) l[un.id] = await listLessons(un.id);
-    }
+    const unitRows = await listUnitsForWorkbooks(wbs.map(workbook => workbook.id));
+    const lessonRows = await listLessonsForUnits(unitRows.map(unit => unit.id));
+    const u = Object.fromEntries(wbs.map(workbook => [workbook.id, unitRows.filter(unit => unit.workbook_id === workbook.id)]));
+    const l = Object.fromEntries(unitRows.map(unit => [unit.id, lessonRows.filter(lesson => lesson.unit_id === unit.id)]));
     setUnits(u);
     setLessons(l);
-    setProgress(await getLessonProgress(userId));
+    setProgress(nextProgress);
     setOpenUnits(prev => {
       const next = { ...prev };
       Object.values(u).flat().forEach((unit, index) => {
@@ -370,9 +371,9 @@ export default function InteractiveLessonMap({ userId, hasAccess, lang = 'ru', a
       return next;
     });
     setLoading(false);
-  };
+  }, [userId]);
 
-  useEffect(() => { refresh(); }, [userId]);
+  useEffect(() => { void refresh(); }, [refresh]);
 
   const copy = mapCopy[lang] || mapCopy.ru;
   const contentByLessonId = new Map(assignedContent

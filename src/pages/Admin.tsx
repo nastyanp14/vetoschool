@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { getCurrentUser, getUsers, grantAccess, revokeAccess, deleteUser, logout, loadAllUsers, friendlyActionError, User, AccessStatus, PaymentStatus } from '../lib/auth';
@@ -39,6 +39,7 @@ import {
   validateLessonAdjustmentInput,
   type SubscriptionFilters,
 } from '../lib/adminSubscriptions';
+import { QUERY_LIMITS } from '../lib/queryCache';
 import { activeSubscriptionStatus, billingStatusClass, billingStatusLabel, hasConfirmedStripePayment } from '../lib/subscriptionStatus';
 
 // Small inline avatar that shows the equipped shop avatar or the name initial
@@ -536,9 +537,10 @@ function TeacherLessonPlanner({ lang, users, onToast }: { lang: Lang; users: Use
   const refreshSchedule = async () => {
     const { data, error } = await (supabase as any)
       .from('schedules')
-      .select('*, lesson_plan_blocks(*)')
+      .select('id,user_id,group_id,teacher_id,source_lesson_id,day,scheduled_date,time,topic,lesson_type,lesson_status,duration_minutes,room,online_url,comment,is_conducted,lesson_plan_blocks(id,schedule_id,block_kind,source_lesson_id,material_title,material_url,admin_note,material_mode,position)')
       .order('scheduled_date', { ascending: false })
-      .order('time', { ascending: true });
+      .order('time', { ascending: true })
+      .limit(QUERY_LIMITS.adminList);
     if (error) throw error;
     setScheduleRows(data || []);
   };
@@ -1154,14 +1156,14 @@ function AdminTeacherReports({ lang, users }: { lang: Lang; users: User[] }) {
       setTeachers(directory.teachers);
       setGroups(directory.groups);
       const [{ data: noteRows }, { data: resultRows }] = await Promise.all([
-        (supabase as any).from('teacher_student_notes').select('*').eq('visible_to_admin', true).order('created_at', { ascending: false }),
-        (supabase as any).from('lesson_results').select('*, schedules(*)').order('created_at', { ascending: false }),
+        (supabase as any).from('teacher_student_notes').select('id,teacher_id,student_id,author_id,text,target_type,target_id,note_type,attachment_label,pinned,visible_to_admin,created_at,updated_at').eq('visible_to_admin', true).order('created_at', { ascending: false }).limit(QUERY_LIMITS.adminList),
+        (supabase as any).from('lesson_results').select('id,lesson_id,teacher_id,summary,teacher_comment,homework_brief,carry_over_to_next_lesson,admin_note,created_at,updated_at,schedules(id,user_id,group_id,topic,scheduled_date,day,time)').order('created_at', { ascending: false }).limit(QUERY_LIMITS.adminList),
       ]);
       const lessonIds = ((resultRows as any[]) || []).map(row => row.lesson_id).filter(Boolean);
       const [{ data: attendanceRows }, { data: gradeRows }] = lessonIds.length
         ? await Promise.all([
-            (supabase as any).from('lesson_attendance').select('*').in('lesson_id', lessonIds),
-            (supabase as any).from('grades').select('*').in('lesson_id', lessonIds),
+            (supabase as any).from('lesson_attendance').select('id,lesson_id,student_id,teacher_id,status,note,created_at,updated_at').in('lesson_id', lessonIds).limit(QUERY_LIMITS.adminList),
+            (supabase as any).from('grades').select('id,lesson_id,user_id,score,category,comment,created_at').in('lesson_id', lessonIds).limit(QUERY_LIMITS.adminList),
           ])
         : [{ data: [] }, { data: [] }];
       setNotes(noteRows || []);
@@ -1266,6 +1268,10 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const [contentSaving, setContentSaving] = useState(false);
   const [confirmDeleteItem, setConfirmDeleteItem] = useState<string | null>(null);
   const [confirmDeleteModule, setConfirmDeleteModule] = useState<string | null>(null);
+  const showToast = useCallback((msg: string, type: 'success'|'error' = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), type === 'error' ? 5200 : 3000);
+  }, []);
 
   const handleDeleteItem = async (itemId: string) => {
     if (confirmDeleteItem !== itemId) {
@@ -1315,20 +1321,23 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const [newExtraSchedDate, setNewExtraSchedDate] = useState('');
   const [newExtraSchedTime, setNewExtraSchedTime] = useState('');
 
-  const refreshSubscriptionHistory = async () => {
+  const refreshSubscriptionHistory = useCallback(async () => {
     const [paymentsResult, failuresResult, refundsResult] = await Promise.all([
       supabase
         .from('stripe_payments')
         .select('id,user_id,amount_total,currency,event_type,plan_id,lesson_format,lessons_total,paid_at,created_at,stripe_invoice_id,stripe_payment_intent_id,stripe_charge_id,stripe_subscription_id')
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: false })
+        .limit(QUERY_LIMITS.adminList),
       supabase
         .from('stripe_payment_failures')
         .select('id,user_id,amount_due,currency,status,failure_reason,created_at,stripe_invoice_id,stripe_subscription_id')
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: false })
+        .limit(QUERY_LIMITS.adminList),
       supabase
         .from('stripe_refunds')
         .select('id,user_id,stripe_payment_id,stripe_refund_id,amount,currency,refund_type,reason,status,created_by_admin_id,created_at,updated_at')
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: false })
+        .limit(QUERY_LIMITS.adminList),
     ]);
 
     if (paymentsResult.error) throw paymentsResult.error;
@@ -1338,28 +1347,31 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
     setSubscriptionPayments((paymentsResult.data || []) as StripePaymentRow[]);
     setSubscriptionFailures((failuresResult.data || []) as StripePaymentFailureRow[]);
     setSubscriptionRefunds((refundsResult.data || []) as StripeRefundRow[]);
-  };
+  }, []);
 
   
   useEffect(() => {
     if (!canAccessSubscriptionAdmin(currentUser)) { navigate('/login'); return; }
-    loadAllUsers().then(refreshUsers);
-    refreshSubscriptionHistory().catch(error => {
+    const applyCachedUsers = () => setUsers(getUsers().filter(user => user.role === 'student'));
+    if (getUsers().length) applyCachedUsers();
+    else void loadAllUsers().then(applyCachedUsers);
+    const unsub = subscribe(applyCachedUsers);
+    return () => { unsub(); };
+  }, [currentUser, navigate]);
+  useEffect(() => {
+    if (activeSection !== 'subscriptions') return;
+    void refreshSubscriptionHistory().catch(error => {
       console.error(error);
       showToast(friendlyActionError(error), 'error');
     });
-    const unsub = subscribe(refreshUsers);
-    return () => { unsub(); };
-  }, [currentUser, navigate]);
+  }, [activeSection, refreshSubscriptionHistory, showToast]);
   useEffect(() => { if (schedUserId) loadStudentSchedule(schedUserId).then(setSlots); else setSlots([]); }, [schedUserId]);
   useEffect(() => { if (contentUserId) loadStudentContent(contentUserId).then(setContentItems); else setContentItems([]); }, [contentUserId]);
 
-  const refreshUsers = () => setUsers(getUsers().filter(u => u.role === 'student'));
   const refreshUsersFromServer = async () => {
     const fresh = await loadAllUsers();
     setUsers(fresh.filter(u => u.role === 'student'));
   };
-  const showToast = (msg: string, type: 'success'|'error' = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), type === 'error' ? 5200 : 3000); };
 
   const runStudentAction = async (uid: string, action: () => Promise<void>, success: string, type: 'success'|'error' = 'success') => {
     setSavingUserId(uid);

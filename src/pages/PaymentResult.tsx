@@ -113,7 +113,7 @@ export default function PaymentResult({ lang, variant }: PaymentResultProps) {
       const userId = sessionData.session?.user.id;
       if (!userId) {
         setPolling(false);
-        return;
+        return true;
       }
 
       const { data } = await supabase
@@ -132,19 +132,27 @@ export default function PaymentResult({ lang, variant }: PaymentResultProps) {
           stripeSubscriptionId: data.stripe_subscription_id,
         })) {
           setPolling(false);
+          return true;
         } else if (attempts >= 12) {
           setPolling(false);
+          return true;
         }
       } else if (!cancelled && attempts >= 12) {
         setPolling(false);
+        return true;
       }
+      return cancelled;
     };
 
-    void loadPaymentProfile();
-    const interval = window.setInterval(() => void loadPaymentProfile(), 2500);
+    let timer = 0;
+    const poll = async () => {
+      const done = await loadPaymentProfile();
+      if (!done && !cancelled) timer = window.setTimeout(() => void poll(), 2500);
+    };
+    void poll();
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      window.clearTimeout(timer);
     };
   }, [isSuccess]);
 

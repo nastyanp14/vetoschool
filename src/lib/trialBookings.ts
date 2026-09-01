@@ -6,6 +6,7 @@ import type {
   LanguagePreference,
   TrialBookingData,
 } from '@/components/trial-booking/types';
+import { QUERY_LIMITS } from './queryCache';
 
 export type TrialBookingStatus =
   | 'submitted'
@@ -94,6 +95,7 @@ type TrialBookingSchema = {
 };
 
 const trialBookingClient = supabase as unknown as SupabaseClient<TrialBookingSchema>;
+const TRIAL_BOOKING_COLUMNS = 'id,idempotency_key,parent_name,parent_email,parent_phone,preferred_language,child_name,child_age,school_grade,english_experience,parent_notes,assessment_score,preliminary_recommendation,selected_date,selected_time,timezone,privacy_accepted_at,guardian_confirmed_at,marketing_consent_at,status,teacher_confirmed_level,teacher_confirmed_direction,internal_notes,lesson_url,created_at,updated_at';
 
 export function createIdempotencyKey() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
@@ -146,8 +148,9 @@ export async function submitTrialBooking(data: TrialBookingData, idempotencyKey:
 export async function loadTrialBookings() {
   const { data, error } = await trialBookingClient
     .from('trial_bookings')
-    .select('*')
-    .order('created_at', { ascending: false });
+    .select(TRIAL_BOOKING_COLUMNS)
+    .order('created_at', { ascending: false })
+    .limit(QUERY_LIMITS.adminList);
 
   if (error) throw error;
   return data || [];
@@ -160,7 +163,7 @@ export async function updateTrialBooking(id: string, patch: TrialBookingUpdate) 
     .from('trial_bookings')
     .update(patch)
     .eq('id', id)
-    .select('*')
+    .select(TRIAL_BOOKING_COLUMNS)
     .single();
 
   if (error) throw error;

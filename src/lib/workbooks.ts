@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { WORKBOOK_ASSETS_BUCKET, MechanicType, LessonKind, canReward, calculateInteractiveScore } from './mechanics';
 import { awardStars } from './stars';
+import { cachedQuery, invalidateQueryCache, QUERY_LIMITS } from './queryCache';
 
 export interface Workbook { id: string; title: string; description: string | null; order?: number; is_published: boolean; is_global?: boolean; }
 export interface WorkbookAssignment {
@@ -26,14 +27,22 @@ export interface InteractiveTask {
   id: string; lesson_id: string; mechanic_type: MechanicType; order: number; payload_json: any;
 }
 
+const WORKBOOK_COLUMNS = 'id,title,description,is_global,created_at';
+const WORKBOOK_ASSIGNMENT_COLUMNS = 'id,workbook_id,assignee_type,user_id,group_id';
+const UNIT_COLUMNS = 'id,workbook_id,title,unit_number,created_at,updated_at';
+const LESSON_COLUMNS = 'id,unit_id,title,lesson_number,order,type,stars_reward,created_at,updated_at';
+const TASK_COLUMNS = 'id,lesson_id,mechanic_type,order,payload_json,created_at,updated_at';
+
 // ==================== WORKBOOKS ====================
 export async function listWorkbooks(): Promise<Workbook[]> {
-  const { data, error } = await supabase.from('workbooks').select('*').order('created_at');
-  if (error) throw error;
-  return ((data as any) || []).map((wb: any) => ({
-    ...wb,
-    is_published: wb.is_published ?? wb.is_global ?? true,
-  }));
+  return cachedQuery('postgrest:workbooks', 60_000, async () => {
+    const { data, error } = await supabase.from('workbooks').select(WORKBOOK_COLUMNS).order('created_at').limit(QUERY_LIMITS.smallList);
+    if (error) throw error;
+    return ((data as any) || []).map((wb: any) => ({
+      ...wb,
+      is_published: wb.is_published ?? wb.is_global ?? true,
+    }));
+  });
 }
 
 export async function listAvailableWorkbooks(userId: string): Promise<Workbook[]> {
@@ -45,13 +54,15 @@ export async function listAvailableWorkbooks(userId: string): Promise<Workbook[]
       .from('workbook_assignments')
       .select('workbook_id')
       .eq('assignee_type', 'student')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .limit(QUERY_LIMITS.smallList);
     if (directError) throw directError;
 
     const { data: memberships, error: membershipError } = await (supabase as any)
       .from('student_group_members')
       .select('group_id')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .limit(QUERY_LIMITS.smallList);
     if (membershipError) throw membershipError;
 
     const groupIds = ((memberships as any[]) || []).map(row => row.group_id).filter(Boolean);
@@ -61,7 +72,8 @@ export async function listAvailableWorkbooks(userId: string): Promise<Workbook[]
         .from('workbook_assignments')
         .select('workbook_id')
         .eq('assignee_type', 'group')
-        .in('group_id', groupIds);
+        .in('group_id', groupIds)
+        .limit(QUERY_LIMITS.smallList);
       if (error) throw error;
       groupAssigned = data || [];
     }
@@ -80,8 +92,9 @@ export async function listAvailableWorkbooks(userId: string): Promise<Workbook[]
 export async function listWorkbookAssignments(workbookId: string): Promise<WorkbookAssignment[]> {
   const { data, error } = await (supabase as any)
     .from('workbook_assignments')
-    .select('*')
-    .eq('workbook_id', workbookId);
+    .select(WORKBOOK_ASSIGNMENT_COLUMNS)
+    .eq('workbook_id', workbookId)
+    .limit(QUERY_LIMITS.userList);
   if (error) throw error;
   return (data as WorkbookAssignment[]) || [];
 }
@@ -123,9 +136,10 @@ export async function createWorkbook(title: string): Promise<Workbook | null> {
   const { data, error } = await supabase
     .from('workbooks')
     .insert({ title, is_global: true } as any)
-    .select()
+    .select(WORKBOOK_COLUMNS)
     .single();
   if (error) throw error;
+  invalidateQueryCache('postgrest:workbooks');
   return { ...(data as any), is_published: (data as any).is_global ?? true } as any;
 }
 export async function updateWorkbook(id: string, patch: Partial<Workbook>) {
@@ -137,24 +151,42 @@ export async function updateWorkbook(id: string, patch: Partial<Workbook>) {
   delete clean.order;
   const { error } = await supabase.from('workbooks').update(clean).eq('id', id);
   if (error) throw error;
+  invalidateQueryCache('postgrest:workbooks');
 }
 export async function deleteWorkbook(id: string) {
   await supabase.from('workbooks').delete().eq('id', id);
+  invalidateQueryCache('postgrest:workbooks');
 }
 
 // ==================== UNITS ====================
 export async function listUnits(workbookId: string): Promise<Unit[]> {
+  return cachedQuery(`postgrest:units:${workbookId}`, 60_000, async () => {
+    const { data, error } = await supabase
+      .from('units')
+      .select(UNIT_COLUMNS)
+      .eq('workbook_id', workbookId)
+      .order('unit_number')
+      .limit(QUERY_LIMITS.userList);
+    if (error) throw error;
+    return ((data as any) || []).map((unit: any) => ({
+      ...unit,
+      unit_number: unit.unit_number ?? unit.order ?? 1,
+      order: unit.order ?? unit.unit_number ?? 1,
+    }));
+  });
+}
+
+export async function listUnitsForWorkbooks(workbookIds: string[]): Promise<Unit[]> {
+  const ids = Array.from(new Set(workbookIds.filter(Boolean)));
+  if (!ids.length) return [];
   const { data, error } = await supabase
     .from('units')
-    .select('*')
-    .eq('workbook_id', workbookId)
-    .order('unit_number');
+    .select(UNIT_COLUMNS)
+    .in('workbook_id', ids)
+    .order('unit_number')
+    .limit(QUERY_LIMITS.userList);
   if (error) throw error;
-  return ((data as any) || []).map((unit: any) => ({
-    ...unit,
-    unit_number: unit.unit_number ?? unit.order ?? 1,
-    order: unit.order ?? unit.unit_number ?? 1,
-  }));
+  return ((data as any[]) || []).map(unit => ({ ...unit, unit_number: unit.unit_number ?? 1, order: unit.order ?? unit.unit_number ?? 1 }));
 }
 export async function createUnit(workbookId: string, title: string, emoji = '🏝️'): Promise<Unit | null> {
   const { data: existing, error: existingError } = await supabase
@@ -169,9 +201,10 @@ export async function createUnit(workbookId: string, title: string, emoji = '�
   const { data, error } = await supabase
     .from('units')
     .insert({ workbook_id: workbookId, title, unit_number: nextNumber } as any)
-    .select()
+    .select(UNIT_COLUMNS)
     .single();
   if (error) throw error;
+  invalidateQueryCache(`postgrest:units:${workbookId}`);
   return {
     ...(data as any),
     emoji,
@@ -185,20 +218,33 @@ export async function updateUnit(id: string, patch: Partial<Unit>) {
   delete clean.order;
   const { error } = await supabase.from('units').update(clean).eq('id', id);
   if (error) throw error;
+  invalidateQueryCache('postgrest:units:');
 }
 export async function deleteUnit(id: string) {
   const { error } = await supabase.from('units').delete().eq('id', id);
   if (error) throw error;
+  invalidateQueryCache('postgrest:units:');
 }
 
 // ==================== LESSONS ====================
 export async function listLessons(unitId: string): Promise<Lesson[]> {
-  const { data } = await supabase.from('lessons').select('*').eq('unit_id', unitId).order('order');
+  return cachedQuery(`postgrest:lessons:${unitId}`, 60_000, async () => {
+    const { data, error } = await supabase.from('lessons').select(LESSON_COLUMNS).eq('unit_id', unitId).order('order').limit(QUERY_LIMITS.userList);
+    if (error) throw error;
+    return (data as any) || [];
+  });
+}
+
+export async function listLessonsForUnits(unitIds: string[]): Promise<Lesson[]> {
+  const ids = Array.from(new Set(unitIds.filter(Boolean)));
+  if (!ids.length) return [];
+  const { data, error } = await supabase.from('lessons').select(LESSON_COLUMNS).in('unit_id', ids).order('order').limit(QUERY_LIMITS.userList);
+  if (error) throw error;
   return (data as any) || [];
 }
 export async function getLessonById(lessonId: string): Promise<Lesson | null> {
   if (!lessonId) return null;
-  const { data, error } = await supabase.from('lessons').select('*').eq('id', lessonId).maybeSingle();
+  const { data, error } = await supabase.from('lessons').select(LESSON_COLUMNS).eq('id', lessonId).maybeSingle();
   if (error) throw error;
   return (data as any) || null;
 }
@@ -209,48 +255,56 @@ export async function createLesson(unitId: string, title: string, type: LessonKi
   const stars = canReward(type) ? 5 : 0;
   const { data, error } = await supabase.from('lessons').insert({
     unit_id: unitId, title, type, order: nextOrder, lesson_number: nextNumber, stars_reward: stars,
-  } as any).select().single();
+  } as any).select(LESSON_COLUMNS).single();
   if (error) { console.error(error); return null; }
+  invalidateQueryCache(`postgrest:lessons:${unitId}`);
   return data as any;
 }
 export async function updateLesson(id: string, patch: Partial<Lesson>) {
   const clean: any = { ...patch };
   if (clean.type && !canReward(clean.type)) clean.stars_reward = 0;
   await supabase.from('lessons').update(clean).eq('id', id);
+  invalidateQueryCache('postgrest:lessons:');
 }
 export async function deleteLesson(id: string) {
   await supabase.from('lessons').delete().eq('id', id);
+  invalidateQueryCache('postgrest:lessons:');
 }
 
 // ==================== TASKS ====================
 export async function listTasks(lessonId: string): Promise<InteractiveTask[]> {
-  const { data, error } = await supabase.from('interactive_tasks').select('*').eq('lesson_id', lessonId).order('order');
-  if (!error) return (data as any) || [];
+  return cachedQuery(`postgrest:tasks:${lessonId}`, 60_000, async () => {
+    const { data, error } = await supabase.from('interactive_tasks').select(TASK_COLUMNS).eq('lesson_id', lessonId).order('order').limit(QUERY_LIMITS.userList);
+    if (!error) return (data as any) || [];
 
-  console.warn('interactive_tasks select failed, trying RPC fallback', error.message);
-  const fallback = await (supabase as any).rpc('get_interactive_tasks_for_lesson', {
-    _lesson_id: lessonId,
+    console.warn('interactive_tasks select failed, trying RPC fallback', error.message);
+    const fallback = await (supabase as any).rpc('get_interactive_tasks_for_lesson', {
+      _lesson_id: lessonId,
+    });
+    if (fallback.error) {
+      console.warn('get_interactive_tasks_for_lesson RPC failed', fallback.error.message);
+      return [];
+    }
+    return ((fallback.data as any[]) || []).slice(0, QUERY_LIMITS.userList);
   });
-  if (fallback.error) {
-    console.warn('get_interactive_tasks_for_lesson RPC failed', fallback.error.message);
-    return [];
-  }
-  return (fallback.data as any) || [];
 }
 export async function createTask(lessonId: string, mechanic: MechanicType, payload: any = {}): Promise<InteractiveTask | null> {
   const { data: existing } = await supabase.from('interactive_tasks').select('order').eq('lesson_id', lessonId).order('order', { ascending: false }).limit(1);
   const nextOrder = ((existing?.[0] as any)?.order ?? -1) + 1;
   const { data, error } = await supabase.from('interactive_tasks').insert({
     lesson_id: lessonId, mechanic_type: mechanic, payload_json: payload, order: nextOrder,
-  } as any).select().single();
+  } as any).select(TASK_COLUMNS).single();
   if (error) { console.error(error); return null; }
+  invalidateQueryCache(`postgrest:tasks:${lessonId}`);
   return data as any;
 }
 export async function updateTaskPayload(id: string, payload: any) {
   await supabase.from('interactive_tasks').update({ payload_json: payload } as any).eq('id', id);
+  invalidateQueryCache('postgrest:tasks:');
 }
 export async function deleteTask(id: string) {
   await supabase.from('interactive_tasks').delete().eq('id', id);
+  invalidateQueryCache('postgrest:tasks:');
 }
 
 // ==================== STORAGE ====================
@@ -526,7 +580,7 @@ export async function signedUrlFor(path: string, expiresInSec = 3600): Promise<s
 
 // ==================== PROGRESS ====================
 export async function getLessonProgress(userId: string): Promise<Record<string, { completed_at: string; stars_awarded: number }>> {
-  const { data } = await (supabase as any).from('lesson_progress').select('lesson_id, completed_at, stars_awarded').eq('user_id', userId);
+  const { data } = await (supabase as any).from('lesson_progress').select('lesson_id, completed_at, stars_awarded').eq('user_id', userId).limit(QUERY_LIMITS.userList);
   const map: Record<string, any> = {};
   (data || []).forEach((r: any) => { map[r.lesson_id] = { completed_at: r.completed_at, stars_awarded: r.stars_awarded }; });
   return map;
