@@ -72,21 +72,14 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 group">
-          <motion.div
-            animate={{ rotate: [0, 10, -10, 0] }}
-            transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-            className="text-2xl"
-          >
-            📖
-          </motion.div>
+        <Link to="/" className="group">
           <span className="font-display font-black text-2xl bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 bg-clip-text text-transparent">
             Vetoschool
           </span>
         </Link>
 
         {/* Desktop nav */}
-        <div className="hidden md:flex items-center gap-6">
+        <div className="hidden lg:flex items-center gap-6">
           {[
             [t(lang, 'nav_about'), 'about'],
             [t(lang, 'nav_courses'), 'courses'],
@@ -109,7 +102,7 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
         </div>
 
         {/* Right side */}
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden lg:flex items-center gap-3">
           <ThemeToggle />
           <div className="flex gap-1 bg-white/60 rounded-full px-1 py-1">
             {langs.map(l => (
@@ -118,7 +111,7 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
                 onClick={() => setLang(l)}
                 className={`px-2.5 py-1 rounded-full text-xs font-body font-700 uppercase transition-all ${
                   lang === l
-                    ? 'bg-gradient-to-r from-pink-400 to-purple-400 text-white shadow'
+                    ? 'student-accent-gradient text-white shadow'
                     : 'text-purple-500 hover:text-purple-700'
                 }`}
               >
@@ -141,7 +134,7 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
             </>
           ) : (
             <>
-              <Link to="/login" className="btn-outline px-5 py-2 text-sm">
+              <Link to="/login" className="btn-outline dark-mode-outline-button px-5 py-2 text-sm">
                 {t(lang, 'nav_signin')}
               </Link>
               <Link
@@ -155,7 +148,7 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
         </div>
 
         {/* Mobile menu button */}
-        <div className="md:hidden flex items-center gap-2">
+        <div className="flex items-center gap-2 lg:hidden">
           <ThemeToggle />
           <button
             className="p-2 rounded-xl glass"
@@ -177,7 +170,7 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden glass border-t border-pink-100 mt-2"
+            className="mt-2 border-t border-pink-100 glass lg:hidden"
           >
             <div className="px-4 py-4 flex flex-col gap-3">
               {[
@@ -209,7 +202,7 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
                     onClick={() => setLang(l)}
                     className={`px-3 py-1.5 rounded-full text-xs font-body font-700 uppercase transition-all ${
                       lang === l
-                        ? 'bg-gradient-to-r from-pink-400 to-purple-400 text-white'
+                        ? 'student-accent-gradient text-white'
                         : 'bg-white/60 text-purple-500'
                     }`}
                   >
@@ -234,7 +227,7 @@ export default function Navbar({ lang, setLang }: NavbarProps) {
                   </>
                 ) : (
                   <>
-                    <Link to="/login" className="btn-outline px-5 py-2 text-sm text-center" onClick={() => setMenuOpen(false)}>
+                    <Link to="/login" className="btn-outline dark-mode-outline-button px-5 py-2 text-sm text-center" onClick={() => setMenuOpen(false)}>
                       {t(lang, 'nav_signin')}
                     </Link>
                     <Link

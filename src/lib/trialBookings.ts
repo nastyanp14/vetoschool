@@ -30,6 +30,13 @@ export type TrialBookingRecord = {
   parent_notes: string | null;
   assessment_score: number;
   preliminary_recommendation: AssessmentRecommendation;
+  correct_answers: number | null;
+  total_questions: number | null;
+  percentage: number | null;
+  english_level: string | null;
+  recommended_group: string | null;
+  age_group: string | null;
+  test_version: string | null;
   selected_date: string;
   selected_time: string;
   timezone: string;
@@ -95,7 +102,7 @@ type TrialBookingSchema = {
 };
 
 const trialBookingClient = supabase as unknown as SupabaseClient<TrialBookingSchema>;
-const TRIAL_BOOKING_COLUMNS = 'id,idempotency_key,parent_name,parent_email,parent_phone,preferred_language,child_name,child_age,school_grade,english_experience,parent_notes,assessment_score,preliminary_recommendation,selected_date,selected_time,timezone,privacy_accepted_at,guardian_confirmed_at,marketing_consent_at,status,teacher_confirmed_level,teacher_confirmed_direction,internal_notes,lesson_url,created_at,updated_at';
+const TRIAL_BOOKING_COLUMNS = 'id,idempotency_key,parent_name,parent_email,parent_phone,preferred_language,child_name,child_age,school_grade,english_experience,parent_notes,assessment_score,preliminary_recommendation,correct_answers,total_questions,percentage,english_level,recommended_group,age_group,test_version,selected_date,selected_time,timezone,privacy_accepted_at,guardian_confirmed_at,marketing_consent_at,status,teacher_confirmed_level,teacher_confirmed_direction,internal_notes,lesson_url,created_at,updated_at';
 
 export function createIdempotencyKey() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
@@ -131,6 +138,13 @@ export async function submitTrialBooking(data: TrialBookingData, idempotencyKey:
       parentNotes: data.child.notes || null,
       assessmentScore: data.assessment.score,
       preliminaryRecommendation: data.assessment.recommendation,
+      correctAnswers: data.assessment.correctAnswers,
+      totalQuestions: data.assessment.totalQuestions,
+      percentage: data.assessment.percentage,
+      englishLevel: data.assessment.englishLevel,
+      recommendedGroup: data.assessment.recommendedGroup,
+      ageGroup: data.assessment.ageGroup,
+      testVersion: data.assessment.testVersion,
       selectedDate: data.selectedDate,
       selectedTime: data.selectedTime,
       timezone: getTimezone(),

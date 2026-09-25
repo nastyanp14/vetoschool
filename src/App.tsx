@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CookieConsentProvider } from "./contexts/CookieConsentContext";
+import ScrollToTop from "./components/ScrollToTop";
 import Index from "./pages/Index";
 
 const queryClient = new QueryClient({
@@ -24,6 +25,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <ScrollToTop />
         <CookieConsentProvider>
           <Index />
         </CookieConsentProvider>

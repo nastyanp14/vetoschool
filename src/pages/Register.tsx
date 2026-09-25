@@ -12,21 +12,24 @@ const text = {
     divider: 'или',
     googleErrorTitle: 'Google-регистрация не запустилась',
     passPlaceholder: 'Минимум 6 символов',
-    hint: '👋 Подтвердите email кодом. Доступ к урокам откроет администратор после оплаты.',
+    hintLead: 'Подтвердите email кодом.',
+    hintRest: 'Доступ к урокам откроет администратор после оплаты.',
   },
   ua: {
     google: 'Продовжити з Google',
     divider: 'або',
     googleErrorTitle: 'Google-реєстрація не запустилася',
     passPlaceholder: 'Мінімум 6 символів',
-    hint: '👋 Підтвердьте email кодом. Доступ до уроків відкриє адміністратор після оплати.',
+    hintLead: 'Підтвердьте email кодом.',
+    hintRest: 'Доступ до уроків відкриє адміністратор після оплати.',
   },
   en: {
     google: 'Continue with Google',
     divider: 'or',
     googleErrorTitle: 'Google registration did not start',
     passPlaceholder: 'Minimum 6 characters',
-    hint: '👋 Confirm your email with a code. Lesson access is opened by an administrator after payment.',
+    hintLead: 'Confirm your email with a code.',
+    hintRest: 'Lesson access is opened by an administrator after payment.',
   },
 };
 
@@ -83,30 +86,53 @@ export default function Register({ lang }: { lang: Lang }) {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="font-body font-600 text-purple-600 text-sm mb-2 block">{t(lang, 'reg_name')}</label>
+          <label className="font-body font-600 text-purple-600 text-sm mb-2 flex items-center gap-1">
+            {t(lang, 'reg_name')}
+            <img src="/auth/register-profile-sticker.png" alt="" aria-hidden="true" className="h-5 w-5 -translate-y-0.5 object-contain" />
+          </label>
           <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Sofia" className="input-magic" required />
         </div>
         <div>
-          <label className="font-body font-600 text-purple-600 text-sm mb-2 block">{t(lang, 'reg_email')}</label>
+          <label className="font-body font-600 text-purple-600 text-sm mb-2 flex items-center gap-1">
+            {t(lang, 'reg_email')}
+            <img src="/auth/register-email-sticker.png" alt="" aria-hidden="true" className="h-5 w-6 object-contain" />
+          </label>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" className="input-magic" required />
         </div>
         <div>
-          <label className="font-body font-600 text-purple-600 text-sm mb-2 block">{t(lang, 'reg_pass')}</label>
+          <label className="font-body font-600 text-purple-600 text-sm mb-2 flex items-center gap-1">
+            {t(lang, 'reg_pass')}
+            <img src="/auth/register-password-sticker.png" alt="" aria-hidden="true" className="h-5 w-5 -translate-x-0.5 -translate-y-0.5 object-contain" />
+          </label>
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder={copy.passPlaceholder} className="input-magic" required />
         </div>
         <div>
-          <label className="font-body font-600 text-purple-600 text-sm mb-2 block">{t(lang, 'reg_confirm')}</label>
+          <label className="font-body font-600 text-purple-600 text-sm mb-2 flex items-center gap-1">
+            {t(lang, 'reg_confirm')}
+            <img src="/auth/register-confirm-password-sticker.png" alt="" aria-hidden="true" className="h-5 w-5 -translate-y-0.5 object-contain" />
+          </label>
           <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder={copy.passPlaceholder} className="input-magic" required />
         </div>
 
         {error && <AuthAlert>{error}</AuthAlert>}
 
         <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3">
-          <p className="font-body text-xs text-blue-500 text-center">{copy.hint}</p>
+          <p className="font-body text-xs text-blue-500 text-center">
+            <span className="inline-flex items-center gap-1 align-middle">
+              <img src="/auth/register-email-sticker.png" alt="" aria-hidden="true" className="h-6 w-7 -mr-1 shrink-0 object-contain" />
+              <span>{copy.hintLead}</span>
+            </span>{' '}
+            {copy.hintRest}
+          </p>
         </div>
 
         <button type="submit" disabled={loading} className="btn-magic w-full py-4 text-white font-display font-bold text-lg mt-2 disabled:opacity-70">
-          {loading ? t(lang, 'reg_loading') : t(lang, 'reg_btn')}
+          {loading ? t(lang, 'reg_loading') : (
+            <span className="flex -translate-x-1 items-center justify-center gap-2">
+              <img src="/auth/register-rocket-sticker.png" alt="" aria-hidden="true" className="h-7 w-7 translate-x-1 object-contain" />
+              {t(lang, 'reg_btn')}
+            </span>
+          )}
         </button>
       </form>
 
@@ -116,7 +142,7 @@ export default function Register({ lang }: { lang: Lang }) {
         <div className="h-px flex-1 bg-purple-100" />
       </div>
 
-      <GoogleButton onClick={handleGoogle} loading={googleLoading} label={copy.google} />
+      <GoogleButton onClick={handleGoogle} loading={googleLoading} label={copy.google} iconSrc="/auth/google-sticker.png" />
 
       <AuthFooterLink to="/login" muted={t(lang, 'reg_have')} label={t(lang, 'reg_signin')} />
     </AuthPageShell>

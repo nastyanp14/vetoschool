@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Locale } from 'date-fns';
 import { enGB, ru as ruLocale, uk as ukLocale } from 'date-fns/locale';
-import { CalendarDays, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import { t } from '@/lib/i18n';
 import { Calendar } from '@/components/ui/calendar';
 import BookingSelectionSummary from './BookingSelectionSummary';
@@ -37,20 +37,30 @@ export default function DateStep({ lang, data, updateData, onNext }: TrialBookin
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(() => parseDateKey(data.selectedDate));
   const selectedKey = selectedDate ? formatDateKey(selectedDate) : '';
 
+  const selectDate = (date: Date) => {
+    const nextDate = formatDateKey(date);
+    setSelectedDate(date);
+    updateData({
+      selectedDate: nextDate,
+      selectedTime: nextDate === data.selectedDate ? data.selectedTime : '',
+    });
+  };
+
   const handleContinue = () => {
     if (!selectedKey) return;
-    updateData({
-      selectedDate: selectedKey,
-      selectedTime: selectedKey === data.selectedDate ? data.selectedTime : '',
-    });
     onNext();
   };
 
   return (
     <div className="mx-auto max-w-4xl">
       <div className="mb-6 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-pink-400 to-blue-400 text-white shadow-xl shadow-purple-200/50">
-          <CalendarDays className="h-8 w-8" aria-hidden="true" />
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-[#decdf4] shadow-xl shadow-purple-200/50 dark:bg-[#3a294f]">
+          <img
+            src="/trial-booking/booking-date-calendar-sticker.png"
+            alt=""
+            aria-hidden="true"
+            className="h-14 w-14 object-contain"
+          />
         </div>
         <h2 className="font-display text-3xl font-black text-purple-700 dark:text-purple-100">
           {t(lang, 'trial_date_title')}
@@ -74,7 +84,7 @@ export default function DateStep({ lang, data, updateData, onNext }: TrialBookin
             selected={selectedDate}
             onSelect={date => {
               if (date && availableDates.some(available => sameDate(available, date))) {
-                setSelectedDate(date);
+                selectDate(date);
               }
             }}
             disabled={date => !availableDates.some(available => sameDate(available, date))}
@@ -107,7 +117,7 @@ export default function DateStep({ lang, data, updateData, onNext }: TrialBookin
                 <button
                   type="button"
                   key={key}
-                  onClick={() => setSelectedDate(date)}
+                  onClick={() => selectDate(date)}
                   aria-pressed={active}
                   className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left font-body text-sm font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pink-200 ${
                     active
@@ -128,7 +138,7 @@ export default function DateStep({ lang, data, updateData, onNext }: TrialBookin
         type="button"
         onClick={handleContinue}
         disabled={!selectedKey}
-        className="pricing-button pricing-button-soft relative mt-6 inline-flex min-h-14 w-full items-center justify-center overflow-hidden rounded-3xl border border-pink-200/80 px-8 py-4 font-display text-base font-black shadow-xl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+        className="trial-booking-primary-button relative mt-6 inline-flex min-h-14 w-full items-center justify-center overflow-hidden rounded-3xl px-8 py-4 font-display text-base font-black shadow-xl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
       >
         <span className="relative z-10">{t(lang, 'trial_continue')}</span>
       </button>

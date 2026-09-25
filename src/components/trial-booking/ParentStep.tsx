@@ -1,7 +1,7 @@
-import { Controller, useForm } from 'react-hook-form';
+import { useEffect } from 'react';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Mail, Phone, UserRound } from 'lucide-react';
 import { t } from '@/lib/i18n';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -31,6 +31,11 @@ export default function ParentStep({ lang, data, updateData, onNext }: TrialBook
     defaultValues: data.parent,
     mode: 'onBlur',
   });
+  const values = useWatch({ control });
+
+  useEffect(() => {
+    updateData({ parent: values as ParentInfo });
+  }, [updateData, values]);
 
   const onSubmit = (values: ParentInfo) => {
     updateData({ parent: values });
@@ -51,8 +56,8 @@ export default function ParentStep({ lang, data, updateData, onNext }: TrialBook
       <div className="rounded-[2rem] border border-white/80 bg-white/85 p-4 shadow-2xl shadow-purple-100/60 backdrop-blur dark:border-purple-700 dark:bg-[#1b0c2f]/85 dark:shadow-black/30 sm:p-6">
         <div className="grid gap-4">
           <label className="block">
-            <span className="mb-2 flex items-center gap-2 font-body text-sm font-black text-purple-600 dark:text-purple-100">
-              <UserRound className="h-4 w-4" aria-hidden="true" />
+            <span className="mb-2 flex items-center gap-1 font-body text-sm font-black text-purple-600 dark:text-purple-100">
+              <img src="/trial-booking/parent-contact-sticker.png" alt="" aria-hidden="true" className="h-6 w-6 shrink-0 object-contain" />
               {t(lang, 'trial_parent_name')}
             </span>
             <Input
@@ -64,8 +69,8 @@ export default function ParentStep({ lang, data, updateData, onNext }: TrialBook
           </label>
 
           <label className="block">
-            <span className="mb-2 flex items-center gap-2 font-body text-sm font-black text-purple-600 dark:text-purple-100">
-              <Mail className="h-4 w-4" aria-hidden="true" />
+            <span className="mb-2 flex items-center gap-1 font-body text-sm font-black text-purple-600 dark:text-purple-100">
+              <img src="/trial-booking/email-contact-sticker.png" alt="" aria-hidden="true" className="h-6 w-8 shrink-0 object-contain" />
               {t(lang, 'trial_email')}
             </span>
             <Input
@@ -78,8 +83,8 @@ export default function ParentStep({ lang, data, updateData, onNext }: TrialBook
           </label>
 
           <label className="block">
-            <span className="mb-2 flex items-center gap-2 font-body text-sm font-black text-purple-600 dark:text-purple-100">
-              <Phone className="h-4 w-4" aria-hidden="true" />
+            <span className="mb-2 flex items-center gap-1 font-body text-sm font-black text-purple-600 dark:text-purple-100">
+              <img src="/trial-booking/phone-contact-sticker.png" alt="" aria-hidden="true" className="h-6 w-6 shrink-0 object-contain" />
               {t(lang, 'trial_phone')} <span className="text-purple-300">{t(lang, 'trial_optional')}</span>
             </span>
             <Input
@@ -118,7 +123,7 @@ export default function ParentStep({ lang, data, updateData, onNext }: TrialBook
 
       <button
         type="submit"
-        className="mt-6 w-full rounded-3xl bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 px-8 py-4 font-display text-base font-black text-white shadow-xl shadow-purple-200/60 transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pink-200 dark:shadow-purple-950/50"
+        className="trial-booking-primary-button mt-6 w-full rounded-3xl px-8 py-4 font-display text-base font-black shadow-xl shadow-purple-200/60 transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pink-200 dark:shadow-purple-950/50"
       >
         {t(lang, 'trial_continue')}
       </button>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { Lang, TranslationKey } from '@/lib/i18n';
 import BookingProgress from './BookingProgress';
@@ -38,6 +38,13 @@ const initialData: TrialBookingData = {
     notes: '',
   },
   assessment: null,
+  assessmentProgress: {
+    started: false,
+    questionIndex: 0,
+    answers: {},
+    selectedOptionId: '',
+    resultView: 'summary',
+  },
   selectedDate: '',
   selectedTime: '',
   privacy: {
@@ -58,9 +65,9 @@ export default function BookingWizard({ lang }: { lang: Lang }) {
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [stepIndex]);
 
-  const updateData = (patch: Partial<TrialBookingData>) => {
+  const updateData = useCallback((patch: Partial<TrialBookingData>) => {
     setData(currentData => ({ ...currentData, ...patch }));
-  };
+  }, []);
 
   const goNext = () => setStepIndex(index => Math.min(index + 1, steps.length - 1));
   const goBack = () => setStepIndex(index => Math.max(index - 1, 0));

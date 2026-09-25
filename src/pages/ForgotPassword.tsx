@@ -70,7 +70,7 @@ export default function ForgotPassword({ lang }: { lang: Lang }) {
 
   return (
     <AuthPageShell tone="pink">
-      <AuthHeader icon="🔑" title={copy.title} subtitle={copy.sub} />
+      <AuthHeader icon="🔑" iconSrc="/auth/password-recovery-key-sticker.png" iconSize="h-20 w-20" title={copy.title} subtitle={copy.sub} />
       <form onSubmit={submit} className="space-y-4">
         <div>
           <label className="font-body font-600 text-purple-600 text-sm mb-2 block">{copy.email}</label>

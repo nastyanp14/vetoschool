@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckCircle2, Clock3 } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import { t } from '@/lib/i18n';
 import BookingSelectionSummary from './BookingSelectionSummary';
 import { mockTimeSlots } from './MockAssessmentData';
@@ -8,17 +8,26 @@ import type { TrialBookingStepProps } from './types';
 export default function TimeStep({ lang, data, updateData, onNext }: TrialBookingStepProps) {
   const [selectedTime, setSelectedTime] = useState(data.selectedTime);
 
+  const selectTime = (time: string) => {
+    setSelectedTime(time);
+    updateData({ selectedTime: time });
+  };
+
   const handleContinue = () => {
     if (!selectedTime) return;
-    updateData({ selectedTime });
     onNext();
   };
 
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-6 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-pink-400 to-blue-400 text-white shadow-xl shadow-purple-200/50">
-          <Clock3 className="h-8 w-8" aria-hidden="true" />
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-[#decdf4] shadow-xl shadow-purple-200/50 dark:bg-[#3a294f]">
+          <img
+            src="/trial-booking/time-alarm-sticker.png"
+            alt=""
+            aria-hidden="true"
+            className="relative -top-px h-14 w-14 object-contain"
+          />
         </div>
         <h2 className="font-display text-3xl font-black text-purple-700 dark:text-purple-100">
           {t(lang, 'trial_time_title')}
@@ -40,7 +49,7 @@ export default function TimeStep({ lang, data, updateData, onNext }: TrialBookin
               <button
                 key={slot}
                 type="button"
-                onClick={() => setSelectedTime(slot)}
+                onClick={() => selectTime(slot)}
                 aria-pressed={active}
                 className={`relative rounded-3xl border p-5 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pink-200 ${
                   active
@@ -65,7 +74,7 @@ export default function TimeStep({ lang, data, updateData, onNext }: TrialBookin
         type="button"
         onClick={handleContinue}
         disabled={!selectedTime}
-        className="pricing-button pricing-button-soft relative mt-6 inline-flex min-h-14 w-full items-center justify-center overflow-hidden rounded-3xl border border-pink-200/80 px-8 py-4 font-display text-base font-black shadow-xl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+        className="trial-booking-primary-button relative mt-6 inline-flex min-h-14 w-full items-center justify-center overflow-hidden rounded-3xl px-8 py-4 font-display text-base font-black shadow-xl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
       >
         <span className="relative z-10">{t(lang, 'trial_continue')}</span>
       </button>

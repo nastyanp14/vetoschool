@@ -17,6 +17,13 @@ type TrialBookingPayload = {
   parentNotes?: string | null;
   assessmentScore: number;
   preliminaryRecommendation: Recommendation;
+  correctAnswers: number;
+  totalQuestions: number;
+  percentage: number;
+  englishLevel: string;
+  recommendedGroup: string;
+  ageGroup: string;
+  testVersion: string;
   selectedDate: string;
   selectedTime: string;
   timezone: string;
@@ -34,6 +41,10 @@ const allowedRecommendations = new Set<Recommendation>([
   'Kids A1',
   'Junior A1',
 ]);
+const allowedEnglishLevels = new Set(['Starter', 'Pre-A1', 'A1 Beginner', 'A1 Strong', 'A2', 'B1', 'B2']);
+const miniKids56Levels = new Set(['Starter', 'Pre-A1', 'A1 Beginner', 'A1 Strong']);
+const kids79Levels = new Set(['Starter', 'Pre-A1', 'A1 Beginner', 'A1 Strong']);
+const junior1012Levels = new Set(['Starter', 'Pre-A1', 'A1 Beginner', 'A1 Strong']);
 
 const expectedKeys = new Set([
   'idempotencyKey',
@@ -48,6 +59,13 @@ const expectedKeys = new Set([
   'parentNotes',
   'assessmentScore',
   'preliminaryRecommendation',
+  'correctAnswers',
+  'totalQuestions',
+  'percentage',
+  'englishLevel',
+  'recommendedGroup',
+  'ageGroup',
+  'testVersion',
   'selectedDate',
   'selectedTime',
   'timezone',
@@ -175,6 +193,47 @@ function validatePayload(raw: unknown): TrialBookingPayload {
   if (!Number.isInteger(assessmentScore) || assessmentScore < 0 || assessmentScore > 100) {
     throw new ValidationError('assessmentScore_invalid');
   }
+  const correctAnswers = Number(input.correctAnswers);
+  const totalQuestions = Number(input.totalQuestions);
+  const percentage = Number(input.percentage);
+  if (!Number.isInteger(correctAnswers) || !Number.isInteger(totalQuestions) || correctAnswers < 0 || totalQuestions < 1 || correctAnswers > totalQuestions || assessmentScore !== correctAnswers) {
+    throw new ValidationError('assessmentResult_invalid');
+  }
+  if (!Number.isInteger(percentage) || percentage < 0 || percentage > 100 || percentage !== Math.round((correctAnswers / totalQuestions) * 100)) {
+    throw new ValidationError('assessmentResult_invalid');
+  }
+  const englishLevel = normalizeString(input.englishLevel, 'englishLevel', 2, 40);
+  const recommendedGroup = normalizeString(input.recommendedGroup, 'recommendedGroup', 2, 160);
+  const ageGroup = normalizeString(input.ageGroup, 'ageGroup', 2, 80);
+  const testVersion = normalizeString(input.testVersion, 'testVersion', 2, 80);
+  if (!allowedEnglishLevels.has(englishLevel)) throw new ValidationError('englishLevel_invalid');
+  if (childAge >= 5 && childAge <= 6 && (
+    testVersion !== 'mini-kids-5-6-v1'
+    || totalQuestions !== 12
+    || !miniKids56Levels.has(englishLevel)
+    || recommendedGroup !== 'Mini Kids'
+    || ageGroup !== 'Mini Kids 5–6'
+  )) {
+    throw new ValidationError('assessmentResult_invalid');
+  }
+  if (childAge >= 7 && childAge <= 9 && (
+    testVersion !== 'kids-7-9-v1'
+    || totalQuestions !== 20
+    || !kids79Levels.has(englishLevel)
+    || recommendedGroup !== (correctAnswers >= 13 ? 'Kids A1' : 'Kids Beginners')
+    || ageGroup !== 'Kids 7–9'
+  )) {
+    throw new ValidationError('assessmentResult_invalid');
+  }
+  if (childAge >= 10 && childAge <= 12 && (
+    testVersion !== 'junior-10-12-v1'
+    || totalQuestions !== 25
+    || !junior1012Levels.has(englishLevel)
+    || recommendedGroup !== (correctAnswers >= 15 ? 'Junior A1' : 'Junior Beginners')
+    || ageGroup !== 'Juniors 10–12'
+  )) {
+    throw new ValidationError('assessmentResult_invalid');
+  }
 
   const privacyAcceptedAt = validateIsoTimestamp(input.privacyAcceptedAt, 'privacyAcceptedAt');
   const guardianConfirmedAt = validateIsoTimestamp(input.guardianConfirmedAt, 'guardianConfirmedAt');
@@ -193,6 +252,13 @@ function validatePayload(raw: unknown): TrialBookingPayload {
     parentNotes: optionalString(input.parentNotes, 'parentNotes', 2000),
     assessmentScore,
     preliminaryRecommendation: preliminaryRecommendation as Recommendation,
+    correctAnswers,
+    totalQuestions,
+    percentage,
+    englishLevel,
+    recommendedGroup,
+    ageGroup,
+    testVersion,
     selectedDate: validateDate(input.selectedDate),
     selectedTime: validateTime(input.selectedTime),
     timezone: normalizeString(input.timezone || 'Europe/Prague', 'timezone', 3, 80),
@@ -300,6 +366,13 @@ Deno.serve(async req => {
         parent_notes: payload.parentNotes,
         assessment_score: payload.assessmentScore,
         preliminary_recommendation: payload.preliminaryRecommendation,
+        correct_answers: payload.correctAnswers,
+        total_questions: payload.totalQuestions,
+        percentage: payload.percentage,
+        english_level: payload.englishLevel,
+        recommended_group: payload.recommendedGroup,
+        age_group: payload.ageGroup,
+        test_version: payload.testVersion,
         selected_date: payload.selectedDate,
         selected_time: payload.selectedTime,
         timezone: payload.timezone,

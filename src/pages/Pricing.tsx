@@ -1,30 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import {
-  BookOpen,
-  CalendarDays,
   Check,
   ChevronDown,
   Clock,
-  Compass,
-  Crown,
-  Gamepad2,
-  Gem,
-  GraduationCap,
-  Headphones,
-  Leaf,
-  RefreshCw,
-  MessageCircle,
-  NotebookPen,
-  Rocket,
-  ShieldCheck,
-  Sparkles,
   Star,
-  Trophy,
-  User,
-  Users,
 } from 'lucide-react';
 import Footer from '../components/Footer';
 import { Lang, TranslationKey, t } from '../lib/i18n';
@@ -49,7 +31,9 @@ type AccentTone = 'pink' | 'blue' | 'purple' | 'green' | 'gold';
 type Plan = {
   id: PricingPlanId;
   planId: PlanId;
-  icon: React.ElementType;
+  icon?: React.ElementType;
+  iconImage?: string;
+  iconImageClassName?: string;
   nameKey: TranslationKey;
   descriptionKey: TranslationKey;
   lessonsPerMonth: number;
@@ -62,7 +46,8 @@ type Plan = {
 
 type IncludedFeature = {
   titleKey: TranslationKey;
-  icon: React.ElementType;
+  sticker: string;
+  stickerClassName?: string;
   tone: AccentTone;
 };
 
@@ -105,7 +90,7 @@ const toneStyles: Record<AccentTone, { icon: string; shell: string; glow: string
 };
 
 const accentStyles: Record<LessonType, {
-  icon: React.ElementType;
+  switchSticker: string;
   labelKey: TranslationKey;
   eyebrowKey: TranslationKey;
   titleKey: TranslationKey;
@@ -116,7 +101,7 @@ const accentStyles: Record<LessonType, {
   shadow: string;
 }> = {
   group: {
-    icon: Users,
+    switchSticker: '/pricing/switch/group.png',
     labelKey: 'pricing_switch_group',
     eyebrowKey: 'pricing_group_eyebrow',
     titleKey: 'pricing_group_title',
@@ -127,7 +112,7 @@ const accentStyles: Record<LessonType, {
     shadow: 'shadow-pink-200/36 dark:shadow-pink-950/22',
   },
   individual: {
-    icon: User,
+    switchSticker: '/pricing/switch/individual.png',
     labelKey: 'pricing_switch_individual',
     eyebrowKey: 'pricing_individual_eyebrow',
     titleKey: 'pricing_individual_title',
@@ -144,7 +129,8 @@ const planGroups: Record<LessonType, Plan[]> = {
     {
       id: 'group-lite',
       planId: 'lite',
-      icon: Leaf,
+      iconImage: '/pricing/group-lite-book.png',
+      iconImageClassName: 'scale-[1.25]',
       nameKey: 'pricing_group_lite_name',
       descriptionKey: 'pricing_group_lite_desc',
       lessonsPerMonth: 4,
@@ -156,7 +142,8 @@ const planGroups: Record<LessonType, Plan[]> = {
     {
       id: 'group-progress',
       planId: 'progress',
-      icon: Rocket,
+      iconImage: '/pricing/group-progress-rocket.png',
+      iconImageClassName: 'scale-[1.23]',
       nameKey: 'pricing_group_progress_name',
       descriptionKey: 'pricing_group_progress_desc',
       lessonsPerMonth: 8,
@@ -169,7 +156,8 @@ const planGroups: Record<LessonType, Plan[]> = {
     {
       id: 'group-intensive',
       planId: 'intensive',
-      icon: Crown,
+      iconImage: '/pricing/group-intensive-crown-v3.png',
+      iconImageClassName: '-translate-y-0.5 scale-[1.3]',
       nameKey: 'pricing_group_intensive_name',
       descriptionKey: 'pricing_group_intensive_desc',
       lessonsPerMonth: 12,
@@ -183,7 +171,8 @@ const planGroups: Record<LessonType, Plan[]> = {
     {
       id: 'individual-lite',
       planId: 'lite',
-      icon: Compass,
+      iconImage: '/pricing/individual-lite-book.png',
+      iconImageClassName: 'scale-[1.6]',
       nameKey: 'pricing_individual_lite_name',
       descriptionKey: 'pricing_individual_lite_desc',
       lessonsPerMonth: 4,
@@ -195,7 +184,8 @@ const planGroups: Record<LessonType, Plan[]> = {
     {
       id: 'individual-progress',
       planId: 'progress',
-      icon: Star,
+      iconImage: '/pricing/individual-progress-growth.png',
+      iconImageClassName: 'scale-[1.3]',
       nameKey: 'pricing_individual_progress_name',
       descriptionKey: 'pricing_individual_progress_desc',
       lessonsPerMonth: 8,
@@ -208,7 +198,8 @@ const planGroups: Record<LessonType, Plan[]> = {
     {
       id: 'individual-intensive',
       planId: 'intensive',
-      icon: Gem,
+      iconImage: '/pricing/individual-intensive-gem.png',
+      iconImageClassName: '-translate-x-0.5 scale-[1.4]',
       nameKey: 'pricing_individual_intensive_name',
       descriptionKey: 'pricing_individual_intensive_desc',
       lessonsPerMonth: 12,
@@ -221,19 +212,22 @@ const planGroups: Record<LessonType, Plan[]> = {
 };
 
 const includedFeatures: IncludedFeature[] = [
-  { titleKey: 'pricing_feature_interactive_lessons', icon: BookOpen, tone: 'pink' },
-  { titleKey: 'pricing_feature_interactive_games', icon: Gamepad2, tone: 'blue' },
-  { titleKey: 'pricing_feature_interactive_workbook', icon: NotebookPen, tone: 'purple' },
-  { titleKey: 'pricing_feature_homework', icon: GraduationCap, tone: 'green' },
-  { titleKey: 'pricing_feature_listening', icon: Headphones, tone: 'gold' },
-  { titleKey: 'pricing_feature_speaking', icon: MessageCircle, tone: 'pink' },
-  { titleKey: 'pricing_feature_vocabulary', icon: Sparkles, tone: 'purple' },
-  { titleKey: 'pricing_feature_practice_center', icon: Trophy, tone: 'blue' },
-  { titleKey: 'pricing_feature_grammar', icon: BookOpen, tone: 'purple' },
-  { titleKey: 'pricing_feature_unit_checkpoints', icon: Check, tone: 'green' },
-  { titleKey: 'pricing_feature_schedule', icon: CalendarDays, tone: 'pink' },
-  { titleKey: 'pricing_feature_grades', icon: Star, tone: 'gold' },
-  { titleKey: 'pricing_feature_reward_shop', icon: Crown, tone: 'purple' },
+  { titleKey: 'pricing_feature_interactive_lessons', sticker: '/pricing/features/interactive-lessons.png', tone: 'pink' },
+  { titleKey: 'pricing_feature_interactive_games', sticker: '/pricing/features/interactive-games.png', tone: 'blue' },
+  { titleKey: 'pricing_feature_interactive_workbook', sticker: '/pricing/features/interactive-workbook.png', tone: 'purple' },
+  { titleKey: 'pricing_feature_homework', sticker: '/pricing/features/homework.png', tone: 'green' },
+  { titleKey: 'pricing_feature_listening', sticker: '/pricing/features/listening.png', tone: 'gold' },
+  { titleKey: 'pricing_feature_speaking', sticker: '/pricing/features/speaking.png', tone: 'pink' },
+  { titleKey: 'pricing_feature_reading', sticker: '/pricing/features/reading.png', tone: 'green' },
+  { titleKey: 'pricing_feature_writing', sticker: '/pricing/features/writing.png', tone: 'gold' },
+  { titleKey: 'pricing_feature_teacher_support', sticker: '/pricing/features/teacher-support.png', tone: 'blue' },
+  { titleKey: 'pricing_feature_vocabulary', sticker: '/pricing/features/vocabulary.png', tone: 'purple' },
+  { titleKey: 'pricing_feature_practice_center', sticker: '/pricing/features/practice-center.png', tone: 'blue' },
+  { titleKey: 'pricing_feature_grammar', sticker: '/pricing/features/grammar.png', tone: 'purple' },
+  { titleKey: 'pricing_feature_unit_checkpoints', sticker: '/pricing/features/unit-checkpoints.png', tone: 'green' },
+  { titleKey: 'pricing_feature_schedule', sticker: '/pricing/features/schedule.png', tone: 'pink' },
+  { titleKey: 'pricing_feature_grades', sticker: '/pricing/features/grades.png', stickerClassName: 'scale-[2.5]', tone: 'gold' },
+  { titleKey: 'pricing_feature_reward_shop', sticker: '/pricing/features/reward-shop.png', tone: 'purple' },
 ];
 
 const faqItems: { questionKey: TranslationKey; answerKey: TranslationKey }[] = [
@@ -244,12 +238,12 @@ const faqItems: { questionKey: TranslationKey; answerKey: TranslationKey }[] = [
   { questionKey: 'pricing_faq_switch_q', answerKey: 'pricing_faq_switch_a' },
 ];
 
-const learningPolicyItems: { titleKey: TranslationKey; bodyKey: TranslationKey; icon: React.ElementType; tone: AccentTone }[] = [
-  { titleKey: 'pricing_policy_reschedule_title', bodyKey: 'pricing_policy_reschedule_body', icon: RefreshCw, tone: 'blue' },
-  { titleKey: 'pricing_policy_missed_title', bodyKey: 'pricing_policy_missed_body', icon: Clock, tone: 'pink' },
-  { titleKey: 'pricing_policy_schedule_title', bodyKey: 'pricing_policy_schedule_body', icon: CalendarDays, tone: 'purple' },
-  { titleKey: 'pricing_policy_group_title', bodyKey: 'pricing_policy_group_body', icon: Users, tone: 'green' },
-  { titleKey: 'pricing_policy_trial_title', bodyKey: 'pricing_policy_trial_body', icon: ShieldCheck, tone: 'gold' },
+const learningPolicyItems: { titleKey: TranslationKey; bodyKey: TranslationKey; sticker: string; tone: AccentTone }[] = [
+  { titleKey: 'pricing_policy_reschedule_title', bodyKey: 'pricing_policy_reschedule_body', sticker: '/pricing/policies/reschedule.png', tone: 'blue' },
+  { titleKey: 'pricing_policy_missed_title', bodyKey: 'pricing_policy_missed_body', sticker: '/pricing/policies/missed-lessons.png', tone: 'pink' },
+  { titleKey: 'pricing_policy_schedule_title', bodyKey: 'pricing_policy_schedule_body', sticker: '/pricing/policies/schedule.png', tone: 'purple' },
+  { titleKey: 'pricing_policy_group_title', bodyKey: 'pricing_policy_group_body', sticker: '/pricing/policies/suitable-group.png', tone: 'green' },
+  { titleKey: 'pricing_policy_trial_title', bodyKey: 'pricing_policy_trial_body', sticker: '/pricing/policies/trial.png', tone: 'gold' },
 ];
 
 function FadeIn({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
@@ -285,7 +279,7 @@ function LessonTypeSwitch({ value, onChange, lang }: { value: LessonType; onChan
         <div className="absolute inset-x-6 top-0 h-px bg-white/65" />
       </motion.div>
       {(['group', 'individual'] as LessonType[]).map((option) => {
-        const Icon = accentStyles[option].icon;
+        const switchSticker = accentStyles[option].switchSticker;
         const active = value === option;
 
         return (
@@ -294,12 +288,22 @@ function LessonTypeSwitch({ value, onChange, lang }: { value: LessonType; onChan
             type="button"
             onClick={() => onChange(option)}
             className={cn(
-              'relative z-10 flex min-h-12 items-center justify-center gap-2 rounded-full px-3 font-display text-sm font-bold transition-colors duration-300 sm:min-h-14 sm:text-base',
+              'relative z-10 flex min-h-12 items-center justify-center gap-1.5 rounded-full px-3 font-display text-sm font-bold transition-colors duration-300 sm:min-h-14 sm:text-base',
               active ? 'text-white' : 'text-purple-500 hover:text-pink-500 dark:text-purple-200 dark:hover:text-pink-100',
             )}
           >
-            <Icon className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
-            {t(lang, accentStyles[option].labelKey)}
+            <img
+              src={switchSticker}
+              alt=""
+              aria-hidden="true"
+              className={cn(
+                'shrink-0 object-contain',
+                option === 'individual' ? 'h-6 w-6 sm:h-7 sm:w-7' : 'h-8 w-8 sm:h-9 sm:w-9',
+              )}
+            />
+            <span className={option === 'individual' ? '-translate-x-0.5' : undefined}>
+              {t(lang, accentStyles[option].labelKey)}
+            </span>
           </button>
         );
       })}
@@ -407,9 +411,16 @@ function PlanCard({
           <motion.div
             whileHover={{ rotate: [0, -4, 4, 0], scale: 1.08 }}
             transition={{ duration: 0.45 }}
-            className={cn('flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-lg ring-1 ring-white/70 dark:ring-white/10 sm:h-16 sm:w-16', tone.icon)}
+            className={cn(
+              'relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl shadow-lg ring-1 ring-white/70 dark:ring-white/10 sm:h-16 sm:w-16',
+              !plan.iconImage && tone.icon,
+            )}
           >
-            <Icon className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={2.15} aria-hidden="true" />
+            {plan.iconImage ? (
+              <img src={plan.iconImage} alt="" className={cn('h-full w-full object-cover', plan.iconImageClassName)} aria-hidden="true" />
+            ) : Icon ? (
+              <Icon className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={2.15} aria-hidden="true" />
+            ) : null}
           </motion.div>
           <div>
             <h3 className="font-display text-2xl font-black leading-tight text-purple-700 dark:text-purple-50">{t(lang, plan.nameKey)}</h3>
@@ -484,7 +495,6 @@ function PricingCards({
             transition={{ duration: 0.36 }}
             className={cn('mb-4 inline-flex items-center gap-2 rounded-full border bg-gradient-to-r px-4 py-2 shadow-lg backdrop-blur', accent.panel, accent.ring, accent.shadow)}
           >
-            <Sparkles className="h-4 w-4 text-pink-400 dark:text-pink-200" aria-hidden="true" />
             <span className="font-body text-sm font-700 text-purple-600 dark:text-purple-100">{t(lang, accent.eyebrowKey)}</span>
           </motion.div>
           <AnimatePresence mode="wait">
@@ -549,7 +559,6 @@ function IncludedSection({ lang }: { lang: Lang }) {
       <div className="relative z-10 mx-auto max-w-6xl">
         <FadeIn className="mb-10 text-center sm:mb-12">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-200/70 bg-blue-100/75 px-4 py-2 shadow-lg shadow-blue-100/50 backdrop-blur dark:border-blue-300/15 dark:bg-blue-400/10 dark:shadow-blue-950/25">
-            <Sparkles className="h-4 w-4 text-blue-500 dark:text-blue-200" aria-hidden="true" />
             <span className="font-body text-sm font-700 text-blue-500 dark:text-blue-100">{t(lang, 'pricing_included_badge')}</span>
           </div>
           <h2 className="font-display text-4xl font-black text-purple-700 dark:text-purple-50 md:text-5xl">
@@ -562,7 +571,6 @@ function IncludedSection({ lang }: { lang: Lang }) {
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:gap-4 lg:grid-cols-4">
           {includedFeatures.map((feature, index) => {
-            const Icon = feature.icon;
             const tone = toneStyles[feature.tone];
 
             return (
@@ -572,9 +580,12 @@ function IncludedSection({ lang }: { lang: Lang }) {
                   transition={{ type: 'spring', stiffness: 280, damping: 22 }}
                   className={cn('pricing-feature-card group h-full rounded-[1.35rem] border bg-gradient-to-br p-4 shadow-lg backdrop-blur-xl sm:p-5', tone.shell, 'border-white/70 shadow-purple-100/30 dark:border-white/10 dark:shadow-purple-950/20')}
                 >
-                  <div className={cn('mb-4 flex h-11 w-11 items-center justify-center rounded-2xl shadow-sm ring-1 ring-white/70 dark:ring-white/10', tone.icon)}>
-                    <Icon className="h-5 w-5" aria-hidden="true" />
-                  </div>
+                  <img
+                    src={feature.sticker}
+                    alt=""
+                    aria-hidden="true"
+                    className={cn('mb-4 h-12 w-12 object-contain', feature.stickerClassName)}
+                  />
                   <h3 className="font-display text-base font-bold leading-tight text-purple-700 dark:text-purple-50">{t(lang, feature.titleKey)}</h3>
                 </motion.div>
               </FadeIn>
@@ -598,7 +609,7 @@ function IncludedSection({ lang }: { lang: Lang }) {
 }
 
 function FAQSection({ lang }: { lang: Lang }) {
-  const [openQuestion, setOpenQuestion] = useState<TranslationKey | null>(faqItems[0].questionKey);
+  const [openQuestion, setOpenQuestion] = useState<TranslationKey | null>(null);
 
   return (
     <section className="pricing-faq relative overflow-hidden px-4 py-16 sm:py-20">
@@ -606,7 +617,6 @@ function FAQSection({ lang }: { lang: Lang }) {
       <div className="relative z-10 mx-auto max-w-3xl">
         <FadeIn className="mb-10 text-center">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-purple-200/70 bg-purple-100/75 px-4 py-2 shadow-lg shadow-purple-100/50 backdrop-blur dark:border-purple-300/15 dark:bg-purple-400/10 dark:shadow-purple-950/25">
-            <Sparkles className="h-4 w-4 text-purple-500 dark:text-purple-200" aria-hidden="true" />
             <span className="font-body text-sm font-700 text-purple-500 dark:text-purple-100">{t(lang, 'pricing_faq_badge')}</span>
           </div>
           <h2 className="font-display text-4xl font-black text-purple-700 dark:text-purple-50 md:text-5xl">{t(lang, 'pricing_faq_title')}</h2>
@@ -678,7 +688,6 @@ function LearningPolicySection({ lang }: { lang: Lang }) {
       <div className="relative z-10 mx-auto max-w-6xl">
         <FadeIn className="mb-10 text-center sm:mb-12">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-pink-200/70 bg-white/55 px-4 py-2 shadow-lg shadow-pink-100/40 backdrop-blur-xl dark:border-pink-300/15 dark:bg-white/[0.055] dark:shadow-purple-950/24">
-            <ShieldCheck className="h-4 w-4 text-pink-500 dark:text-pink-200" aria-hidden="true" />
             <span className="font-body text-sm font-700 text-purple-600 dark:text-purple-100">{t(lang, 'pricing_policy_badge')}</span>
           </div>
           <h2 className="font-display text-4xl font-black text-purple-700 dark:text-purple-50 md:text-5xl">
@@ -691,7 +700,6 @@ function LearningPolicySection({ lang }: { lang: Lang }) {
 
         <div className="mx-auto grid w-full max-w-7xl gap-4 md:grid-cols-2 lg:grid-cols-5">
           {learningPolicyItems.map((item, index) => {
-            const Icon = item.icon;
             const tone = toneStyles[item.tone];
             const tabletCenter = index === 4 ? 'md:col-span-2 md:mx-auto md:w-full md:max-w-[calc(50%-0.5rem)] lg:col-span-1 lg:max-w-none' : '';
 
@@ -703,7 +711,7 @@ function LearningPolicySection({ lang }: { lang: Lang }) {
                   className={cn('pricing-feature-card relative h-full overflow-hidden rounded-[1.5rem] border bg-gradient-to-br p-5 shadow-xl backdrop-blur-2xl sm:p-6', tone.shell, 'border-white/70 shadow-purple-100/30 dark:border-white/10 dark:shadow-purple-950/22')}
                 >
                   <div className={cn('mb-5 flex h-12 w-12 items-center justify-center rounded-2xl shadow-sm ring-1 ring-white/70 dark:ring-white/10', tone.icon)}>
-                    <Icon className="h-5 w-5" aria-hidden="true" />
+                    <img src={item.sticker} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
                   </div>
                   <h3 className="font-display text-xl font-bold leading-tight text-purple-700 dark:text-purple-50">{t(lang, item.titleKey)}</h3>
                   <p className="mt-3 font-body text-sm leading-relaxed text-purple-500 dark:text-purple-100/74">{t(lang, item.bodyKey)}</p>
@@ -720,6 +728,10 @@ function LearningPolicySection({ lang }: { lang: Lang }) {
 export default function Pricing({ lang }: PricingProps) {
   const [lessonType, setLessonType] = useState<LessonType>(teacherRecommendation.recommendedFormat ?? 'group');
   const [currency, setCurrency] = useState<DisplayCurrency>('CZK');
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, []);
 
   return (
     <main className="pricing-page overflow-x-hidden bg-[#fff8ff] dark:bg-[#0a0613]">
@@ -746,7 +758,6 @@ export default function Pricing({ lang }: PricingProps) {
             transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
             className="pricing-hero-badge mb-7 inline-flex max-w-[min(92vw,46rem)] items-center gap-2 rounded-full px-5 py-2.5"
           >
-            <BookOpen className="h-4 w-4 shrink-0 text-purple-500 dark:text-purple-100" aria-hidden="true" />
             <span className="font-body text-sm font-700 text-purple-700 dark:text-purple-50">{t(lang, 'pricing_hero_badge')}</span>
           </motion.div>
 

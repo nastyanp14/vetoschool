@@ -1,4 +1,3 @@
-import { CalendarDays, Clock3 } from 'lucide-react';
 import type { Lang } from '@/lib/i18n';
 
 type BookingSelectionSummaryProps = {
@@ -24,13 +23,23 @@ export default function BookingSelectionSummary({ lang, selectedDate, selectedTi
     <div className="mb-5 inline-flex max-w-full flex-wrap items-center gap-2 rounded-3xl border border-pink-100 bg-white/85 px-4 py-3 shadow-lg shadow-purple-100/50 backdrop-blur dark:border-purple-700 dark:bg-white/10 dark:shadow-black/20">
       {displayDate && (
         <span className="inline-flex min-w-0 items-center gap-2 font-body text-sm font-black text-purple-600 dark:text-purple-100">
-          <CalendarDays className="h-4 w-4 flex-shrink-0 text-pink-500 dark:text-pink-200" aria-hidden="true" />
+          <img
+            src="/trial-booking/booking-date-calendar-sticker.png"
+            alt=""
+            aria-hidden="true"
+            className="h-6 w-6 flex-shrink-0 object-contain"
+          />
           <span className="truncate">{displayDate}</span>
         </span>
       )}
       {selectedTime && (
         <span className="inline-flex items-center gap-2 font-body text-sm font-black text-purple-600 dark:text-purple-100">
-          <Clock3 className="h-4 w-4 flex-shrink-0 text-blue-500 dark:text-blue-200" aria-hidden="true" />
+          <img
+            src="/trial-booking/time-alarm-sticker.png"
+            alt=""
+            aria-hidden="true"
+            className="h-6 w-6 flex-shrink-0 object-contain"
+          />
           {selectedTime}
         </span>
       )}

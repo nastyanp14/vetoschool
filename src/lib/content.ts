@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { cacheGet, cacheSet, fileToDataUrl as _fileToDataUrl } from './storage';
 import { notifyContentChanges, notifyContentDeleted, notifyHomeworkChanged } from './telegram';
+import { reviewStatusAfterInteractiveRepair } from './homeworkReviewState';
 import { cachedQuery, invalidateQueryCache, QUERY_LIMITS } from './queryCache';
 
 export type ContentType = 'lesson' | 'homework' | 'practice' | 'grammar' | 'listening' | 'checkpoint';
@@ -219,7 +220,7 @@ async function reconcileInteractiveCompletionRows(userId: string, rows: any[]): 
       material_mode: 'interactive',
       submitted_at: row.submitted_at || completedAt,
       checked_at: row.checked_at || completedAt,
-      homework_status: 'reviewed',
+      homework_status: reviewStatusAfterInteractiveRepair(row.homework_status),
       result_percent: shouldTrustProgressRating ? score : row.result_percent ?? score,
       star_rating: shouldTrustProgressRating ? rating : row.star_rating ?? rating,
       student_result: row.student_result || 'Interactive completed',

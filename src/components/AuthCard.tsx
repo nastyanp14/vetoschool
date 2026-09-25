@@ -17,14 +17,22 @@ export function AuthPageShell({
     <div className="page-bg-auth min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style={{ background: bg }}>
       <div className="absolute inset-0 overflow-hidden">
         <motion.div
-          className="absolute w-80 h-80 rounded-full blur-3xl"
-          style={{ background: 'rgba(179,217,255,0.4)', top: '5%', right: '5%' }}
+          className="absolute h-80 w-80 rounded-full"
+          style={{
+            background: 'radial-gradient(circle, rgba(179,217,255,0.4) 0%, transparent 72%)',
+            top: '5%',
+            right: '5%',
+          }}
           animate={{ scale: [1, 1.25, 1] }}
           transition={{ duration: 9, repeat: Infinity }}
         />
         <motion.div
-          className="absolute w-64 h-64 rounded-full blur-3xl"
-          style={{ background: 'rgba(255,179,209,0.4)', bottom: '5%', left: '5%' }}
+          className="absolute h-64 w-64 rounded-full"
+          style={{
+            background: 'radial-gradient(circle, rgba(255,179,209,0.4) 0%, transparent 72%)',
+            bottom: '5%',
+            left: '5%',
+          }}
           animate={{ scale: [1, 1.18, 1] }}
           transition={{ duration: 7, repeat: Infinity, delay: 1 }}
         />
@@ -43,11 +51,23 @@ export function AuthPageShell({
   );
 }
 
-export function AuthHeader({ icon, title, subtitle }: { icon: string; title: string; subtitle: string }) {
+export function AuthHeader({
+  icon,
+  iconSrc,
+  iconSize = 'h-16 w-16',
+  title,
+  subtitle,
+}: {
+  icon: string;
+  iconSrc?: string;
+  iconSize?: string;
+  title: string;
+  subtitle: string;
+}) {
   return (
     <div className="text-center mb-8">
       <motion.div animate={{ y: [0, -6, 0] }} transition={{ duration: 3, repeat: Infinity }} className="text-6xl mb-3">
-        {icon}
+        {iconSrc ? <img src={iconSrc} alt="" aria-hidden="true" className={`mx-auto ${iconSize} object-contain`} /> : icon}
       </motion.div>
       <h1 className="font-display font-black text-3xl bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
         {title}
@@ -71,7 +91,17 @@ export function AuthAlert({ children, type = 'error' }: { children: ReactNode; t
   );
 }
 
-export function GoogleButton({ onClick, loading, label }: { onClick: () => void; loading?: boolean; label: string }) {
+export function GoogleButton({
+  onClick,
+  loading,
+  label,
+  iconSrc,
+}: {
+  onClick: () => void;
+  loading?: boolean;
+  label: string;
+  iconSrc?: string;
+}) {
   return (
     <button
       type="button"
@@ -80,21 +110,36 @@ export function GoogleButton({ onClick, loading, label }: { onClick: () => void;
       className="group w-full rounded-2xl bg-white/80 border border-purple-100 px-4 py-3.5 text-purple-700 font-display font-bold text-sm shadow-sm hover:bg-white hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-60"
     >
       <span className="flex items-center justify-center gap-3">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm font-display text-sm text-blue-500 group-hover:scale-105 transition-transform">
-          G
-        </span>
+        {iconSrc ? (
+          <img src={iconSrc} alt="" aria-hidden="true" className="h-7 w-7 object-contain group-hover:scale-105 transition-transform" />
+        ) : (
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm font-display text-sm text-blue-500 group-hover:scale-105 transition-transform">
+            G
+          </span>
+        )}
         <span>{loading ? '...' : label}</span>
       </span>
     </button>
   );
 }
 
-export function AuthFooterLink({ to, muted, label }: { to: string; muted: string; label: string }) {
+export function AuthFooterLink({
+  to,
+  muted,
+  label,
+  iconSrc,
+}: {
+  to: string;
+  muted: string;
+  label: string;
+  iconSrc?: string;
+}) {
   return (
     <p className="font-body text-purple-400 text-sm text-center mt-6">
       {muted}{' '}
-      <Link to={to} className="text-pink-500 font-600 hover:text-purple-500 transition-colors">
+      <Link to={to} className="inline-flex items-center gap-1 text-pink-500 font-600 hover:text-purple-500 transition-colors">
         {label}
+        {iconSrc && <img src={iconSrc} alt="" aria-hidden="true" className="h-5 w-5 object-contain" />}
       </Link>
     </p>
   );

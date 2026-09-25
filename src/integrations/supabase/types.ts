@@ -3004,10 +3004,12 @@ export type Database = {
       trial_bookings: {
         Row: {
           assessment_score: number
+          age_group: string | null
           child_age: number
           child_name: string
           created_at: string
           english_experience: string
+          english_level: string | null
           guardian_confirmed_at: string
           id: string
           idempotency_key: string | null
@@ -3019,8 +3021,10 @@ export type Database = {
           parent_name: string
           parent_notes: string | null
           parent_phone: string | null
+          percentage: number | null
           preferred_language: string
           preliminary_recommendation: string
+          correct_answers: number | null
           privacy_accepted_at: string
           school_grade: string
           selected_date: string
@@ -3028,15 +3032,20 @@ export type Database = {
           status: Database["public"]["Enums"]["trial_booking_status"]
           teacher_confirmed_direction: string | null
           teacher_confirmed_level: string | null
+          recommended_group: string | null
+          test_version: string | null
+          total_questions: number | null
           timezone: string
           updated_at: string
         }
         Insert: {
           assessment_score: number
+          age_group?: string | null
           child_age: number
           child_name: string
           created_at?: string
           english_experience: string
+          english_level?: string | null
           guardian_confirmed_at: string
           id?: string
           idempotency_key?: string | null
@@ -3048,8 +3057,10 @@ export type Database = {
           parent_name: string
           parent_notes?: string | null
           parent_phone?: string | null
+          percentage?: number | null
           preferred_language: string
           preliminary_recommendation: string
+          correct_answers?: number | null
           privacy_accepted_at: string
           school_grade: string
           selected_date: string
@@ -3057,15 +3068,20 @@ export type Database = {
           status?: Database["public"]["Enums"]["trial_booking_status"]
           teacher_confirmed_direction?: string | null
           teacher_confirmed_level?: string | null
+          recommended_group?: string | null
+          test_version?: string | null
+          total_questions?: number | null
           timezone?: string
           updated_at?: string
         }
         Update: {
           assessment_score?: number
+          age_group?: string | null
           child_age?: number
           child_name?: string
           created_at?: string
           english_experience?: string
+          english_level?: string | null
           guardian_confirmed_at?: string
           id?: string
           idempotency_key?: string | null
@@ -3077,8 +3093,10 @@ export type Database = {
           parent_name?: string
           parent_notes?: string | null
           parent_phone?: string | null
+          percentage?: number | null
           preferred_language?: string
           preliminary_recommendation?: string
+          correct_answers?: number | null
           privacy_accepted_at?: string
           school_grade?: string
           selected_date?: string
@@ -3086,6 +3104,9 @@ export type Database = {
           status?: Database["public"]["Enums"]["trial_booking_status"]
           teacher_confirmed_direction?: string | null
           teacher_confirmed_level?: string | null
+          recommended_group?: string | null
+          test_version?: string | null
+          total_questions?: number | null
           timezone?: string
           updated_at?: string
         }

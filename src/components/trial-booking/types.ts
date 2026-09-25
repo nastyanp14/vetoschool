@@ -28,14 +28,17 @@ export type ChildInfo = {
   notes?: string;
 };
 
-export type AssessmentQuestionType = 'image_choice' | 'vocabulary_choice' | 'missing_letter' | 'simple_sentence';
+export type AssessmentQuestionType = 'image_choice' | 'vocabulary_choice' | 'missing_letter' | 'simple_sentence' | 'audio_choice';
+
+export type CefrLevel = 'Starter' | 'Pre-A1' | 'A1' | 'A2' | 'B1' | 'B2';
+export type EnglishLevel = 'Starter' | 'Pre-A1' | 'A1 Beginner' | 'A1 Strong' | 'A2' | 'B1' | 'B2';
 
 export type LocalizedText = Record<Lang, string>;
 
 export type AssessmentOption = {
   id: string;
   label: LocalizedText;
-  visual?: string;
+  visual?: string | string[];
 };
 
 export type AssessmentQuestion = {
@@ -43,6 +46,9 @@ export type AssessmentQuestion = {
   type: AssessmentQuestionType;
   prompt: LocalizedText;
   helper?: LocalizedText;
+  illustration?: string;
+  audioText?: string;
+  audioSrc?: string;
   options: AssessmentOption[];
   correctOptionId: string;
 };
@@ -55,9 +61,17 @@ export type AssessmentRecommendation =
   | 'Junior A1';
 
 export type AssessmentResult = {
+  // score, total and recommendation are retained for the existing booking flow.
   score: number;
   total: number;
   recommendation: AssessmentRecommendation;
+  correctAnswers: number;
+  totalQuestions: number;
+  percentage: number;
+  englishLevel: EnglishLevel;
+  recommendedGroup: AssessmentRecommendation;
+  ageGroup: string;
+  testVersion: string;
 };
 
 export type PrivacyConsents = {
@@ -66,10 +80,19 @@ export type PrivacyConsents = {
   marketingAccepted: boolean;
 };
 
+export type AssessmentProgress = {
+  started: boolean;
+  questionIndex: number;
+  answers: Record<string, string>;
+  selectedOptionId: string;
+  resultView: 'summary' | 'review';
+};
+
 export type TrialBookingData = {
   parent: ParentInfo;
   child: ChildInfo;
   assessment: AssessmentResult | null;
+  assessmentProgress: AssessmentProgress;
   selectedDate: string;
   selectedTime: string;
   privacy: PrivacyConsents;

@@ -1,7 +1,7 @@
-import { Controller, useForm } from 'react-hook-form';
+import { useEffect } from 'react';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Baby, BookOpen, GraduationCap } from 'lucide-react';
 import { t } from '@/lib/i18n';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -34,6 +34,11 @@ export default function ChildStep({ lang, data, updateData, onNext }: TrialBooki
     defaultValues: data.child,
     mode: 'onBlur',
   });
+  const values = useWatch({ control });
+
+  useEffect(() => {
+    updateData({ child: values as ChildInfo });
+  }, [updateData, values]);
 
   const onSubmit = (values: ChildInfo) => {
     updateData({ child: values });
@@ -54,8 +59,8 @@ export default function ChildStep({ lang, data, updateData, onNext }: TrialBooki
       <div className="rounded-[2rem] border border-white/80 bg-white/85 p-4 shadow-2xl shadow-purple-100/60 backdrop-blur dark:border-purple-700 dark:bg-[#1b0c2f]/85 dark:shadow-black/30 sm:p-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block sm:col-span-2">
-            <span className="mb-2 flex items-center gap-2 font-body text-sm font-black text-purple-600 dark:text-purple-100">
-              <Baby className="h-4 w-4" aria-hidden="true" />
+            <span className="mb-2 flex items-center gap-1 font-body text-sm font-black text-purple-600 dark:text-purple-100">
+              <img src="/trial-booking/child-name-sticker.png" alt="" aria-hidden="true" className="h-7 w-7 shrink-0 object-contain" />
               {t(lang, 'trial_child_name')}
             </span>
             <Input
@@ -80,8 +85,8 @@ export default function ChildStep({ lang, data, updateData, onNext }: TrialBooki
           </label>
 
           <label className="block">
-            <span className="mb-2 flex items-center gap-2 font-body text-sm font-black text-purple-600 dark:text-purple-100">
-              <GraduationCap className="h-4 w-4" aria-hidden="true" />
+            <span className="mb-2 flex items-center gap-1 font-body text-sm font-black text-purple-600 dark:text-purple-100">
+              <img src="/trial-booking/school-grade-sticker.png" alt="" aria-hidden="true" className="h-7 w-7 shrink-0 object-contain" />
               {t(lang, 'trial_school_grade')}
             </span>
             <Input
@@ -92,8 +97,8 @@ export default function ChildStep({ lang, data, updateData, onNext }: TrialBooki
           </label>
 
           <div className="sm:col-span-2">
-            <span className="mb-2 flex items-center gap-2 font-body text-sm font-black text-purple-600 dark:text-purple-100">
-              <BookOpen className="h-4 w-4" aria-hidden="true" />
+            <span className="mb-2 flex items-center gap-1 font-body text-sm font-black text-purple-600 dark:text-purple-100">
+              <img src="/trial-booking/english-experience-sticker.png" alt="" aria-hidden="true" className="h-7 w-7 shrink-0 object-contain" />
               {t(lang, 'trial_english_before')}
             </span>
             <Controller
@@ -131,7 +136,7 @@ export default function ChildStep({ lang, data, updateData, onNext }: TrialBooki
 
       <button
         type="submit"
-        className="mt-6 w-full rounded-3xl bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 px-8 py-4 font-display text-base font-black text-white shadow-xl shadow-purple-200/60 transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pink-200 dark:shadow-purple-950/50"
+        className="trial-booking-primary-button mt-6 w-full rounded-3xl px-8 py-4 font-display text-base font-black shadow-xl shadow-purple-200/60 transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pink-200 dark:shadow-purple-950/50"
       >
         {t(lang, 'trial_continue')}
       </button>

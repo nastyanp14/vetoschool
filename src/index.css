@@ -143,6 +143,17 @@ html.dark .bg-white\/70 { background-color: rgba(35, 18, 60, 0.65) !important; }
 html.dark .bg-white\/80 { background-color: rgba(35, 18, 60, 0.78) !important; }
 html.dark .bg-white\/90 { background-color: rgba(35, 18, 60, 0.88) !important; }
 html.dark .bg-white\/95 { background-color: rgba(35, 18, 60, 0.94) !important; }
+
+/* Lessons cards use solid dark surfaces in dark mode. */
+html.dark .lesson-card-review {
+  background-color: #281443 !important;
+  border-color: rgba(135, 75, 194, 0.72) !important;
+}
+
+html.dark .lesson-card-icon-badge {
+  background-color: #281443 !important;
+  border-color: transparent !important;
+}
 html.dark .bg-gray-50,
 html.dark .bg-gray-50\/80 {
   background-color: rgba(29, 15, 48, 0.72) !important;
@@ -303,7 +314,7 @@ html.dark .dark-panel-soft {
 
 /* Scrollbar */
 html.dark ::-webkit-scrollbar-track { background: #15082e; }
-html.dark ::-webkit-scrollbar-thumb { background: linear-gradient(#a855f7, #ec4899); }
+html.dark ::-webkit-scrollbar-thumb { background: linear-gradient(#FFB3D1, #C8B3FF); }
 
 /* ============== AVATAR SHOP CARDS ============== */
 .shop-hero-shell {
@@ -666,6 +677,100 @@ html { scroll-behavior: smooth; }
 .font-body { font-family: 'Nunito', sans-serif; }
 .font-600 { font-weight: 600; }
 .font-700 { font-weight: 700; }
+
+/* Homepage owl: a transparent cutout gently turns toward the pointer. */
+.hero-owl {
+  position: relative;
+  width: min(34rem, calc(100vw - 1.5rem));
+  aspect-ratio: 1086 / 1448;
+  margin-inline: auto;
+  pointer-events: none;
+  perspective: 1100px;
+}
+
+.hero-owl__image {
+  --owl-shift-x: 0px;
+  --owl-shift-y: 0px;
+  --owl-rotate-x: 0deg;
+  --owl-rotate-y: 0deg;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  transform: translate3d(var(--owl-shift-x), var(--owl-shift-y), 0)
+    rotateX(var(--owl-rotate-x)) rotateY(var(--owl-rotate-y));
+  transform-origin: 50% 43%;
+  transform-style: preserve-3d;
+  will-change: transform;
+  filter: drop-shadow(0 24px 34px rgba(122, 82, 189, 0.18));
+}
+
+@media (max-width: 1023px) {
+  .home-hero-owl {
+    width: calc(100% + 2rem);
+    margin-top: -3rem;
+    margin-inline: -1rem;
+    overflow: hidden;
+  }
+
+  .home-hero-owl .hero-owl {
+    left: 50%;
+    margin-inline: 0;
+    transform: translateX(-50%);
+  }
+
+  .home-hero-owl .hero-owl__image {
+    object-position: center top;
+    transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-hero-owl {
+    height: clamp(27rem, 115vw, 30rem);
+  }
+
+  .hero-owl {
+    width: min(32rem, calc(100vw + 4rem));
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  .home-hero-owl {
+    height: clamp(38rem, 86vw, 46rem);
+    margin-top: -3rem;
+  }
+
+  .home-hero-owl .hero-owl {
+    width: min(60rem, calc(100vw + 16rem));
+    transform: translate(-50%, -10rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-owl__image {
+    transform: none;
+  }
+}
+
+.home-hero-title {
+  font-size: clamp(3.5rem, 10vw, 7rem);
+  line-height: 1.1;
+}
+
+@media (min-width: 1024px) {
+  .home-hero-title {
+    font-size: 100px;
+    line-height: 110px;
+  }
+
+  .home-hero-owl .hero-owl {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+  }
+}
 
 /* Gradient backgrounds */
 .gradient-hero { background: linear-gradient(135deg, #FFD6E8 0%, #E8D6FF 35%, #D6EEFF 70%, #D6FFE8 100%); }
@@ -1100,6 +1205,81 @@ html.dark .mini-shop-card-shell::before {
   background: linear-gradient(90deg, #EFA4DE 0%, #D7A9E9 45%, #B6BDF9 100%) !important;
 }
 
+.interactive-dashboard-shell {
+  position: relative;
+  width: 100%;
+}
+
+.interactive-dashboard-grid,
+.interactive-dashboard-top,
+.interactive-dashboard-center,
+.interactive-dashboard-right,
+.interactive-dashboard-bottom {
+  display: grid;
+  gap: 16px;
+}
+
+.interactive-art-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.interactive-workbook-card {
+  height: 355px;
+}
+
+.interactive-great-work-card,
+.interactive-dashboard-center > :first-child {
+  height: 130px;
+}
+
+.interactive-dashboard-center > :last-child,
+.interactive-dashboard-right > :last-child {
+  height: 210px;
+}
+
+.interactive-trial-card,
+.interactive-lessons-panel {
+  min-height: 255px;
+}
+
+@media (min-width: 1280px) {
+  .interactive-dashboard-grid {
+    height: 626px;
+    grid-template-rows: 355px 255px;
+  }
+
+  .interactive-dashboard-top {
+    grid-template-columns: minmax(0, 750fr) minmax(0, 310fr) minmax(0, 393fr);
+    min-height: 0;
+  }
+
+  .interactive-dashboard-center,
+  .interactive-dashboard-right {
+    grid-template-rows: 130px 210px;
+    min-height: 0;
+  }
+
+  .interactive-dashboard-bottom {
+    grid-template-columns: minmax(0, 380fr) minmax(0, 1089fr);
+    min-height: 0;
+  }
+
+  .interactive-workbook-card,
+  .interactive-great-work-card,
+  .interactive-dashboard-center > :first-child,
+  .interactive-dashboard-center > :last-child,
+  .interactive-dashboard-right > :last-child,
+  .interactive-trial-card,
+  .interactive-lessons-panel {
+    height: 100%;
+    min-height: 0;
+  }
+}
+
 .student-accent-text-gradient {
   background-image: linear-gradient(90deg, #EFA4DE 0%, #D7A9E9 45%, #B6BDF9 100%) !important;
 }
@@ -1121,6 +1301,15 @@ html.dark .mini-shop-card-shell::before {
 }
 .btn-magic:hover { transform: translateY(-3px) scale(1.03); box-shadow: 0 15px 40px rgba(200,100,200,0.4); }
 
+/* Trial-booking primary actions use the exact same pastel gradient as Registration.
+   Layout, sizing and the secondary controls stay local to each step. */
+.trial-booking-primary-button {
+  background: linear-gradient(90deg, #EFA4DE 0%, #D7A9E9 45%, #B6BDF9 100%);
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+  color: #ffffff;
+}
+
 .btn-outline {
   background: rgba(255,255,255,0.8);
   border: 2px solid #FFB3D1; color: #D4609E;
@@ -1133,6 +1322,20 @@ html.dark .mini-shop-card-shell::before {
   border-color: #C8B3FF;
   transform: translateY(-2px);
   box-shadow: 0 10px 30px rgba(200,179,255,0.3);
+}
+
+html.dark .dark-mode-outline-button {
+  background: linear-gradient(135deg, rgba(80, 38, 127, 0.92), rgba(43, 26, 82, 0.92));
+  border-color: rgba(215, 169, 233, 0.72);
+  color: #f2c9ed;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 24px rgba(42, 14, 76, 0.28);
+}
+
+html.dark .dark-mode-outline-button:hover {
+  background: linear-gradient(135deg, rgba(104, 50, 157, 0.96), rgba(60, 34, 105, 0.96));
+  border-color: rgba(239, 164, 222, 0.88);
+  color: #ffe5f7;
+  box-shadow: 0 10px 30px rgba(157, 86, 204, 0.3);
 }
 
 .card-hover { transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.4s ease; }

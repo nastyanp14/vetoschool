@@ -1,10 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import FloatingElements from '../components/FloatingElements';
-import BookHero from '../components/BookHero';
+import HeroOwl from '../components/HeroOwl';
 import Footer from '../components/Footer';
 import { Lang, t } from '../lib/i18n';
+
+const HOME_STICKERS = {
+  books: '/home/sticker-books.png',
+  gamepad: '/home/sticker-gamepad.png',
+  gift: '/home/hero-trial-gift.png',
+  grammarBook: '/home/sticker-grammar-book.png',
+  headphones: '/home/sticker-headphones.png',
+  heart: '/home/sticker-heart.png',
+  musicNote: '/home/sticker-music-note.png',
+  pencil: '/home/sticker-pencil.png',
+  phone: '/home/sticker-phone.png',
+  progress: '/home/sticker-progress.png',
+  puzzle: '/home/sticker-puzzle.png',
+  rainbow: '/home/sticker-rainbow.png',
+  rocket: '/home/hero-trial-rocket.png',
+  teacherOwl: '/home/sticker-teacher-owl.png',
+  telegramPlane: '/home/sticker-telegram-plane.png',
+} as const;
 
 function useScrollY() {
   const [scrollY, setScrollY] = useState(0);
@@ -41,20 +58,20 @@ export default function Home({ lang }: HomeProps) {
 
   // Courses: Lessons, Practice, Homework, Listening, Grammar (no Speaking Club)
   const courses = [
-    { icon: '📚', titleKey: 'dash_lessons' as const, descKey: 'about_fun_desc' as const, color: 'from-pink-100 to-rose-100', border: 'border-pink-200' },
-    { icon: '🧩', titleKey: 'courses_interactive' as const, descKey: 'courses_interactive_desc' as const, color: 'from-pink-100 via-purple-100 to-blue-100', border: 'border-purple-200' },
-    { icon: '🎮', titleKey: 'courses_practice' as const, descKey: 'courses_practice_desc' as const, color: 'from-blue-100 to-cyan-100', border: 'border-blue-200' },
-    { icon: '✏️', titleKey: 'courses_homework' as const, descKey: 'courses_homework_desc' as const, color: 'from-purple-100 to-violet-100', border: 'border-purple-200' },
-    { icon: '🎧', titleKey: 'courses_listening' as const, descKey: 'courses_listening_desc' as const, color: 'from-green-100 to-teal-100', border: 'border-green-200' },
-    { icon: '📝', titleKey: 'courses_grammar' as const, descKey: 'courses_grammar_desc' as const, color: 'from-yellow-100 to-amber-100', border: 'border-yellow-200' },
+    { image: HOME_STICKERS.books, titleKey: 'dash_lessons' as const, descKey: 'about_fun_desc' as const, color: 'from-pink-100 to-rose-100', border: 'border-pink-200' },
+    { image: HOME_STICKERS.puzzle, titleKey: 'courses_interactive' as const, descKey: 'courses_interactive_desc' as const, color: 'from-pink-100 via-purple-100 to-blue-100', border: 'border-purple-200' },
+    { image: HOME_STICKERS.gamepad, titleKey: 'courses_practice' as const, descKey: 'courses_practice_desc' as const, color: 'from-blue-100 to-cyan-100', border: 'border-blue-200' },
+    { image: HOME_STICKERS.pencil, titleKey: 'courses_homework' as const, descKey: 'courses_homework_desc' as const, color: 'from-purple-100 to-violet-100', border: 'border-purple-200' },
+    { image: HOME_STICKERS.headphones, titleKey: 'courses_listening' as const, descKey: 'courses_listening_desc' as const, color: 'from-green-100 to-teal-100', border: 'border-green-200' },
+    { image: HOME_STICKERS.grammarBook, titleKey: 'courses_grammar' as const, descKey: 'courses_grammar_desc' as const, color: 'from-yellow-100 to-amber-100', border: 'border-yellow-200' },
   ];
 
   // About cards: Fun, Anywhere, Progress, Safe (no Expert Teacher, no Small Groups)
   const aboutCards = [
-    { icon: '🌈', titleKey: 'about_fun' as const, descKey: 'about_fun_desc' as const, color: 'from-pink-50 to-rose-50', border: 'border-pink-100' },
-    { icon: '📱', titleKey: 'about_anywhere' as const, descKey: 'about_anywhere_desc' as const, color: 'from-blue-50 to-cyan-50', border: 'border-blue-100' },
-    { icon: '📈', titleKey: 'about_progress' as const, descKey: 'about_progress_desc' as const, color: 'from-green-50 to-teal-50', border: 'border-green-100' },
-    { icon: '❤️', titleKey: 'about_safe' as const, descKey: 'about_safe_desc' as const, color: 'from-orange-50 to-pink-50', border: 'border-orange-100' },
+    { image: HOME_STICKERS.rainbow, titleKey: 'about_fun' as const, descKey: 'about_fun_desc' as const, color: 'from-pink-50 to-rose-50', border: 'border-pink-100' },
+    { image: HOME_STICKERS.phone, titleKey: 'about_anywhere' as const, descKey: 'about_anywhere_desc' as const, color: 'from-blue-50 to-cyan-50', border: 'border-blue-100' },
+    { image: HOME_STICKERS.progress, titleKey: 'about_progress' as const, descKey: 'about_progress_desc' as const, color: 'from-green-50 to-teal-50', border: 'border-green-100' },
+    { image: HOME_STICKERS.heart, titleKey: 'about_safe' as const, descKey: 'about_safe_desc' as const, color: 'from-orange-50 to-pink-50', border: 'border-orange-100' },
   ];
 
   return (
@@ -62,7 +79,7 @@ export default function Home({ lang }: HomeProps) {
       {/* ===== HERO ===== */}
       <section
         id="hero"
-        className="page-bg-home relative min-h-screen flex flex-col items-center justify-center overflow-hidden px-0 pb-10 pt-20 sm:pt-24 md:pt-28"
+        className="page-bg-home relative flex min-h-screen flex-col items-center justify-start overflow-hidden px-0 pb-0 pt-24 md:pt-28 lg:h-[832px] lg:min-h-[832px] lg:justify-start lg:pt-0"
         style={{
           background: `linear-gradient(135deg,
             hsl(${340 + scrollY * 0.02}deg, 100%, 93%) 0%,
@@ -78,101 +95,102 @@ export default function Home({ lang }: HomeProps) {
             { bg: 'rgba(179,217,255,0.4)', bottom: '15%', left: '20%', dur: 9 },
             { bg: 'rgba(179,240,224,0.3)', bottom: '20%', right: '15%', dur: 7 },
           ].map((orb, i) => (
-            <motion.div key={i} className="absolute w-80 h-80 rounded-full blur-3xl"
-              style={{ background: orb.bg, ...orb }}
+            <motion.div
+              key={i}
+              className="absolute h-80 w-80 rounded-full"
+              style={{
+                background: `radial-gradient(circle, ${orb.bg} 0%, transparent 72%)`,
+                ...orb,
+              }}
               animate={{ scale: [1, 1.3, 1] }}
               transition={{ duration: orb.dur, repeat: Infinity, ease: 'easeInOut', delay: i }} />
           ))}
         </div>
 
-        <FloatingElements scrollY={scrollY} />
+        <div className="home-hero-layout relative z-10 mx-auto w-full max-w-5xl px-4 text-center lg:h-[832px] lg:max-w-[1280px] lg:px-0 lg:text-left">
+          <div className="home-hero-copy pt-4 sm:pt-0 lg:absolute lg:left-9 lg:top-[145px] lg:w-[560px]">
+            {/* Preserve the desktop composition without showing an age badge on compact layouts. */}
+            <div className="hidden lg:block lg:h-[72px]" aria-hidden="true" />
 
-        <div className="relative z-10 mx-auto max-w-5xl -translate-y-6 px-4 text-center sm:-translate-y-8">
-          {/* Badge — only age, no "Online school" text */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="inline-flex items-center gap-2 glass px-5 py-2.5 rounded-full mb-8 shadow-sm"
-          >
-            <span className="text-lg animate-bounce-soft">✨</span>
-            <span className="font-body font-700 text-purple-600 text-sm">Ages 5–12</span>
-            <span className="text-lg animate-bounce-soft delay-300">🌟</span>
-          </motion.div>
-
-          {/* Title */}
-          <motion.h1
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.4, duration: 0.8, type: 'spring', stiffness: 100 }}
-            className="font-display font-black mb-4"
-            style={{ fontSize: 'clamp(3.5rem, 10vw, 7rem)', lineHeight: 1.1 }}
-          >
-            <span className="bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 bg-clip-text text-transparent">Veto</span>
-            <span className="bg-gradient-to-r from-blue-400 via-teal-400 to-purple-400 bg-clip-text text-transparent">school</span>
-          </motion.h1>
+            {/* Title */}
+            <motion.h1
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.4, duration: 0.8, type: 'spring', stiffness: 100 }}
+              className="home-hero-title mb-3 font-display font-black lg:mb-3 lg:text-center"
+            >
+              <span className="bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 bg-clip-text text-transparent">Veto</span>
+              <span className="bg-gradient-to-r from-blue-400 via-teal-400 to-purple-400 bg-clip-text text-transparent">school</span>
+            </motion.h1>
 
 
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="font-body text-xl md:text-2xl text-purple-500 font-600 mb-4"
-          >
-            {t(lang, 'hero_subtitle')}
-          </motion.p>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              className="mb-4 whitespace-nowrap font-body text-[clamp(15px,4vw,20px)] font-600 leading-tight tracking-[-0.01em] text-purple-500 md:text-2xl lg:mb-3 lg:text-center lg:text-[22px] lg:leading-[30px]"
+            >
+              {t(lang, 'hero_subtitle')}
+            </motion.p>
 
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-            className="font-body text-lg text-purple-400 mb-10 max-w-xl mx-auto leading-relaxed"
-          >
-            {t(lang, 'hero_desc')}
-          </motion.p>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.7 }}
+              className="mx-auto mb-6 max-w-xl font-body text-base leading-relaxed text-purple-400 sm:text-lg lg:mx-0 lg:mb-7 lg:h-[53px] lg:w-[560px] lg:text-center lg:text-[17px] lg:leading-[27px]"
+            >
+              {t(lang, 'hero_desc')}
+            </motion.p>
 
-          {/* Free trial banner */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8 }}
-            className="inline-flex items-center gap-3 bg-gradient-to-r from-pink-100 to-purple-100 border border-pink-200 px-6 py-3 rounded-2xl mb-8"
-          >
-            <span className="text-2xl">🎁</span>
-            <div className="text-left">
-              {lang === 'ru' && <p className="font-body font-700 text-purple-700 text-sm">Запишитесь на <span className="text-pink-500">бесплатный пробный урок</span></p>}
-              {lang === 'en' && <p className="font-body font-700 text-purple-700 text-sm">Book a <span className="text-pink-500">free trial lesson</span></p>}
-              {lang === 'ua' && <p className="font-body font-700 text-purple-700 text-sm">Запишіться на <span className="text-pink-500">безкоштовний пробний урок</span></p>}
-            </div>
-          </motion.div>
+            {/* Free trial banner */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
+              className="mx-auto mb-5 flex w-full max-w-[345px] items-center justify-center gap-2 rounded-2xl border border-pink-200 bg-gradient-to-r from-pink-100 to-purple-100 px-3 py-2.5 sm:max-w-[390px] sm:gap-3 sm:px-4 sm:py-3 lg:mb-7 lg:h-14 lg:w-fit lg:px-6"
+            >
+              <img
+                src={HOME_STICKERS.gift}
+                alt=""
+                aria-hidden="true"
+                className="h-8 w-8 shrink-0 object-contain sm:h-9 sm:w-9"
+              />
+              <div className="text-center">
+                {lang === 'ru' && <p className="font-body text-[13px] font-700 tracking-[-0.01em] text-purple-700 sm:text-sm">Запишитесь на <span className="text-pink-500">бесплатный пробный урок</span></p>}
+                {lang === 'en' && <p className="font-body text-[13px] font-700 tracking-[-0.01em] text-purple-700 sm:text-sm">Book a <span className="text-pink-500">free trial lesson</span></p>}
+                {lang === 'ua' && <p className="font-body text-[13px] font-700 tracking-[-0.01em] text-purple-700 sm:text-sm">Запишіться на <span className="text-pink-500">безкоштовний пробний урок</span></p>}
+              </div>
+            </motion.div>
 
-          {/* CTAs */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.9 }}
-            className="flex flex-col sm:flex-row gap-4 justify-center items-center"
-          >
-            <Link to="/trial-booking">
-              <button className="btn-magic px-10 py-4 text-lg text-white font-display font-bold shadow-xl">
-                {t(lang, 'hero_cta')}
-              </button>
-            </Link>
-            <a href="https://t.me/vetoschool_bot" target="_blank" rel="noopener noreferrer"
-              className="btn-outline px-10 py-4 text-lg font-display font-bold">
-              {t(lang, 'hero_contact')}
-            </a>
-          </motion.div>
+            {/* CTAs */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.9 }}
+              className="flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4 lg:justify-start"
+            >
+              <Link to="/trial-booking" className="w-full max-w-[360px] shrink-0 sm:w-auto">
+                <button className="btn-magic inline-flex w-full items-center justify-center gap-1 px-6 py-4 text-lg text-white font-display font-bold shadow-xl sm:w-auto sm:px-10 lg:w-[360px] lg:px-8">
+                  <img
+                    src={HOME_STICKERS.rocket}
+                    alt=""
+                    aria-hidden="true"
+                    className="h-7 w-7 shrink-0 object-contain"
+                  />
+                  <span>{t(lang, 'hero_cta')}</span>
+                </button>
+              </Link>
+              <a href="https://t.me/vetoschool_bot" target="_blank" rel="noopener noreferrer"
+                className="btn-outline dark-mode-outline-button w-full max-w-[360px] shrink-0 whitespace-nowrap px-6 py-4 text-lg font-display font-bold sm:w-auto sm:px-10 lg:w-[277px] lg:px-[30px] lg:text-center">
+                {t(lang, 'hero_contact')}
+              </a>
+            </motion.div>
+          </div>
 
-          {/* Book */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.5, y: 50 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ delay: 1.1, duration: 0.8, type: 'spring', stiffness: 80 }}
-            className="mt-12 md:mt-16"
-          >
-            <BookHero />
-          </motion.div>
+          {/* Interactive owl — the video stays fixed while the pointer scrubs its timeline. */}
+          <div className="home-hero-owl md:mt-2 lg:absolute lg:left-[502px] lg:top-[-133px] lg:mt-0 lg:h-[1350px] lg:w-[915px]">
+            <HeroOwl />
+          </div>
         </div>
 
       </section>
@@ -198,7 +216,7 @@ export default function Home({ lang }: HomeProps) {
             {aboutCards.map((card, i) => (
               <FadeIn key={card.titleKey} delay={i * 0.1}>
                 <div className={`card-hover bg-gradient-to-br ${card.color} border ${card.border} rounded-3xl p-6 h-full`}>
-                  <div className="text-4xl mb-4">{card.icon}</div>
+                  <img src={card.image} alt="" aria-hidden="true" className="mb-4 h-14 w-14 object-contain" />
                   <h3 className="font-display font-bold text-xl text-purple-700 mb-2">{t(lang, card.titleKey)}</h3>
                   <p className="font-body text-purple-500 text-sm leading-relaxed">
                     {/* Custom text for about_fun */}
@@ -218,7 +236,7 @@ export default function Home({ lang }: HomeProps) {
             <div className="glass rounded-3xl p-8 md:p-12 text-center relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-pink-50/50 to-purple-50/50" />
               <div className="relative z-10">
-                <div className="text-6xl mb-4">👩‍🏫</div>
+                <img src={HOME_STICKERS.teacherOwl} alt="" aria-hidden="true" className="mx-auto mb-4 h-28 w-28 object-contain" />
                 <p className="font-body text-purple-500 max-w-lg mx-auto leading-relaxed text-lg">
                   {lang === 'ru' && '«Мы создали Vetoschool, потому что верим: изучение языка должно приносить радость. Каждый урок создан с любовью, чтобы ваш ребёнок развивал настоящие знания английского, получая при этом удовольствие!» 💕'}
                   {lang === 'en' && '"We created Vetoschool because we believe: learning a language should bring joy. Every lesson is crafted with love so your child builds real English skills while having the time of their life!" 💕'}
@@ -235,6 +253,7 @@ export default function Home({ lang }: HomeProps) {
         <div className="max-w-6xl mx-auto">
           <FadeIn className="text-center mb-16">
             <div className="inline-flex items-center gap-2 bg-blue-100 px-4 py-2 rounded-full mb-4">
+              <img src={HOME_STICKERS.books} alt="" aria-hidden="true" className="h-6 w-6 object-contain" />
               <span className="text-blue-500 font-body font-700 text-sm">{t(lang, 'courses_badge')}</span>
             </div>
             <h2 className="font-display font-black text-4xl md:text-5xl text-purple-700 mb-4">
@@ -251,8 +270,8 @@ export default function Home({ lang }: HomeProps) {
                   className={`card-hover flex h-full min-h-[14.5rem] flex-col bg-gradient-to-br ${course.color} border ${course.border} rounded-3xl p-6 cursor-pointer`}
                   whileHover={{ scale: 1.03 }}
                 >
-                  <motion.div className="mb-4 flex h-14 items-center text-5xl leading-none" whileHover={{ rotate: [0, -10, 10, 0], scale: 1.2 }} transition={{ duration: 0.4 }}>
-                    {course.icon}
+                  <motion.div className="mb-4 flex h-16 items-center" whileHover={{ rotate: [0, -10, 10, 0], scale: 1.2 }} transition={{ duration: 0.4 }}>
+                    <img src={course.image} alt="" aria-hidden="true" className="h-20 w-20 object-contain" />
                   </motion.div>
                   <h3 className="font-display font-bold text-xl text-purple-700 mb-2">{t(lang, course.titleKey)}</h3>
                   <p className="font-body text-purple-500 text-sm leading-relaxed flex-1">
@@ -270,7 +289,7 @@ export default function Home({ lang }: HomeProps) {
           {/* Free trial CTA */}
           <FadeIn delay={0.3} className="mt-10">
             <div className="glass rounded-3xl p-6 flex flex-col sm:flex-row items-center gap-4 border border-pink-100">
-              <div className="text-4xl">🎁</div>
+              <img src={HOME_STICKERS.gift} alt="" aria-hidden="true" className="h-12 w-12 shrink-0 object-contain" />
               <div className="flex-1 text-center sm:text-left">
                 <h4 className="font-display font-bold text-xl text-purple-700 mb-1">
                   {lang === 'ru' && 'Запишитесь на бесплатный пробный урок!'}
@@ -300,7 +319,10 @@ export default function Home({ lang }: HomeProps) {
                 ))}
               </div>
               <div className="relative z-10">
-                <h3 className="font-display font-black text-3xl md:text-4xl mb-4">{t(lang, 'courses_cta_title')}</h3>
+                <h3 className="mb-4 flex items-center justify-center gap-2 font-display text-3xl font-black md:text-4xl">
+                  <span>{t(lang, 'courses_cta_title')}</span>
+                  <img src={HOME_STICKERS.rocket} alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
+                </h3>
                 <p className="font-body text-white/90 text-lg mb-8 max-w-md mx-auto">{t(lang, 'courses_cta_desc')}</p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <Link to="/trial-booking"
@@ -332,13 +354,13 @@ export default function Home({ lang }: HomeProps) {
           <motion.div style={{ scale: showcaseScale, opacity: showcaseOpacity }} className="grid md:grid-cols-2 gap-8 items-center">
             <div className="space-y-6">
               {[
-                { emoji: '🌈', tk: 'showcase_visual' as const, dk: 'showcase_visual_desc' as const },
-                { emoji: '🎵', tk: 'showcase_music' as const, dk: 'showcase_music_desc' as const },
-                { emoji: '🎮', tk: 'showcase_game' as const, dk: 'showcase_game_desc' as const },
+                { image: HOME_STICKERS.rainbow, tk: 'showcase_visual' as const, dk: 'showcase_visual_desc' as const },
+                { image: HOME_STICKERS.musicNote, tk: 'showcase_music' as const, dk: 'showcase_music_desc' as const },
+                { image: HOME_STICKERS.gamepad, tk: 'showcase_game' as const, dk: 'showcase_game_desc' as const },
               ].map((item, i) => (
                 <motion.div key={item.tk} initial={{ opacity: 0, x: -40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}
                   transition={{ delay: i * 0.15, duration: 0.6 }} className="flex items-start gap-4 glass rounded-2xl p-5 card-hover">
-                  <div className="text-3xl flex-shrink-0">{item.emoji}</div>
+                  <img src={item.image} alt="" aria-hidden="true" className="h-16 w-16 shrink-0 object-contain" />
                   <div>
                     <h4 className="font-display font-bold text-purple-700 text-lg">{t(lang, item.tk)}</h4>
                     <p className="font-body text-purple-500 text-sm mt-1">{t(lang, item.dk)}</p>
@@ -348,18 +370,18 @@ export default function Home({ lang }: HomeProps) {
             </div>
 
             <motion.div initial={{ opacity: 0, x: 40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.8 }}>
-              <div className="rounded-3xl p-8 text-center relative overflow-hidden"
-                style={{ background: 'linear-gradient(135deg, #F5F0FF 0%, #FFE4F5 50%, #E4F5FF 100%)' }}>
-                <div className="grid grid-cols-3 gap-4 mb-6">
-                  {['📚', '✏️', '🌟', '🎨', '🔤', '🎵', '📖', '🌈', '💡'].map((emoji, i) => (
-                    <motion.div key={i} className="text-4xl flex items-center justify-center h-16 bg-white/60 rounded-2xl"
-                      animate={{ y: [0, -6, 0] }} transition={{ delay: i * 0.2, duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}>
-                      {emoji}
-                    </motion.div>
-                  ))}
-                </div>
-                <p className="font-display font-bold text-purple-600 text-lg">{t(lang, 'showcase_toolkit')}</p>
-                <p className="font-body text-purple-400 text-sm mt-2">{t(lang, 'showcase_toolkit_desc')}</p>
+              <div className="relative h-[23rem] overflow-hidden rounded-3xl bg-purple-950">
+                <video
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  preload="auto"
+                  className="absolute inset-0 h-full w-full object-cover"
+                  aria-label="Vetoschool learning preview"
+                >
+                  <source src="/home/showcase-loop.m4v" type="video/x-m4v" />
+                </video>
               </div>
             </motion.div>
           </motion.div>
@@ -372,7 +394,9 @@ export default function Home({ lang }: HomeProps) {
           style={{ background: 'linear-gradient(135deg, #FFB3D1, #C8B3FF, #B3D9FF, #B3F0E0)', backgroundSize: '300% 300%' }} />
         <div className="relative z-10 max-w-3xl mx-auto text-center">
           <FadeIn>
-            <motion.div animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] }} transition={{ duration: 4, repeat: Infinity }} className="text-7xl mb-6">🚀</motion.div>
+            <motion.div animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] }} transition={{ duration: 4, repeat: Infinity }} className="mb-6">
+              <img src={HOME_STICKERS.rocket} alt="" aria-hidden="true" className="mx-auto h-24 w-24 object-contain md:h-28 md:w-28" />
+            </motion.div>
             <h2 className="font-display font-black text-4xl md:text-6xl text-white mb-6" style={{ textShadow: '0 2px 20px rgba(150,100,200,0.3)' }}>
               {t(lang, 'cta_title')}
             </h2>
@@ -386,7 +410,8 @@ export default function Home({ lang }: HomeProps) {
               </Link>
               <a href="https://t.me/vetoschool_bot" target="_blank" rel="noopener noreferrer"
                 className="bg-white/20 border-2 border-white text-white font-display font-bold text-xl px-12 py-5 rounded-full hover:bg-white/30 transition-all inline-flex items-center gap-2 justify-center">
-                {t(lang, 'cta_telegram')}
+                <img src={HOME_STICKERS.telegramPlane} alt="" aria-hidden="true" className="h-8 w-8 object-contain" />
+                <span>{t(lang, 'cta_telegram')}</span>
               </a>
             </div>
           </FadeIn>

@@ -55,6 +55,7 @@ import {
   TeacherStudent,
   TeacherWorkspace,
   updateTeacherContentAccess,
+  updateTeacherContentDueDate,
   updateTeacherNotePinned,
   updateOwnTeacherProfile,
   updateTeacherLesson,
@@ -1345,6 +1346,19 @@ export default function TeacherDashboard({
     }
   };
 
+  const saveHomeworkDueDate = async (homework: TeacherHomework, dueDate: string | null) => {
+    try {
+      await updateTeacherContentDueDate(homework.id, dueDate);
+      setWorkspace(prev => prev ? {
+        ...prev,
+        homeworks: prev.homeworks.map(item => item.id === homework.id ? { ...item, dueDate } : item),
+      } : prev);
+      showToast(copy.saved);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : copy.failed);
+    }
+  };
+
   const toggleContentAccess = async (item: TeacherHomework) => {
     const nextUnlocked = !item.unlocked;
     setWorkspace(prev => prev ? {
@@ -1473,7 +1487,7 @@ export default function TeacherDashboard({
     if (active === 'students') return <StudentSearchDashboard workspace={workspace} copy={copy} onOpenStudent={id => navigate(`/teacher/students/${id}`)} onToggleContentAccess={toggleContentAccess} />;
     if (active === 'live') return <TeacherLiveLessons workspace={workspace} copy={copy} />;
     if (active === 'lessons') return <LessonsPage workspace={workspace} copy={copy} onOpenLesson={openLesson} onStartLesson={startLesson} />;
-    if (active === 'homework') return <HomeworkPage workspace={workspace} copy={copy} onSaveReview={saveHomeworkReview} />;
+    if (active === 'homework') return <HomeworkPage workspace={workspace} copy={copy} onSaveReview={saveHomeworkReview} onUpdateDueDate={saveHomeworkDueDate} />;
     if (active === 'notes') return <NotesPage workspace={workspace} localNotes={localNotes} copy={copy} onSaveNote={saveNote} onTogglePin={toggleNotePin} onDeleteNote={removeNote} />;
     if (active === 'notifications') return <NotificationsPage notifications={notifications} copy={copy} onRead={markNotificationRead} onOpen={notification => { void markNotificationRead(notification, true); navigateSection(notification.relatedSection); }} />;
     if (active === 'profile') return <ProfilePage workspace={workspace} lang={lang} copy={copy} onRefresh={refresh} showToast={showToast} />;
@@ -2937,7 +2951,7 @@ function AttendanceStudentCard({ student, value, copy, readOnly = false, onChang
   );
 }
 
-function HomeworkPage({ workspace, copy, onSaveReview }: { workspace: TeacherWorkspace; copy: typeof copyByLang.ru; onSaveReview: (homework: TeacherHomework, patch: { teacherComment?: string; resultPercent?: number | null; starRating?: number | null; status?: 'reviewed' | 'revision_requested' }) => Promise<void> }) {
+function HomeworkPage({ workspace, copy, onSaveReview, onUpdateDueDate }: { workspace: TeacherWorkspace; copy: typeof copyByLang.ru; onSaveReview: (homework: TeacherHomework, patch: { teacherComment?: string; resultPercent?: number | null; starRating?: number | null; status?: 'reviewed' | 'revision_requested' }) => Promise<void>; onUpdateDueDate: (homework: TeacherHomework, dueDate: string | null) => Promise<void> }) {
   const [filter, setFilter] = useState<HomeworkFilter>('Needs Review');
   const [groupId, setGroupId] = useState('all');
   const filters: HomeworkFilter[] = ['Needs Review', 'Reviewed', 'Revision Requested', 'Not Submitted', 'Late'];
@@ -2995,14 +3009,14 @@ function HomeworkPage({ workspace, copy, onSaveReview }: { workspace: TeacherWor
       </section>
       {sections.length ? (
         <div className="space-y-4">
-          {sections.map(section => <HomeworkGroupSection key={section.id} title={section.label} emoji={section.emoji} items={section.items} workspace={workspace} copy={copy} onSaveReview={onSaveReview} />)}
+          {sections.map(section => <HomeworkGroupSection key={section.id} title={section.label} emoji={section.emoji} items={section.items} workspace={workspace} copy={copy} onSaveReview={onSaveReview} onUpdateDueDate={onUpdateDueDate} />)}
         </div>
       ) : <CompactEmpty icon={ClipboardCheck} emoji="🤷‍♀️" title={copy.noHomework} description={copy.noHomeworkText} />}
     </div>
   );
 }
 
-function HomeworkGroupSection({ title, emoji, items, workspace, copy, onSaveReview }: { title: string; emoji: string; items: TeacherHomework[]; workspace: TeacherWorkspace; copy: TeacherCopy; onSaveReview: (homework: TeacherHomework, patch: { teacherComment?: string; resultPercent?: number | null; starRating?: number | null; status?: 'reviewed' | 'revision_requested' }) => Promise<void> }) {
+function HomeworkGroupSection({ title, emoji, items, workspace, copy, onSaveReview, onUpdateDueDate }: { title: string; emoji: string; items: TeacherHomework[]; workspace: TeacherWorkspace; copy: TeacherCopy; onSaveReview: (homework: TeacherHomework, patch: { teacherComment?: string; resultPercent?: number | null; starRating?: number | null; status?: 'reviewed' | 'revision_requested' }) => Promise<void>; onUpdateDueDate: (homework: TeacherHomework, dueDate: string | null) => Promise<void> }) {
   return (
     <section className="overflow-hidden rounded-3xl border border-white/80 bg-white/65 shadow-[0_14px_40px_rgba(126,87,194,0.07)] backdrop-blur-xl dark-panel-soft">
       <div className="flex items-center justify-between gap-3 border-b border-purple-100/70 bg-gradient-to-r from-white/85 via-pink-50/70 to-purple-50/70 px-5 py-4">
@@ -3010,7 +3024,7 @@ function HomeworkGroupSection({ title, emoji, items, workspace, copy, onSaveRevi
         <span className="rounded-full bg-white/85 px-3 py-1 font-body text-xs font-900 text-purple-500 shadow-sm">{items.length}</span>
       </div>
       <div className="grid gap-4 p-4 xl:grid-cols-2">
-        {items.map(item => <HomeworkReviewCard key={item.id} workspace={workspace} homework={item} copy={copy} onSaveReview={onSaveReview} />)}
+        {items.map(item => <HomeworkReviewCard key={item.id} workspace={workspace} homework={item} copy={copy} onSaveReview={onSaveReview} onUpdateDueDate={onUpdateDueDate} />)}
       </div>
     </section>
   );
@@ -3596,9 +3610,10 @@ function LessonCard({ workspace, lesson, copy, onOpen, onStart }: { workspace: T
   );
 }
 
-function HomeworkReviewCard({ workspace, homework, copy, onSaveReview }: { workspace: TeacherWorkspace; homework: TeacherHomework; copy: TeacherCopy; onSaveReview: (homework: TeacherHomework, patch: { teacherComment?: string; resultPercent?: number | null; starRating?: number | null; status?: 'reviewed' | 'revision_requested' }) => Promise<void> }) {
+function HomeworkReviewCard({ workspace, homework, copy, onSaveReview, onUpdateDueDate }: { workspace: TeacherWorkspace; homework: TeacherHomework; copy: TeacherCopy; onSaveReview: (homework: TeacherHomework, patch: { teacherComment?: string; resultPercent?: number | null; starRating?: number | null; status?: 'reviewed' | 'revision_requested' }) => Promise<void>; onUpdateDueDate: (homework: TeacherHomework, dueDate: string | null) => Promise<void> }) {
   const [comment, setComment] = useState(homework.teacherComment || '');
   const [stars, setStars] = useState(homework.starRating || 0);
+  const [dueDate, setDueDate] = useState(homework.dueDate || '');
   const [openWork, setOpenWork] = useState(false);
   const [openingSubmission, setOpeningSubmission] = useState(false);
   const [workError, setWorkError] = useState('');
@@ -3613,6 +3628,7 @@ function HomeworkReviewCard({ workspace, homework, copy, onSaveReview }: { works
     hasInteractiveResult ? `${copy.interactiveTask}: ${homework.interactiveScorePercent ?? homework.resultPercent ?? 100}%` : '',
   ].filter(Boolean);
   const meta = homeworkTypeMeta(homework.type, copy);
+  useEffect(() => setDueDate(homework.dueDate || ''), [homework.dueDate]);
   const openStudentSubmission = async () => {
     setWorkError('');
     if (!studentSubmissionUrl) {
@@ -3697,6 +3713,27 @@ function HomeworkReviewCard({ workspace, homework, copy, onSaveReview }: { works
           {openWork ? copy.close : copy.attachments}
         </button>
       </div>
+      {homework.type === 'checkpoint' && (
+        <div className="mx-5 mb-4 flex flex-wrap items-end gap-2 rounded-2xl border border-purple-100 bg-white/75 p-3">
+          <label className="min-w-[12rem] flex-1 font-body text-xs font-900 text-purple-500">
+            <span className="mb-1 block">{copy.lang === 'en' ? 'Due date' : copy.lang === 'ua' ? 'Здати до' : 'Сдать до'}</span>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={event => setDueDate(event.target.value)}
+              className="input-magic py-2 text-sm"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={dueDate === (homework.dueDate || '')}
+            onClick={() => void onUpdateDueDate(homework, dueDate || null)}
+            className={`${compactButton('purple')} disabled:cursor-not-allowed disabled:opacity-45`}
+          >
+            {copy.save}
+          </button>
+        </div>
+      )}
       <AnimatePresence initial={false}>
         {openWork && (
           <motion.div

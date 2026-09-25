@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { AlertCircle, CalendarDays, CheckCircle2, Clock3, Edit3, Loader2, Sparkles } from 'lucide-react';
+import { AlertCircle, CalendarDays, CheckCircle2, Clock3, Edit3, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { t } from '@/lib/i18n';
 import type { Lang } from '@/lib/i18n';
@@ -110,8 +110,13 @@ export default function ConfirmationStep({ lang, data, onEditBooking }: Confirma
   return (
     <div className="mx-auto max-w-4xl">
       <div className="mb-6 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-pink-400 to-blue-400 text-white shadow-xl shadow-purple-200/50">
-          <Sparkles className="h-8 w-8" aria-hidden="true" />
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-[#decdf4] shadow-xl shadow-purple-200/50 dark:bg-[#3a294f]">
+          <img
+            src="/trial-booking/trial-application-pencil.png"
+            alt=""
+            aria-hidden="true"
+            className="h-14 w-14 object-contain"
+          />
         </div>
         <h2 className="font-display text-3xl font-black text-purple-700 dark:text-purple-100">
           {t(lang, 'trial_confirmation_title')}
@@ -161,10 +166,18 @@ export default function ConfirmationStep({ lang, data, onEditBooking }: Confirma
             </h3>
             <div className="rounded-2xl bg-white/75 px-4 py-4 dark:bg-white/10">
               <p className="font-display text-2xl font-black text-purple-700 dark:text-purple-100">
-                {data.assessment?.recommendation || '—'}
+                {data.assessment?.englishLevel || '—'}
               </p>
+              {data.assessment && <p className="mt-2 font-body text-sm font-black text-purple-600 dark:text-purple-100">
+                {t(lang, 'trial_correct_answers')
+                  .replace('{correct}', String(data.assessment.correctAnswers))
+                  .replace('{total}', String(data.assessment.totalQuestions))}
+              </p>}
+              {data.assessment && <p className="mt-2 font-body text-sm font-black text-purple-600 dark:text-purple-100">
+                {data.assessment.recommendedGroup}
+              </p>}
               <p className="mt-2 font-body text-xs font-bold leading-relaxed text-purple-500 dark:text-purple-200">
-                {t(lang, 'trial_preliminary_note')}
+                {t(lang, 'trial_final_level_note')}
               </p>
             </div>
           </section>
@@ -195,7 +208,7 @@ export default function ConfirmationStep({ lang, data, onEditBooking }: Confirma
           type="button"
           onClick={handleConfirm}
           disabled={submitting}
-          className="pricing-button pricing-button-soft relative inline-flex min-h-14 flex-1 items-center justify-center gap-2 overflow-hidden rounded-3xl border border-pink-200/80 px-5 py-4 font-display text-sm font-black shadow-xl disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+          className="trial-booking-primary-button relative inline-flex min-h-14 flex-1 items-center justify-center gap-2 overflow-hidden rounded-3xl px-5 py-4 font-display text-sm font-black shadow-xl disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
         >
           <span className="relative z-10 inline-flex items-center gap-2">
             {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}

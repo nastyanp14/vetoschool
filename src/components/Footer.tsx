@@ -15,8 +15,7 @@ export default function Footer({ lang }: FooterProps) {
       <div className="mx-auto max-w-6xl">
         <div className="mb-12 grid gap-8 md:grid-cols-3">
           <div className="md:col-span-2">
-            <div className="mb-4 flex items-center gap-2">
-              <span className="text-3xl">📖</span>
+            <div className="mb-4">
               <span className="bg-gradient-to-r from-pink-300 to-purple-300 bg-clip-text font-display text-2xl font-black text-transparent">Vetoschool</span>
             </div>
             <p className="mb-6 max-w-md font-body leading-relaxed text-purple-300">{t(lang, 'footer_desc')}</p>
@@ -25,11 +24,11 @@ export default function Footer({ lang }: FooterProps) {
             <h4 className="mb-4 font-display text-lg font-bold text-white">{t(lang, 'footer_contact')}</h4>
             <ul className="space-y-3">
               <li className="flex items-center gap-2 font-body text-sm text-purple-300">
-                <span>✈️</span>
+                <img src="/home/sticker-airplane.png" alt="" aria-hidden="true" className="h-6 w-6 shrink-0 object-contain" />
                 <a href="https://t.me/vetoschool_bot" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-pink-300">@vetoschool_bot</a>
               </li>
               <li className="flex items-center gap-2 font-body text-sm text-purple-300">
-                <span>📧</span>
+                <img src="/home/sticker-envelope.png" alt="" aria-hidden="true" className="h-6 w-6 shrink-0 object-contain" />
                 <a href="mailto:vetoschool.english@gmail.com" className="transition-colors hover:text-pink-300">vetoschool.english@gmail.com</a>
               </li>
             </ul>

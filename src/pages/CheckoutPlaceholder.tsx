@@ -2,15 +2,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft,
-  BookOpen,
-  CalendarDays,
   CheckCircle2,
-  CreditCard,
-  GraduationCap,
-  LockKeyhole,
-  ShieldCheck,
-  Smartphone,
-  WalletCards,
   type LucideIcon,
 } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -70,11 +62,11 @@ const checkoutPlanMetadata: Record<PricingPlanId, PlanMetadata> = {
   },
 };
 
-const paymentMethods: Array<{ label: string; icon: LucideIcon }> = [
-  { label: 'Visa', icon: CreditCard },
-  { label: 'Mastercard', icon: WalletCards },
-  { label: 'Apple Pay', icon: Smartphone },
-  { label: 'Google Pay', icon: Smartphone },
+const paymentMethods = [
+  { label: 'Visa', imageSrc: '/checkout/visa-card.png', imageClassName: 'h-9 w-14' },
+  { label: 'Mastercard', imageSrc: '/checkout/mastercard-card.png', imageClassName: 'h-9 w-14' },
+  { label: 'Apple Pay', imageSrc: '/checkout/apple-pay.png', imageClassName: 'h-9 w-9' },
+  { label: 'Google Pay', imageSrc: '/checkout/google-pay.png', imageClassName: 'h-9 w-9' },
 ];
 
 const afterPaymentItems: Array<{ key: TranslationKey; icon: LucideIcon }> = [
@@ -176,6 +168,10 @@ export default function CheckoutPlaceholder({ lang }: CheckoutPlaceholderProps) 
   const selectedPrice = pricingPlanPrices[selectedPlanId];
   const planNameKey = pricingPlanNameKeys[selectedPlanId];
   const planMeta = checkoutPlanMetadata[selectedPlanId];
+  const isIndividualPlan = selectedPlanId.startsWith('individual');
+  const lessonFormatIconSrc = isIndividualPlan
+    ? '/pricing/switch/individual.png'
+    : '/pricing/switch/group.png';
   const totalPrice = formatCurrencyAmount(selectedPrice.monthlyCzk, selectedCurrency, lang);
   const amountLabels = checkoutAmountLabels[lang];
   const stripeLabels = checkoutStripeLabels[lang];
@@ -245,7 +241,12 @@ export default function CheckoutPlaceholder({ lang }: CheckoutPlaceholderProps) 
             transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
             className="mb-7 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/58 px-5 py-2.5 shadow-xl shadow-purple-100/50 backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.06] dark:shadow-purple-950/25"
           >
-            <LockKeyhole className="h-4 w-4 text-pink-400 dark:text-pink-200" aria-hidden="true" />
+            <img
+              src="/checkout/secure-lock.png"
+              alt=""
+              aria-hidden="true"
+              className="h-5 w-5 object-contain"
+            />
             <span className="font-body text-sm font-700 text-purple-600 dark:text-purple-100">{t(lang, 'checkout_selected_plan')}</span>
           </motion.div>
 
@@ -271,13 +272,23 @@ export default function CheckoutPlaceholder({ lang }: CheckoutPlaceholderProps) 
                     </p>
                   </div>
                   <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-gradient-to-br from-pink-100 via-purple-100 to-blue-100 text-purple-500 shadow-lg ring-1 ring-white/70 dark:from-pink-400/14 dark:via-purple-400/12 dark:to-blue-400/12 dark:text-purple-100 dark:ring-white/10">
-                    <CreditCard className="h-8 w-8" aria-hidden="true" />
+                    <img
+                      src="/checkout/mastercard-card.png"
+                      alt=""
+                      aria-hidden="true"
+                      className="h-11 w-14 object-contain"
+                    />
                   </div>
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-3">
                   <div className="rounded-[1.35rem] border border-white/70 bg-white/58 p-4 shadow-lg shadow-purple-100/22 backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.055] dark:shadow-black/18">
-                    <BookOpen className="mb-3 h-5 w-5 text-pink-500 dark:text-pink-200" aria-hidden="true" />
+                    <img
+                      src={lessonFormatIconSrc}
+                      alt=""
+                      aria-hidden="true"
+                      className={`object-contain ${isIndividualPlan ? 'mb-3 h-8 w-8' : 'mb-2 h-9 w-9'}`}
+                    />
                     <p className="font-body text-xs font-800 uppercase tracking-[0.12em] text-purple-300 dark:text-purple-200/60">
                       {t(lang, 'checkout_lesson_format')}
                     </p>
@@ -286,7 +297,12 @@ export default function CheckoutPlaceholder({ lang }: CheckoutPlaceholderProps) 
                     </p>
                   </div>
                   <div className="rounded-[1.35rem] border border-white/70 bg-white/58 p-4 shadow-lg shadow-purple-100/22 backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.055] dark:shadow-black/18">
-                    <CalendarDays className="mb-3 h-5 w-5 text-blue-500 dark:text-blue-200" aria-hidden="true" />
+                    <img
+                      src="/dashboard/checkpoint-calendar-blank.png"
+                      alt=""
+                      aria-hidden="true"
+                      className="mb-3 h-8 w-8 object-contain"
+                    />
                     <p className="font-body text-xs font-800 uppercase tracking-[0.12em] text-purple-300 dark:text-purple-200/60">
                       {t(lang, 'pricing_lessons_month')}
                     </p>
@@ -295,7 +311,12 @@ export default function CheckoutPlaceholder({ lang }: CheckoutPlaceholderProps) 
                     </p>
                   </div>
                   <div className="rounded-[1.35rem] border border-white/70 bg-white/58 p-4 shadow-lg shadow-purple-100/22 backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.055] dark:shadow-black/18">
-                    <GraduationCap className="mb-3 h-5 w-5 text-purple-500 dark:text-purple-200" aria-hidden="true" />
+                    <img
+                      src="/home/hero-graduation-cap.png"
+                      alt=""
+                      aria-hidden="true"
+                      className="mb-3 h-8 w-8 object-contain"
+                    />
                     <p className="font-body text-xs font-800 uppercase tracking-[0.12em] text-purple-300 dark:text-purple-200/60">
                       {t(lang, 'checkout_what_included')}
                     </p>
@@ -330,14 +351,17 @@ export default function CheckoutPlaceholder({ lang }: CheckoutPlaceholderProps) 
                   </h2>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     {paymentMethods.map((method) => {
-                      const Icon = method.icon;
-
                       return (
                         <div
                           key={method.label}
                           className="flex min-h-20 items-center justify-center gap-2 rounded-[1.25rem] border border-white/70 bg-gradient-to-br from-white/70 via-pink-50/62 to-blue-50/62 p-4 font-display text-sm font-black text-purple-600 shadow-lg shadow-purple-100/22 backdrop-blur-xl dark:border-white/10 dark:from-white/[0.08] dark:via-pink-400/8 dark:to-blue-400/8 dark:text-purple-50 dark:shadow-black/18"
                         >
-                          <Icon className="h-5 w-5 text-pink-500 dark:text-pink-200" aria-hidden="true" />
+                          <img
+                            src={method.imageSrc}
+                            alt=""
+                            aria-hidden="true"
+                            className={`${method.imageClassName} shrink-0 object-contain`}
+                          />
                           {method.label}
                         </div>
                       );
@@ -410,7 +434,12 @@ export default function CheckoutPlaceholder({ lang }: CheckoutPlaceholderProps) 
                   disabled={isRedirectingToStripe}
                   className="pricing-button pricing-button-soft mt-7 inline-flex min-h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-full border border-pink-200/80 px-6 py-4 text-center font-display text-base font-black shadow-xl disabled:cursor-wait disabled:opacity-70"
                 >
-                  <LockKeyhole className="h-5 w-5" aria-hidden="true" />
+                  <img
+                    src="/checkout/secure-lock.png"
+                    alt=""
+                    aria-hidden="true"
+                    className="h-5 w-5 shrink-0 scale-125 object-contain"
+                  />
                   <span>{isRedirectingToStripe ? stripeLabels.redirecting : t(lang, 'checkout_pay_securely')}</span>
                 </button>
 
@@ -452,7 +481,12 @@ export default function CheckoutPlaceholder({ lang }: CheckoutPlaceholderProps) 
 
                 <div className="mt-6 rounded-[1.5rem] border border-white/70 bg-gradient-to-br from-white/62 via-purple-50/50 to-blue-50/56 p-5 shadow-xl shadow-purple-100/24 backdrop-blur-xl dark:border-white/10 dark:from-white/[0.07] dark:via-purple-400/8 dark:to-blue-400/8 dark:shadow-black/18">
                   <div className="mb-3 flex items-center gap-2">
-                    <ShieldCheck className="h-5 w-5 text-pink-500 dark:text-pink-200" aria-hidden="true" />
+                    <img
+                      src="/checkout/secure-payment-shield.png"
+                      alt=""
+                      aria-hidden="true"
+                      className="h-7 w-7 shrink-0 object-contain"
+                    />
                     <h3 className="font-display text-lg font-black text-purple-700 dark:text-purple-50">
                       {t(lang, 'checkout_security_title')}
                     </h3>

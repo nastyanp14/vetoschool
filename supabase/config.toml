@@ -1,4 +1,17 @@
-project_id = "teapriepxqctgjfhposm"
+project_id = "ggflcriakiudnejmiuwh"
+
+[auth]
+  site_url = "https://vetoschool.eu"
+  additional_redirect_urls = ["https://vetoschool.eu/**"]
+
+[auth.email]
+  enable_confirmations = true
+  max_frequency = "1m0s"
+  otp_length = 6
+
+[auth.mfa.totp]
+  enroll_enabled = true
+  verify_enabled = true
 
 [functions]
   [functions.auth-email-hook]

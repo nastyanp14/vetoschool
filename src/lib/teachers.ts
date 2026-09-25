@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { User } from './auth';
 import { awardStars } from './stars';
 import { notifyHomeworkAssigned, notifyHomeworkChanged, notifyHomeworkReviewed, notifyLessonGradePublished, notifyLessonNoShow, notifyLessonResultPublished, notifyScheduleSaved } from './telegram';
+import { reviewStatusAfterInteractiveRepair } from './homeworkReviewState';
 import type { ScheduleSlot } from './schedule';
 import { cachedQuery, invalidateQueryCache, QUERY_LIMITS } from './queryCache';
 
@@ -680,6 +681,21 @@ function isSchemaNotReadyError(error: unknown) {
   );
 }
 
+export function isLegacyCheckpointReviewError(error: unknown, itemType?: string | null) {
+  if (itemType !== 'checkpoint') return false;
+  const err = error as { message?: string; details?: string; hint?: string };
+  const text = `${err?.message || ''} ${err?.details || ''} ${err?.hint || ''}`.toLowerCase();
+  return text.includes('homework item was not found');
+}
+
+async function notifyHomeworkReviewedSafely(studentId: string, item: Parameters<typeof notifyHomeworkReviewed>[1]) {
+  try {
+    await notifyHomeworkReviewed(studentId, item);
+  } catch (error) {
+    console.error('homework review saved, but notification failed', error);
+  }
+}
+
 async function assignTeacherRole(profileId: string) {
   await (supabase as any)
     .from('user_roles')
@@ -715,11 +731,11 @@ export async function listTeacherDirectory(students: User[] = []): Promise<{ tea
   const cacheKey = `postgrest:teacher-directory:${students.map(student => student.id).sort().join(',')}`;
   return cachedQuery(cacheKey, 10_000, async () => {
     const [{ data: teacherRows, error: teacherError }, { data: assignments, error: assignmentsError }, groups, { data: schedules, error: schedulesError }] = await Promise.all([
-      (supabase as any).from('teachers').select(TEACHER_COLUMNS).order('created_at', { ascending: false }).limit(QUERY_LIMITS.adminList),
-      (supabase as any).from('teacher_students').select('teacher_id,student_id').limit(QUERY_LIMITS.adminList),
-      listGroupsForAdmin(),
-      (supabase as any).from('schedules').select('user_id,group_id,day,time,is_conducted,lesson_status').limit(QUERY_LIMITS.adminList),
-    ]);
+    (supabase as any).from('teachers').select(TEACHER_COLUMNS).order('created_at', { ascending: false }).limit(QUERY_LIMITS.adminList),
+    (supabase as any).from('teacher_students').select('teacher_id,student_id').limit(QUERY_LIMITS.adminList),
+    listGroupsForAdmin(),
+    (supabase as any).from('schedules').select('user_id,group_id,day,time,is_conducted,lesson_status').limit(QUERY_LIMITS.adminList),
+  ]);
   if (teacherError) throw teacherError;
   if (assignmentsError) throw assignmentsError;
   if (schedulesError) throw schedulesError;
@@ -1424,7 +1440,11 @@ export async function syncLessonBlockContentForStudents(input: {
         due_date: input.date || null,
         teacher_comment: block.adminNote?.trim() || null,
         unlocked: true,
-        homework_status: progress ? 'reviewed' : shouldPreserveSubmission ? (existing?.homework_status || (existing?.checked_at ? 'reviewed' : 'submitted')) : 'not_submitted',
+        homework_status: progress
+          ? reviewStatusAfterInteractiveRepair(existing?.homework_status)
+          : shouldPreserveSubmission
+            ? (existing?.homework_status || (existing?.checked_at ? 'reviewed' : 'submitted'))
+            : 'not_submitted',
         submitted_at: progress ? (existing?.submitted_at || completedAt) : shouldPreserveSubmission ? existing?.submitted_at || null : null,
         checked_at: progress ? (existing?.checked_at || completedAt) : existing?.checked_at || null,
         result_percent: progress ? (shouldTrustProgressRating ? completedScore : existing?.result_percent ?? completedScore) : existing?.result_percent ?? null,
@@ -1723,7 +1743,7 @@ export async function saveHomeworkComment(homeworkId: string, patch: { teacherId
         const changed = previousRow.star_rating !== (patch.starRating ?? null)
           || (previousRow.teacher_comment || previousRow.review_comment || '') !== (patch.teacherComment || '');
         if (!changed) return;
-        await notifyHomeworkReviewed(previousRow.user_id, {
+        await notifyHomeworkReviewedSafely(previousRow.user_id, {
           id: homeworkId,
           type: previousRow.type,
           title: previousRow.title || 'Homework',
@@ -1734,10 +1754,10 @@ export async function saveHomeworkComment(homeworkId: string, patch: { teacherId
       }
       return;
     }
-    if (!isSchemaNotReadyError(rpcError)) throw rpcError;
+    if (!isSchemaNotReadyError(rpcError) && !isLegacyCheckpointReviewError(rpcError, previousRow?.type)) throw rpcError;
   }
 
-  const { error } = await (supabase as any)
+  const { data: updatedRows, error } = await (supabase as any)
     .from('content_items')
     .update({
       teacher_comment: patch.teacherComment ?? null,
@@ -1750,11 +1770,13 @@ export async function saveHomeworkComment(homeworkId: string, patch: { teacherId
       checked_at: reviewedAt,
       student_result: patch.status === 'revision_requested' ? 'Revision Requested' : undefined,
     })
-    .eq('id', homeworkId);
+    .eq('id', homeworkId)
+    .select('id');
   if (error) throw error;
+  if (!updatedRows?.length) throw new Error('Homework review was not saved');
   await awardIfNeeded();
   if (previousRow?.user_id) {
-    await notifyHomeworkReviewed(previousRow.user_id, {
+    await notifyHomeworkReviewedSafely(previousRow.user_id, {
       id: homeworkId,
       type: previousRow.type,
       title: previousRow.title || 'Homework',
@@ -1771,6 +1793,16 @@ export async function updateTeacherContentAccess(contentItemId: string, unlocked
     .update({ unlocked })
     .eq('id', contentItemId);
   if (error) throw error;
+}
+
+export async function updateTeacherContentDueDate(contentItemId: string, dueDate: string | null) {
+  const { data, error } = await (supabase as any)
+    .from('content_items')
+    .update({ due_date: dueDate || null })
+    .eq('id', contentItemId)
+    .select('id');
+  if (error) throw error;
+  if (!data?.length) throw new Error('Content due date was not saved');
 }
 
 export async function createLessonChangeRequest(input: {

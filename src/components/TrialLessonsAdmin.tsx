@@ -73,6 +73,12 @@ const copy = {
     experience: 'Опыт английского',
     notes: 'Заметки родителя',
     score: 'Внутренний балл',
+    correctAnswers: 'Правильные ответы',
+    percentage: 'Процент',
+    preliminaryLevel: 'Предварительный уровень английского',
+    recommendedGroup: 'Рекомендуемая группа',
+    ageGroup: 'Возрастная группа',
+    testVersion: 'Версия теста',
     teacherLevel: 'Уровень после урока',
     teacherDirection: 'Направление после урока',
     internalNotes: 'Внутренние заметки',
@@ -150,6 +156,12 @@ const copy = {
     experience: 'English experience',
     notes: 'Parent notes',
     score: 'Internal score',
+    correctAnswers: 'Correct answers',
+    percentage: 'Percentage',
+    preliminaryLevel: 'Preliminary English level',
+    recommendedGroup: 'Recommended group',
+    ageGroup: 'Age group',
+    testVersion: 'Test version',
     teacherLevel: 'Teacher-confirmed level',
     teacherDirection: 'Teacher-confirmed direction',
     internalNotes: 'Internal notes',
@@ -227,6 +239,12 @@ const copy = {
     experience: 'Досвід англійської',
     notes: 'Нотатки батьків',
     score: 'Внутрішній бал',
+    correctAnswers: 'Правильні відповіді',
+    percentage: 'Відсоток',
+    preliminaryLevel: 'Попередній рівень англійської',
+    recommendedGroup: 'Рекомендована група',
+    ageGroup: 'Вікова група',
+    testVersion: 'Версія тесту',
     teacherLevel: 'Рівень після уроку',
     teacherDirection: 'Напрям після уроку',
     internalNotes: 'Внутрішні нотатки',
@@ -609,7 +627,12 @@ export default function TrialLessonsAdmin({ lang }: { lang: Lang }) {
 
               <section className="grid gap-3 rounded-3xl bg-purple-50/80 p-4 dark:bg-white/10">
                 <h4 className="font-display text-lg font-black text-purple-700 dark:text-purple-100">{labels.assessment}</h4>
-                <DetailRow label={labels.recommendation} value={selected.preliminary_recommendation} />
+                <DetailRow label={labels.preliminaryLevel} value={selected.english_level || labels.notProvided} />
+                <DetailRow label={labels.correctAnswers} value={selected.correct_answers === null || selected.total_questions === null ? labels.notProvided : `${selected.correct_answers} / ${selected.total_questions}`} />
+                <DetailRow label={labels.percentage} value={selected.percentage === null ? labels.notProvided : `${selected.percentage}%`} />
+                <DetailRow label={labels.recommendedGroup} value={selected.recommended_group || selected.preliminary_recommendation} />
+                <DetailRow label={labels.ageGroup} value={selected.age_group || labels.notProvided} />
+                <DetailRow label={labels.testVersion} value={selected.test_version || labels.notProvided} />
                 <DetailRow label={labels.score} value={selected.assessment_score} />
                 <input value={draft.teacher_confirmed_level || ''} onChange={event => setDraft(current => ({ ...current, teacher_confirmed_level: event.target.value }))} placeholder={labels.teacherLevel} className="rounded-2xl border border-purple-100 bg-white/80 px-3 py-2 font-body text-sm font-semibold text-purple-700 outline-none focus:border-pink-300 focus:ring-4 focus:ring-pink-100 dark:border-purple-700 dark:bg-[#1b0c2f] dark:text-purple-100" />
                 <input value={draft.teacher_confirmed_direction || ''} onChange={event => setDraft(current => ({ ...current, teacher_confirmed_direction: event.target.value }))} placeholder={labels.teacherDirection} className="rounded-2xl border border-purple-100 bg-white/80 px-3 py-2 font-body text-sm font-semibold text-purple-700 outline-none focus:border-pink-300 focus:ring-4 focus:ring-pink-100 dark:border-purple-700 dark:bg-[#1b0c2f] dark:text-purple-100" />

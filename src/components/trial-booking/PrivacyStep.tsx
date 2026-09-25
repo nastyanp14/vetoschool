@@ -1,8 +1,8 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ShieldCheck } from 'lucide-react';
 import { t } from '@/lib/i18n';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { PrivacyConsents, TrialBookingStepProps } from './types';
@@ -23,6 +23,11 @@ export default function PrivacyStep({ lang, data, updateData, onNext }: TrialBoo
     defaultValues: data.privacy,
     mode: 'onChange',
   });
+  const values = useWatch({ control });
+
+  useEffect(() => {
+    updateData({ privacy: values as PrivacyConsents });
+  }, [updateData, values]);
 
   const onSubmit = (values: PrivacyConsents) => {
     updateData({ privacy: values });
@@ -32,8 +37,13 @@ export default function PrivacyStep({ lang, data, updateData, onNext }: TrialBoo
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="mx-auto max-w-3xl">
       <div className="mb-6 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-pink-400 to-blue-400 text-white shadow-xl shadow-purple-200/50">
-          <ShieldCheck className="h-8 w-8" aria-hidden="true" />
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-[#decdf4] shadow-xl shadow-purple-200/50 dark:bg-[#3a294f]">
+          <img
+            src="/trial-booking/privacy-shield-sticker.png"
+            alt=""
+            aria-hidden="true"
+            className="h-14 w-14 object-contain"
+          />
         </div>
         <h2 className="font-display text-3xl font-black text-purple-700 dark:text-purple-100">
           {t(lang, 'trial_privacy_title')}
@@ -114,7 +124,7 @@ export default function PrivacyStep({ lang, data, updateData, onNext }: TrialBoo
 
       <button
         type="submit"
-        className="mt-6 w-full rounded-3xl bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 px-8 py-4 font-display text-base font-black text-white shadow-xl shadow-purple-200/60 transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pink-200 dark:shadow-purple-950/50"
+        className="trial-booking-primary-button mt-6 w-full rounded-3xl px-8 py-4 font-display text-base font-black shadow-xl shadow-purple-200/60 transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pink-200 dark:shadow-purple-950/50"
       >
         {t(lang, 'trial_continue')}
       </button>

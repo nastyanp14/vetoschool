@@ -1318,6 +1318,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const [newExtraFile, setNewExtraFile] = useState('');
   const [newExtraFileName, setNewExtraFileName] = useState('');
   const [newExtraLink, setNewExtraLink] = useState('');
+  const [newExtraDueDate, setNewExtraDueDate] = useState('');
   const [newExtraSchedDate, setNewExtraSchedDate] = useState('');
   const [newExtraSchedTime, setNewExtraSchedTime] = useState('');
 
@@ -1710,12 +1711,12 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
         const defaultTitle = newExtraType === 'grammar' ? `Grammar ${existingCount}`
           : newExtraType === 'listening' ? `Listening ${existingCount}`
           : `Unit Checkpoint ${existingCount}`;
-        const newItem: ContentItem = { id: crypto.randomUUID(), userId: targetId, moduleId:extraModuleId, type:newExtraType, title:newExtraTitle||defaultTitle, emoji:newExtraEmoji, fileUrl:newExtraFile || null, fileDataUrl:newExtraFile || null, fileName:newExtraFileName || null, externalLink:newExtraLink||null, scheduledDate:newExtraSchedDate || null, scheduledTime:newExtraSchedTime || null, unlocked:false };
+        const newItem: ContentItem = { id: crypto.randomUUID(), userId: targetId, moduleId:extraModuleId, type:newExtraType, title:newExtraTitle||defaultTitle, emoji:newExtraEmoji, fileUrl:newExtraFile || null, fileDataUrl:newExtraFile || null, fileName:newExtraFileName || null, externalLink:newExtraLink||null, dueDate:newExtraType === 'checkpoint' ? newExtraDueDate || null : null, scheduledDate:newExtraSchedDate || null, scheduledTime:newExtraSchedTime || null, unlocked:false };
         await saveStudentContent(targetId, [...baseItems, newItem]);
       }
 
       await refreshCurrentContent();
-      setShowNewExtra(false); setNewExtraTitle(''); setNewExtraFile(''); setNewExtraFileName(''); setNewExtraLink(''); setNewExtraSchedDate(''); setNewExtraSchedTime('');
+      setShowNewExtra(false); setNewExtraTitle(''); setNewExtraFile(''); setNewExtraFileName(''); setNewExtraLink(''); setNewExtraDueDate(''); setNewExtraSchedDate(''); setNewExtraSchedTime('');
       const toastKey = newExtraType === 'grammar' ? 'dash_grammar' : newExtraType === 'listening' ? 'dash_listening' : 'dash_checkpoint';
       showToast(`✅ ${t(lang, toastKey)} · ${contentTargetText.savedFor}: ${targetIds.length}`);
     } catch (error) {
@@ -2915,7 +2916,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                                               <input type="text" value={editEmoji} onChange={e => setEditEmoji(e.target.value)} className="input-magic text-sm py-2" maxLength={4} />
                                             </div>
                                           </div>
-                                          {item.type === 'homework' && (
+                                          {(item.type === 'homework' || item.type === 'checkpoint') && (
                                             <div>
                                               <label className="font-body text-xs text-purple-500 font-600 mb-1 block">{t(lang,'admin_due_label')}</label>
                                               <input type="date" value={editDueDate} onChange={e => setEditDueDate(e.target.value)} className="input-magic text-sm py-2" />
@@ -3013,6 +3014,12 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
                             </div>
                             <div className="bg-white rounded-2xl p-4 border border-purple-100 space-y-3">
                               <div className="grid grid-cols-2 gap-3">
+                                {newExtraType === 'checkpoint' && (
+                                  <div className="col-span-2">
+                                    <label className="font-body text-xs text-purple-500 font-600 mb-1 block">{t(lang,'admin_due_label')}</label>
+                                    <input type="date" value={newExtraDueDate} onChange={e => setNewExtraDueDate(e.target.value)} className="input-magic text-sm py-2" />
+                                  </div>
+                                )}
                                 <div>
                                   <label className="font-body text-xs text-purple-500 font-600 mb-1 block">{t(lang,'admin_title_label')}</label>
                                   <input type="text" value={newExtraTitle} onChange={e => setNewExtraTitle(e.target.value)} className="input-magic text-sm py-2" />

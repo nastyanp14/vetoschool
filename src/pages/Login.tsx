@@ -55,7 +55,7 @@ export default function Login({ lang }: { lang: Lang }) {
 
   return (
       <AuthPageShell tone="pink">
-      <AuthHeader icon="📖" title={t(lang, 'login_title')} subtitle={t(lang, 'login_sub')} />
+      <AuthHeader icon="📖" iconSrc="/auth/login-vetoschool-sticker.png" title={t(lang, 'login_title')} subtitle={t(lang, 'login_sub')} />
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -85,9 +85,9 @@ export default function Login({ lang }: { lang: Lang }) {
         <div className="h-px flex-1 bg-purple-100" />
       </div>
 
-      <GoogleButton onClick={handleGoogle} loading={googleLoading} label={copy.google} />
+      <GoogleButton onClick={handleGoogle} loading={googleLoading} label={copy.google} iconSrc="/auth/google-sticker.png" />
 
-      <AuthFooterLink to="/register" muted={t(lang, 'login_no_account')} label={t(lang, 'login_join')} />
+      <AuthFooterLink to="/register" muted={t(lang, 'login_no_account')} label={t(lang, 'login_join')} iconSrc="/auth/register-rocket-sticker.png" />
     </AuthPageShell>
   );
 }
