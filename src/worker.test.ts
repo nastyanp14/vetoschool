@@ -8,6 +8,30 @@ const env = {
   VITE_SUPABASE_URL: 'https://ggflcriakiudnejmiuwh.supabase.co',
 } as Parameters<typeof worker.fetch>[1];
 
+const spaHtml = `<!doctype html><html><head>
+  <title>Vetoschool</title>
+  <meta name="description" content="Default description" />
+  <meta name="robots" content="index,follow" />
+  <link rel="canonical" href="https://vetoschool.eu/" />
+  <meta property="og:title" content="Vetoschool" />
+  <meta property="og:description" content="Default description" />
+  <meta property="og:url" content="https://vetoschool.eu/" />
+  <meta name="twitter:title" content="Vetoschool" />
+  <meta name="twitter:description" content="Default description" />
+</head><body><div id="root"></div></body></html>`;
+
+function createSpaEnv() {
+  return {
+    ...env,
+    ASSETS: {
+      fetch: vi.fn().mockResolvedValue(new Response(spaHtml, {
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+      })),
+    },
+  };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -52,5 +76,39 @@ describe('worker workbook asset proxy', () => {
     expect(response.headers.get('content-type')).toBe('image/png');
     expect(response.headers.get('set-cookie')).toBeNull();
     await expect(response.text()).resolves.toBe('image-bytes');
+  });
+});
+
+describe('worker error pages', () => {
+  it('serves the 500 route with matching metadata and HTTP status', async () => {
+    const response = await worker.fetch(new Request('https://vetoschool.eu/500', {
+      headers: { accept: 'text/html' },
+    }), createSpaEnv());
+
+    expect(response.status).toBe(500);
+    expect(response.statusText).toBe('Internal Server Error');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('retry-after')).toBeNull();
+
+    const body = await response.text();
+    expect(body).toContain('<title>Internal Server Error | Vetoschool</title>');
+    expect(body).toContain('<meta name="robots" content="noindex,nofollow" />');
+    expect(body).toContain('<link rel="canonical" href="https://vetoschool.eu/500" />');
+  });
+
+  it('serves the 503 route with matching metadata and HTTP status', async () => {
+    const response = await worker.fetch(new Request('https://vetoschool.eu/503', {
+      headers: { accept: 'text/html' },
+    }), createSpaEnv());
+
+    expect(response.status).toBe(503);
+    expect(response.statusText).toBe('Service Unavailable');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('retry-after')).toBe('300');
+
+    const body = await response.text();
+    expect(body).toContain('<title>Service Temporarily Unavailable | Vetoschool</title>');
+    expect(body).toContain('<meta name="robots" content="noindex,nofollow" />');
+    expect(body).toContain('<link rel="canonical" href="https://vetoschool.eu/503" />');
   });
 });

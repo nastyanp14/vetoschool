@@ -21,32 +21,34 @@ const itemsByType = {
 describe('DashboardGrades', () => {
   afterEach(cleanup);
 
-  it('switches between all five grade categories and keeps work states separate', async () => {
+  it('shows an overall grades view and separates assignments by state and category', async () => {
     const onOpenItem = vi.fn();
     const { container } = render(<DashboardGrades lang="ru" ratingAverage={4.3} totalEarned={43} itemsByType={itemsByType} onOpenItem={onOpenItem} />);
 
     const grades = screen.getByTestId('dashboard-grades');
-    expect(within(grades).getByRole('button', { name: /Домашние задания/ })).toHaveAttribute('aria-pressed', 'true');
-    expect(within(grades).getByRole('button', { name: /Практика/ })).toBeInTheDocument();
-    expect(within(grades).getByRole('button', { name: /Unit Checkpoint/ })).toBeInTheDocument();
-    expect(within(grades).getByRole('button', { name: /Грамматика/ })).toBeInTheDocument();
-    expect(within(grades).getByRole('button', { name: /Аудирование/ })).toBeInTheDocument();
-    expect(within(grades).getByText('My daily routine')).toBeInTheDocument();
-    expect(within(grades).queryByText('At the zoo')).not.toBeInTheDocument();
+    expect(within(grades).getByRole('tab', { name: 'Общие оценки' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(grades).getByText('4.3 / 5')).toBeInTheDocument();
+    expect(within(grades).getByText('Оценки по категориям')).toBeInTheDocument();
+    expect(container.querySelector('img[src*="grades-hero-owl"]')).not.toBeInTheDocument();
 
-    fireEvent.click(within(grades).getByRole('tab', { name: /Сданные \(1\)/ }));
-    await waitFor(() => expect(within(grades).getByText('At the zoo')).toBeInTheDocument());
-    expect(within(grades).getByText('Оценено')).toBeInTheDocument();
-    expect(container.querySelectorAll('img[src*="rating-user-star"]').length).toBeGreaterThan(4);
+    fireEvent.click(within(grades).getByRole('tab', { name: /Все задания 3/ }));
+    await waitFor(() => expect(within(grades).getByText('My daily routine')).toBeInTheDocument());
+    expect(within(grades).getByText('At the zoo')).toBeInTheDocument();
+    expect(within(grades).getByText('Everyday English')).toBeInTheDocument();
+
+    fireEvent.click(within(grades).getByRole('tab', { name: /Запланированные 2/ }));
+    await waitFor(() => expect(within(grades).queryByText('At the zoo')).not.toBeInTheDocument());
+    expect(within(grades).getByText('My daily routine')).toBeInTheDocument();
 
     fireEvent.click(within(grades).getByRole('button', { name: /Практика/ }));
-    await waitFor(() => expect(within(grades).getByText('Дневник практических работ')).toBeInTheDocument());
     await waitFor(() => expect(within(grades).getByText('Everyday English')).toBeInTheDocument());
+    expect(within(grades).queryByText('My daily routine')).not.toBeInTheDocument();
   });
 
   it('opens the selected assignment row', () => {
     const onOpenItem = vi.fn();
     render(<DashboardGrades lang="en" ratingAverage={0} totalEarned={0} itemsByType={itemsByType} onOpenItem={onOpenItem} />);
+    fireEvent.click(screen.getByRole('tab', { name: /All assignments 3/ }));
     fireEvent.click(screen.getByRole('button', { name: /My daily routine/ }));
     expect(onOpenItem).toHaveBeenCalledWith(expect.objectContaining({ id: 'planned' }));
   });

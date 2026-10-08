@@ -24,7 +24,6 @@ export function TeacherHeader({
     <header className="sticky top-0 z-40 glass border-b border-purple-100 shadow-[0_4px_20px_rgba(150,100,200,0.1)]">
       <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-3 px-4 py-3">
         <Link to="/" className="flex min-w-0 items-center gap-2">
-          <span className="text-2xl">📖</span>
           <span className="truncate bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text font-display text-xl font-black text-transparent">
             Vetoschool
           </span>

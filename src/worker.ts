@@ -50,6 +50,8 @@ const VALID_SPA_ROUTES = new Set([
   '/pricing',
   '/payment/success',
   '/payment/cancel',
+  '/500',
+  '/503',
 ]);
 
 const WORKBOOK_ASSET_PROXY_PATH = '/api/workbook-asset-proxy';
@@ -125,15 +127,33 @@ async function serveIndex(request: Request, env: Env, status = 200) {
   indexUrl.pathname = '/index.html';
   indexUrl.search = '';
 
-  const indexResponse = await env.ASSETS.fetch(new Request(indexUrl, request));
+  const indexResponse = await env.ASSETS.fetch(new Request(indexUrl, {
+    method: request.method,
+    headers: request.headers,
+  }));
   const headers = new Headers(indexResponse.headers);
   headers.set('content-type', 'text/html; charset=UTF-8');
 
   const html = applyRouteMeta(await indexResponse.text(), normalizePathname(requestUrl.pathname));
 
+  if (status >= 500) {
+    headers.set('cache-control', 'no-store');
+  }
+
+  if (status === 503) {
+    headers.set('retry-after', '300');
+  }
+
   return new Response(html, {
     status,
-    statusText: status === 404 ? 'Not Found' : indexResponse.statusText,
+    statusText:
+      status === 404
+        ? 'Not Found'
+        : status === 500
+          ? 'Internal Server Error'
+          : status === 503
+            ? 'Service Unavailable'
+            : indexResponse.statusText,
     headers,
   });
 }
@@ -267,6 +287,14 @@ export default {
       return env.ASSETS.fetch(request);
     }
 
+
+    if (normalizePathname(pathname) === '/500') {
+      return serveIndex(request, env, 500);
+    }
+
+    if (normalizePathname(pathname) === '/503') {
+      return serveIndex(request, env, 503);
+    }
 
     if (isValidSpaRoute(pathname)) {
       return serveIndex(request, env);

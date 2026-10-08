@@ -2305,7 +2305,6 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
       <div className="sticky top-0 z-40 glass border-b border-purple-100" style={{ boxShadow:'0 4px 20px rgba(150,100,200,0.1)' }}>
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <span className="text-2xl">📖</span>
             <span className="font-display font-black text-xl bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">Vetoschool</span>
           </Link>
           <div className="flex items-center gap-3">

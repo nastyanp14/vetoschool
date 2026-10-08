@@ -338,6 +338,15 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
   );
 }
 
+// All learning sections share the artwork used by the Lessons cards.
+function LearningCardBackground() {
+  const imageClass = 'pointer-events-none absolute inset-0 h-full w-full scale-[1.01] select-none object-cover';
+  return <>
+    <img src="/dashboard/lessons-modal-card.png" alt="" aria-hidden="true" draggable={false} className={`${imageClass} dark:hidden`} />
+    <img src="/dashboard/lessons-modal-card-dark.png" alt="" aria-hidden="true" draggable={false} className={`${imageClass} hidden dark:block`} />
+  </>;
+}
+
 // ---- File modal (unlocked) ----
 export function FileModal({ item, userId, canSubmitWork, onClose, onSubmitted, onStartInteractive, lang, onDownloadMaterial = openOrDownload, onSubmitFile = submitStudentContentWork }: { item: ContentItem; userId: string; canSubmitWork: boolean; onClose: () => void; onSubmitted: () => Promise<void>; onStartInteractive?: (item: ContentItem) => void; lang: Lang; onDownloadMaterial?: typeof openOrDownload; onSubmitFile?: typeof submitStudentContentWork }) {
   const isLesson = item.type === 'lesson';
@@ -486,7 +495,14 @@ export function FileModal({ item, userId, canSubmitWork, onClose, onSubmitted, o
             alt=""
             aria-hidden="true"
             draggable={false}
-            className="pointer-events-none absolute inset-0 h-full w-full scale-[1.02] select-none object-fill"
+            className="pointer-events-none absolute inset-0 h-full w-full scale-[1.02] select-none object-fill dark:hidden"
+          />
+          <img
+            src="/dashboard/checkpoint-reviewed-card-dark.png"
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+            className="pointer-events-none absolute inset-0 hidden h-full w-full scale-[1.02] select-none object-fill dark:block"
           />
 
           <div className="absolute left-[3.8%] top-[5.8%] h-[12.2%] w-[25%]">
@@ -509,7 +525,7 @@ export function FileModal({ item, userId, canSubmitWork, onClose, onSubmitted, o
             ×
           </button>
 
-          <div className="absolute left-[26.5%] right-[34.5%] top-[4.8%] flex h-[16.8%] min-w-0 flex-col justify-center px-[1%] py-[2%] text-left drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]">
+          <div className="absolute left-[26.5%] right-[34.5%] top-[4.8%] flex h-[16.8%] min-w-0 flex-col justify-center px-[1%] py-[2%] text-left drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)] dark:drop-shadow-none">
             <h3 className="truncate font-display text-[clamp(0.7rem,2.25vw,1rem)] font-black leading-tight text-purple-700">
               {item.title}
             </h3>
@@ -590,7 +606,7 @@ export function FileModal({ item, userId, canSubmitWork, onClose, onSubmitted, o
             </div>
           </div>
 
-          <div className="absolute left-[23.5%] right-[12.5%] top-[62.2%] flex h-[13.7%] min-w-0 flex-col justify-center px-[4%] py-[2%] text-left drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]">
+          <div className="absolute left-[23.5%] right-[12.5%] top-[62.2%] flex h-[13.7%] min-w-0 flex-col justify-center px-[4%] py-[2%] text-left drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)] dark:drop-shadow-none">
             <div className="flex min-w-0 items-center gap-[2.5%] font-body text-[clamp(0.45rem,1.45vw,0.62rem)] font-800">
               <img
                 src={isRevisionRequested ? '/dashboard/checkpoint-revision-sticker.png?v=20260830' : '/dashboard/checkpoint-completed-check.png'}
@@ -611,7 +627,7 @@ export function FileModal({ item, userId, canSubmitWork, onClose, onSubmitted, o
           </div>
 
           {isRevisionRequested ? (
-            <div className="absolute left-[26%] right-[14%] top-[81.5%] flex h-[13.5%] min-w-0 flex-col justify-center px-[3%] py-[1%] text-left drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]">
+            <div className="absolute left-[26%] right-[14%] top-[81.5%] flex h-[13.5%] min-w-0 flex-col justify-center px-[3%] py-[1%] text-left drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)] dark:drop-shadow-none">
               <div className="truncate font-display text-[clamp(0.5rem,1.65vw,0.72rem)] font-black text-purple-700">
                 {revisionWorkTitle}
               </div>
@@ -655,7 +671,7 @@ export function FileModal({ item, userId, canSubmitWork, onClose, onSubmitted, o
               )}
             </div>
           ) : (
-            <div className="absolute left-[26%] right-[14%] top-[82.1%] flex h-[12.6%] min-w-0 flex-col justify-center px-[4%] py-[2%] text-left drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]">
+            <div className="absolute left-[26%] right-[14%] top-[82.1%] flex h-[12.6%] min-w-0 flex-col justify-center px-[4%] py-[2%] text-left drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)] dark:drop-shadow-none">
               <div className="truncate font-display text-[clamp(0.56rem,1.9vw,0.8rem)] font-black text-purple-700">
                 {gradedWorkTitle}
               </div>
@@ -706,13 +722,22 @@ export function FileModal({ item, userId, canSubmitWork, onClose, onSubmitted, o
               draggable={false}
               className="pointer-events-none absolute inset-0 hidden h-full w-full scale-[1.01] select-none object-fill dark:block"
             />
-          </> : <img
-            src={assessmentCard}
-            alt=""
-            aria-hidden="true"
-            draggable={false}
-            className="pointer-events-none absolute inset-0 h-full w-full scale-[1.01] select-none object-fill"
-          />}
+          </> : <>
+            <img
+              src={assessmentCard}
+              alt=""
+              aria-hidden="true"
+              draggable={false}
+              className="pointer-events-none absolute inset-0 h-full w-full scale-[1.01] select-none object-fill dark:hidden"
+            />
+            <img
+              src="/dashboard/checkpoint-modal-card-dark.png"
+              alt=""
+              aria-hidden="true"
+              draggable={false}
+              className="pointer-events-none absolute inset-0 hidden h-full w-full scale-[1.01] select-none object-fill dark:block"
+            />
+          </>}
 
           <div className="pointer-events-none absolute left-[4.4%] top-[6.7%] flex h-[15.4%] w-[13.2%] items-center justify-center">
             <img
@@ -725,7 +750,7 @@ export function FileModal({ item, userId, canSubmitWork, onClose, onSubmitted, o
             />
           </div>
 
-          <div className="absolute left-[19.7%] right-[21%] top-[10.2%] min-w-0 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]">
+          <div className="absolute left-[19.7%] right-[21%] top-[10.2%] min-w-0 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)] dark:drop-shadow-none">
             <h3 className="truncate font-display text-[clamp(0.72rem,2vw,1rem)] font-black leading-tight text-purple-700">
               {item.title}
             </h3>
@@ -1161,7 +1186,7 @@ export function LockedModal({ item, onClose, lang }: { item: ContentItem; onClos
         initial={{ scale: 0.85, y: 40 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.85, y: 40 }}
-        className="relative aspect-square w-full max-w-sm overflow-hidden rounded-[1.75rem] border border-white/80 text-center drop-shadow-[0_32px_70px_rgba(6,2,18,0.58)]"
+        className="relative aspect-square w-full max-w-sm overflow-hidden rounded-[1.75rem] border border-white/80 text-center drop-shadow-[0_32px_70px_rgba(6,2,18,0.58)] dark:border-[#16072f]"
         onClick={e => e.stopPropagation()}
       >
         <img
@@ -1169,7 +1194,14 @@ export function LockedModal({ item, onClose, lang }: { item: ContentItem; onClos
           alt=""
           aria-hidden="true"
           draggable={false}
-          className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover"
+          className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover dark:hidden"
+        />
+        <img
+          src="/dashboard/locked-content-card-dark.png"
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          className="pointer-events-none absolute inset-0 hidden h-full w-full select-none object-cover dark:block"
         />
 
         <div className="pointer-events-none absolute left-[50.5%] top-[18%] z-10 w-[36%] -translate-x-1/2 sm:top-[21%] sm:w-[40%]">
@@ -1248,14 +1280,6 @@ export function ContentCard({ item, lang, onClick, ordinal }: { item: ContentIte
     && normalizedTeacherFeedback.length > 0
     && normalizedTeacherFeedback.toLocaleLowerCase(locale) !== revisionText.toLocaleLowerCase(locale);
   const assessmentDateCount = [item.dueDate, item.scheduledDate, item.submittedAt].filter(Boolean).length;
-  const colorMap: Record<string, string> = {
-    lesson: 'from-pink-50 to-rose-50 border-pink-200',
-    homework: 'from-purple-50 to-violet-50 border-purple-200',
-    practice: 'from-blue-50 to-cyan-50 border-blue-200',
-    grammar: 'from-yellow-50 to-amber-50 border-yellow-200',
-    listening: 'from-green-50 to-teal-50 border-green-200',
-    checkpoint: 'from-orange-50 to-amber-50 border-orange-200',
-  };
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.92 }}
@@ -1263,9 +1287,10 @@ export function ContentCard({ item, lang, onClick, ordinal }: { item: ContentIte
       whileHover={{ scale: isLocked ? 1.01 : 1.03, y: isLocked ? 0 : -4 }}
       onClick={onClick}
       data-testid={isStyledAssessment ? `${item.type}-${isLocked ? 'locked' : isFileAssessment ? 'file' : 'graded'}-card` : undefined}
-      className={`${usesAssessmentLayout ? 'h-[334px]' : ''} ${isStyledAssessment ? 'border-transparent bg-transparent' : `bg-gradient-to-br ${colorMap[item.type] || colorMap.lesson}`} border rounded-3xl p-5 cursor-pointer relative overflow-hidden transition-shadow hover:shadow-lg`}
+      className={`${usesAssessmentLayout ? 'h-[334px]' : ''} border-transparent bg-transparent border rounded-3xl p-5 cursor-pointer relative overflow-hidden transition-shadow hover:shadow-lg`}
     >
-      <div className={isStyledAssessment ? 'invisible select-none' : undefined} aria-hidden={isStyledAssessment || undefined}>
+      <LearningCardBackground />
+      <div className={isStyledAssessment ? 'invisible select-none' : 'relative z-10 text-center'} aria-hidden={isStyledAssessment || undefined}>
         {isLocked && <div className="absolute top-3 right-3 text-xl opacity-60">🔒</div>}
         {!isLocked && item.fileDataUrl && (
           <div className="absolute top-3 right-3 text-xs bg-white/80 text-purple-500 px-2 py-0.5 rounded-full font-body font-600 shadow-sm">📎</div>
@@ -1274,7 +1299,7 @@ export function ContentCard({ item, lang, onClick, ordinal }: { item: ContentIte
           <div className="absolute top-3 right-3 text-xs bg-white/80 text-blue-500 px-2 py-0.5 rounded-full font-body font-600 shadow-sm">🎮</div>
         )}
         <div className="text-4xl mb-3">{item.emoji}</div>
-        <h4 className={`font-display font-bold text-base mb-2 leading-snug pr-10 ${isLocked ? 'text-gray-400' : 'text-purple-700'}`}>
+        <h4 className={`font-display font-bold text-base mb-2 leading-snug px-10 ${isLocked ? 'text-gray-400' : 'text-purple-700'}`}>
           {item.title}
         </h4>
         {item.dueDate && item.dueDate.length > 0 && (
@@ -1289,7 +1314,7 @@ export function ContentCard({ item, lang, onClick, ordinal }: { item: ContentIte
           <p className="font-body text-xs text-green-500 mb-1">✅ {submittedText}</p>
         )}
         {item.starRating && item.starRating > 0 && (
-          <div className="flex gap-0.5 my-1">
+          <div className="flex justify-center gap-0.5 my-1">
             {[1,2,3,4,5].map(s => (
               <span key={s} className={`text-base ${s <= item.starRating! ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
             ))}
@@ -1319,29 +1344,7 @@ export function ContentCard({ item, lang, onClick, ordinal }: { item: ContentIte
       </div>
 
       {isStyledAssessment && (
-        <div className="absolute inset-0 z-10 overflow-hidden rounded-3xl" style={isIllustratedAssessment ? { backgroundColor: '#f3e9fc', containerType: 'inline-size' } : undefined}>
-          {isLesson ? <>
-            <img
-              src="/dashboard/lessons-modal-card.png"
-              alt=""
-              aria-hidden="true"
-              draggable={false}
-              className="pointer-events-none absolute inset-0 h-full w-full scale-[1.01] select-none object-cover dark:hidden"
-            />
-            <img
-              src="/dashboard/lessons-modal-card-dark.png"
-              alt=""
-              aria-hidden="true"
-              draggable={false}
-              className="pointer-events-none absolute inset-0 hidden h-full w-full scale-[1.01] select-none object-cover dark:block"
-            />
-          </> : <img
-            src={isHomework ? '/dashboard/homework-assessment-card.png' : isPractice ? '/dashboard/practice-assessment-card.png' : isGrammar ? '/dashboard/grammar-assessment-card.png' : isListening ? '/dashboard/listening-assessment-card.png' : '/dashboard/checkpoint-graded-card.png?v=20260830'}
-            alt=""
-            aria-hidden="true"
-            draggable={false}
-            className={`pointer-events-none absolute w-full select-none ${isIllustratedAssessment ? 'left-0 top-1/2 h-auto -translate-y-1/2 scale-[1.01] rounded-[4%] object-contain' : 'inset-0 h-full scale-[1.04] object-fill'}`}
-          />}
+        <div className="absolute inset-0 z-10 overflow-hidden rounded-3xl" style={isIllustratedAssessment ? { containerType: 'inline-size' } : undefined}>
 
           {ordinal && (
             <div className="absolute left-[0.6%] top-[3.4%] flex h-7 w-7 items-center justify-center rounded-full bg-[#A97AF4] font-display text-xs font-black text-white shadow-[0_6px_12px_rgba(167,139,215,0.28)]">
@@ -1359,34 +1362,34 @@ export function ContentCard({ item, lang, onClick, ordinal }: { item: ContentIte
           </div>
 
           {isIllustratedAssessment && !isLocked && <>
-            <div data-testid={`${item.type}-card-details`} className={`absolute ${isLesson ? 'inset-x-[8%] text-center' : 'left-[50%] right-[3%] text-left'}`} style={{ top: assessmentDateCount > 1 ? '8%' : '16%' }}>
+            <div data-testid={`${item.type}-card-details`} className="absolute inset-x-[8%] text-center" style={{ top: assessmentDateCount > 1 ? '8%' : '16%' }}>
               <h4 className="line-clamp-2 break-words font-display text-[clamp(14px,4.8cqw,20px)] font-black leading-[1.1] text-purple-700">{item.title}</h4>
-              <div className={`mt-2 space-y-1 font-body text-xs font-700 leading-tight ${isLesson ? 'flex flex-col items-center' : ''}`}>
-                {item.dueDate && <div className={`flex items-center gap-2 text-purple-500 ${isLesson ? 'justify-center' : ''}`}>
+              <div className="mt-2 space-y-1 font-body text-xs font-700 leading-tight flex flex-col items-center">
+                {item.dueDate && <div className="flex items-center gap-2 text-purple-500 justify-center">
                   <img src="/dashboard/checkpoint-calendar-jul-17.png" alt="" aria-hidden="true" className="h-5 w-5 shrink-0 object-contain" />
                   <span>{t(lang, 'dash_due')} {new Date(item.dueDate).toLocaleDateString(locale, { day: 'numeric', month: 'long' })}</span>
                 </div>}
-                {item.scheduledDate && <div className={`flex items-center gap-2 text-indigo-400 ${isLesson ? 'justify-center' : ''}`}>
+                {item.scheduledDate && <div className="flex items-center gap-2 text-indigo-400 justify-center">
                   <img src="/dashboard/checkpoint-calendar-blank.png" alt="" aria-hidden="true" className="h-5 w-5 shrink-0 object-contain" />
                   <span>{item.scheduledDate} {item.scheduledTime}</span>
                 </div>}
-                {item.submittedAt && <div className={`flex items-center gap-2 text-emerald-600 ${isLesson ? 'justify-center' : ''}`}>
+                {item.submittedAt && <div className="flex items-center gap-2 text-emerald-600 justify-center">
                   <img src="/dashboard/checkpoint-completed-check.png" alt="" aria-hidden="true" className="h-5 w-5 shrink-0 object-contain" />
                   <span>{submittedText}: {new Date(item.submittedAt).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                 </div>}
               </div>
-              {!isFileAssessment && !!item.starRating && item.starRating > 0 && <div data-testid={`${item.type}-card-rating`} className={`mt-2 flex gap-1 ${isLesson ? 'justify-center' : ''}`} aria-label={`${item.starRating} / 5`}>
+              {!isFileAssessment && !!item.starRating && item.starRating > 0 && <div data-testid={`${item.type}-card-rating`} className="mt-2 flex gap-1 justify-center" aria-label={`${item.starRating} / 5`}>
                 {[1, 2, 3, 4, 5].map(star => <img key={star} src={RATING_STAR_SRC} alt="" aria-hidden="true" className={`h-7 w-7 shrink-0 object-contain drop-shadow-[0_3px_5px_rgba(217,119,6,0.2)] ${star <= item.starRating! ? '' : 'opacity-25 grayscale-[0.3]'}`} />)}
               </div>}
             </div>
 
-            {showAssessmentReview && <div data-testid={`${item.type}-card-review`} className={`absolute inset-x-[17%] flex rounded-2xl border border-white/90 bg-white/85 p-2 shadow-[0_7px_18px_rgba(108,79,143,0.12)] ${isLesson ? 'lesson-card-review justify-center text-center' : 'text-left'} ${isRevisionRequested ? 'gap-0' : 'min-h-[19%] gap-2'}`} style={{ top: assessmentDateCount > 1 ? '62%' : '57%' }}>
+            {showAssessmentReview && <div data-testid={`${item.type}-card-review`} className={`absolute inset-x-[17%] flex rounded-2xl border border-white/90 bg-white/85 p-2 shadow-[0_7px_18px_rgba(108,79,143,0.12)] lesson-card-review justify-center text-center ${isRevisionRequested ? 'gap-0' : 'min-h-[19%] gap-2'}`} style={{ top: assessmentDateCount > 1 ? '62%' : '57%' }}>
               <div className={`flex shrink-0 items-center justify-center ${isRevisionRequested ? 'h-6 w-6' : 'h-7 w-7'}`}>
                 <img src={isRevisionRequested ? '/dashboard/checkpoint-revision-sticker.png?v=20260830' : '/dashboard/checkpoint-completed-check.png'} alt="" aria-hidden="true" className="h-6 w-6 object-contain" />
               </div>
-              <div className={`min-w-0 flex-1 ${isLesson ? 'text-center' : ''} ${isRevisionRequested ? 'self-center' : ''}`}>
+              <div className={`min-w-0 flex-1 text-center ${isRevisionRequested ? 'self-center' : ''}`}>
                 <p className={`font-body font-700 leading-tight ${isRevisionRequested ? 'text-xs text-orange-500' : 'text-[clamp(10px,2.7cqw,12px)] text-emerald-600'}`}>{isRevisionRequested ? revisionText : checkedText}</p>
-                {!isRevisionRequested && !isFileAssessment && <div className={`mt-1 flex items-center gap-2 ${isLesson ? 'justify-center' : ''}`}>
+                {!isRevisionRequested && !isFileAssessment && <div className="mt-1 flex items-center gap-2 justify-center">
                   <span className="font-body text-lg font-black leading-none text-emerald-600">{interactiveScore}%</span>
                   <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-violet-100">
                     <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-green-400" style={{ width: `${interactiveScore}%` }} />
@@ -1397,30 +1400,30 @@ export function ContentCard({ item, lang, onClick, ordinal }: { item: ContentIte
             </div>}
           </>}
 
-          {!isIllustratedAssessment && <><div className="absolute left-[39%] right-[6%] top-[14%] text-left">
+          {!isIllustratedAssessment && <><div className="absolute inset-x-[8%] top-[14%] text-center">
             {!isLocked && <h4 className={`${isFileAssessment ? 'line-clamp-2 break-words' : 'truncate'} font-display text-base font-black leading-tight text-purple-700`}>{item.title}</h4>}
-            {!isLocked && <div className="mt-2 space-y-1 font-body text-xs font-700 leading-tight">
+            {!isLocked && <div className="mt-2 flex flex-col items-center space-y-1 font-body text-xs font-700 leading-tight">
               {item.dueDate && item.dueDate.length > 0 && (
-                <div className="flex min-w-0 items-center gap-2 text-purple-500">
+                <div className="flex min-w-0 items-center justify-center gap-2 text-purple-500">
                   <img src="/dashboard/checkpoint-calendar-jul-17.png" alt="" aria-hidden="true" className="h-5 w-5 shrink-0 object-contain" />
                   <span className="truncate">{t(lang, 'dash_due')} {new Date(item.dueDate).toLocaleDateString(locale, { day: 'numeric', month: 'long' })}</span>
                 </div>
               )}
               {item.scheduledDate && item.scheduledDate.length > 0 && (
-                <div className="flex min-w-0 items-center gap-2 text-indigo-400">
+                <div className="flex min-w-0 items-center justify-center gap-2 text-indigo-400">
                   <img src="/dashboard/checkpoint-calendar-blank.png" alt="" aria-hidden="true" className="h-5 w-5 shrink-0 object-contain" />
                   <span className="truncate">{item.scheduledDate} {item.scheduledTime}</span>
                 </div>
               )}
               {item.submittedAt && (
-                <div className="flex min-w-0 items-center gap-2 text-emerald-600">
+                <div className="flex min-w-0 items-center justify-center gap-2 text-emerald-600">
                   <img src="/dashboard/checkpoint-completed-check.png" alt="" aria-hidden="true" className="h-5 w-5 shrink-0 object-contain" />
                   <span className="truncate">{submittedText}: {new Date(item.submittedAt).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                 </div>
               )}
             </div>}
             {!isLocked && !isFileAssessment && !!item.starRating && item.starRating > 0 && (
-              <div className="mt-2 flex gap-1" aria-label={`${item.starRating} / 5`}>
+              <div className="mt-2 flex justify-center gap-1" aria-label={`${item.starRating} / 5`}>
                 {[1, 2, 3, 4, 5].map(star => (
                   <img
                     key={star}
@@ -1434,10 +1437,10 @@ export function ContentCard({ item, lang, onClick, ordinal }: { item: ContentIte
             )}
           </div>
 
-          {!isLocked && showAssessmentReview && <div className={`absolute inset-x-[5%] overflow-hidden rounded-2xl border border-white/80 bg-white/90 text-left shadow-[0_7px_18px_rgba(108,79,143,0.12)] ${
+          {!isLocked && showAssessmentReview && <div className={`absolute inset-x-[5%] overflow-hidden rounded-2xl border border-white/80 bg-white/90 text-center shadow-[0_7px_18px_rgba(108,79,143,0.12)] ${
             isRevisionRequested || isFileAssessment ? 'top-[56%] min-h-[15%] px-5 py-3' : 'top-[54%] h-[27%] px-5 py-2'
           }`}>
-            <div className={`flex items-center font-body text-xs font-800 ${isRevisionRequested ? 'gap-0 text-orange-500' : 'gap-2 text-emerald-600'}`}>
+            <div className={`flex items-center justify-center font-body text-xs font-800 ${isRevisionRequested ? 'gap-0 text-orange-500' : 'gap-2 text-emerald-600'}`}>
               <img
                 src={isRevisionRequested ? '/dashboard/checkpoint-revision-sticker.png?v=20260830' : '/dashboard/checkpoint-completed-check.png'}
                 alt=""
@@ -1905,7 +1908,6 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
       >
         <div className="relative max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <span className="text-2xl">📖</span>
             <span className="font-display font-black text-xl bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">Vetoschool</span>
           </Link>
           {(activeTab === 'shop' || activeTab === 'dictionary') && (

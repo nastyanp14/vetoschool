@@ -17,13 +17,13 @@ type TrialBookingPayload = {
   parentNotes?: string | null;
   assessmentScore: number;
   preliminaryRecommendation: Recommendation;
-  correctAnswers: number;
-  totalQuestions: number;
-  percentage: number;
-  englishLevel: string;
-  recommendedGroup: string;
-  ageGroup: string;
-  testVersion: string;
+  correctAnswers: number | null;
+  totalQuestions: number | null;
+  percentage: number | null;
+  englishLevel: string | null;
+  recommendedGroup: string | null;
+  ageGroup: string | null;
+  testVersion: string | null;
   selectedDate: string;
   selectedTime: string;
   timezone: string;
@@ -162,36 +162,17 @@ function validateTime(value: unknown) {
   return text;
 }
 
-function validatePayload(raw: unknown): TrialBookingPayload {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ValidationError('payload_invalid');
-  const input = raw as Record<string, unknown>;
-  const unexpected = Object.keys(input).filter(key => !expectedKeys.has(key));
-  if (unexpected.length > 0) throw new ValidationError('unexpected_fields');
-
-  const parentEmail = normalizeString(input.parentEmail, 'parentEmail', 5, 254).toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmail)) throw new ValidationError('parentEmail_invalid');
-
-  const preferredLanguage = input.preferredLanguage;
-  if (typeof preferredLanguage !== 'string' || !allowedLanguages.has(preferredLanguage as LanguagePreference)) {
-    throw new ValidationError('preferredLanguage_invalid');
-  }
-
-  const englishExperience = input.englishExperience;
-  if (typeof englishExperience !== 'string' || !allowedExperience.has(englishExperience as EnglishExperience)) {
-    throw new ValidationError('englishExperience_invalid');
-  }
-
-  const preliminaryRecommendation = input.preliminaryRecommendation;
-  if (typeof preliminaryRecommendation !== 'string' || !allowedRecommendations.has(preliminaryRecommendation as Recommendation)) {
-    throw new ValidationError('preliminaryRecommendation_invalid');
-  }
-
-  const childAge = Number(input.childAge);
-  if (!Number.isInteger(childAge) || childAge < 4 || childAge > 16) throw new ValidationError('childAge_invalid');
-
-  const assessmentScore = Number(input.assessmentScore);
-  if (!Number.isInteger(assessmentScore) || assessmentScore < 0 || assessmentScore > 100) {
-    throw new ValidationError('assessmentScore_invalid');
+// Old browser tabs submit no detailed result. Accept that complete legacy format,
+// but require and validate every field when any new assessment field is present.
+function validateAssessmentResult(input: Record<string, unknown>, childAge: number, assessmentScore: number) {
+  const emptyResult = {
+    correctAnswers: null, totalQuestions: null, percentage: null,
+    englishLevel: null, recommendedGroup: null, ageGroup: null, testVersion: null,
+  };
+  const fields = Object.keys(emptyResult);
+  if (!fields.some(field => Object.prototype.hasOwnProperty.call(input, field))) return emptyResult;
+  if (fields.some(field => input[field] === undefined || input[field] === null)) {
+    throw new ValidationError('assessmentResult_invalid');
   }
   const correctAnswers = Number(input.correctAnswers);
   const totalQuestions = Number(input.totalQuestions);
@@ -235,6 +216,42 @@ function validatePayload(raw: unknown): TrialBookingPayload {
     throw new ValidationError('assessmentResult_invalid');
   }
 
+  return { correctAnswers, totalQuestions, percentage, englishLevel, recommendedGroup, ageGroup, testVersion };
+}
+
+function validatePayload(raw: unknown): TrialBookingPayload {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ValidationError('payload_invalid');
+  const input = raw as Record<string, unknown>;
+  const unexpected = Object.keys(input).filter(key => !expectedKeys.has(key));
+  if (unexpected.length > 0) throw new ValidationError('unexpected_fields');
+
+  const parentEmail = normalizeString(input.parentEmail, 'parentEmail', 5, 254).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmail)) throw new ValidationError('parentEmail_invalid');
+
+  const preferredLanguage = input.preferredLanguage;
+  if (typeof preferredLanguage !== 'string' || !allowedLanguages.has(preferredLanguage as LanguagePreference)) {
+    throw new ValidationError('preferredLanguage_invalid');
+  }
+
+  const englishExperience = input.englishExperience;
+  if (typeof englishExperience !== 'string' || !allowedExperience.has(englishExperience as EnglishExperience)) {
+    throw new ValidationError('englishExperience_invalid');
+  }
+
+  const preliminaryRecommendation = input.preliminaryRecommendation;
+  if (typeof preliminaryRecommendation !== 'string' || !allowedRecommendations.has(preliminaryRecommendation as Recommendation)) {
+    throw new ValidationError('preliminaryRecommendation_invalid');
+  }
+
+  const childAge = Number(input.childAge);
+  if (!Number.isInteger(childAge) || childAge < 4 || childAge > 16) throw new ValidationError('childAge_invalid');
+
+  const assessmentScore = Number(input.assessmentScore);
+  if (!Number.isInteger(assessmentScore) || assessmentScore < 0 || assessmentScore > 100) {
+    throw new ValidationError('assessmentScore_invalid');
+  }
+  const assessmentResult = validateAssessmentResult(input, childAge, assessmentScore);
+
   const privacyAcceptedAt = validateIsoTimestamp(input.privacyAcceptedAt, 'privacyAcceptedAt');
   const guardianConfirmedAt = validateIsoTimestamp(input.guardianConfirmedAt, 'guardianConfirmedAt');
   const marketingConsentAt = input.marketingConsentAt ? validateIsoTimestamp(input.marketingConsentAt, 'marketingConsentAt') : null;
@@ -252,13 +269,7 @@ function validatePayload(raw: unknown): TrialBookingPayload {
     parentNotes: optionalString(input.parentNotes, 'parentNotes', 2000),
     assessmentScore,
     preliminaryRecommendation: preliminaryRecommendation as Recommendation,
-    correctAnswers,
-    totalQuestions,
-    percentage,
-    englishLevel,
-    recommendedGroup,
-    ageGroup,
-    testVersion,
+    ...assessmentResult,
     selectedDate: validateDate(input.selectedDate),
     selectedTime: validateTime(input.selectedTime),
     timezone: normalizeString(input.timezone || 'Europe/Prague', 'timezone', 3, 80),

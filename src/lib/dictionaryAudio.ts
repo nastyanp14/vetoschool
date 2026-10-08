@@ -1,5 +1,5 @@
 import type { DictWord } from './dictionary';
-import { signedUrlFor } from './workbooks';
+import { signedLessonAudioUrl } from './cardAudio';
 
 let stopActiveWordAudio: (() => void) | null = null;
 
@@ -32,7 +32,7 @@ export async function playDictionaryWordAudio(word: DictWord, setPlaying: (playi
     try {
       const url = /^(?:https?:|data:|blob:|\/)/i.test(word.audioUrl)
         ? word.audioUrl
-        : await signedUrlFor(word.audioUrl);
+        : await signedLessonAudioUrl(word.audioUrl);
       if (url) {
         audio = new Audio(url);
         audio.volume = 0.95;

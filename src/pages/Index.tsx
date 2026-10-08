@@ -23,11 +23,14 @@ import Analytics from './Analytics';
 import CookiePolicy from './CookiePolicy';
 import PrivacyPolicy from './PrivacyPolicy';
 import TrialBooking from './TrialBooking';
+import InternalServerError from './InternalServerError';
 import NotFound from './NotFound';
+import ServiceUnavailable from './ServiceUnavailable';
 import { Seo } from '../components/Seo';
 import { routeMeta } from '../lib/routeMeta';
 import CookieConsentBanner from '../components/CookieConsentBanner';
 import CookiePreferencesModal from '../components/CookiePreferencesModal';
+import AppLoadingScreen from '../components/AppLoadingScreen';
 
 const seo = routeMeta;
 
@@ -65,11 +68,7 @@ export default function Index() {
   }, [lang]);
 
   if (!ready) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#FFF0F6,#F5F0FF,#F0F8FF)' }}>
-        <div className="text-4xl animate-pulse">✨</div>
-      </div>
-    );
+    return <AppLoadingScreen lang={lang} />;
   }
 
   return (
@@ -100,6 +99,9 @@ export default function Index() {
         <Route path="/checkout/:planId" element={<><Seo {...seo.checkout} /><Navbar lang={lang} setLang={setLang} /><CheckoutPlaceholder lang={lang} /></>} />
         <Route path="/payment/success" element={<><Seo {...seo.paymentSuccess} /><Navbar lang={lang} setLang={setLang} /><PaymentResult lang={lang} variant="success" /></>} />
         <Route path="/payment/cancel" element={<><Seo {...seo.paymentCancel} /><Navbar lang={lang} setLang={setLang} /><PaymentResult lang={lang} variant="cancel" /></>} />
+        <Route path="/500" element={<><Seo {...seo.internalServerError} /><InternalServerError lang={lang} /></>} />
+        <Route path="/503" element={<><Seo {...seo.serviceUnavailable} /><ServiceUnavailable lang={lang} /></>} />
+        {import.meta.env.DEV && <Route path="/preview/loading" element={<AppLoadingScreen lang={lang} />} />}
         <Route path="*" element={<><Seo {...seo.notFound} /><NotFound lang={lang} /></>} />
       </Routes>
       <CookieConsentBanner lang={lang} />

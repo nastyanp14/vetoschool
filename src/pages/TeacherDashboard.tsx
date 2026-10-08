@@ -1635,7 +1635,6 @@ function TeacherTopNav({ teacher, lang, copy, notifications, onLangChange, onNot
     <header className="border-b border-purple-100/50 bg-white/70 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">📖</span>
           <span className="bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text font-display text-xl font-black text-transparent">Vetoschool</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">

@@ -137,6 +137,18 @@ export const routeMeta = {
     path: '/account/security',
     noindex: true,
   },
+  internalServerError: {
+    title: 'Internal Server Error | Vetoschool',
+    description: 'An unexpected Vetoschool error occurred. We are already working to fix it. Please try again shortly.',
+    path: '/500',
+    noindex: true,
+  },
+  serviceUnavailable: {
+    title: 'Service Temporarily Unavailable | Vetoschool',
+    description: 'Vetoschool is temporarily unavailable while we make a few improvements. Please try again shortly.',
+    path: '/503',
+    noindex: true,
+  },
   notFound: {
     title: 'Page Not Found | Vetoschool',
     description: 'This Vetoschool page does not exist. Use the quick links to get back to the home page or sign in.',
@@ -166,6 +178,8 @@ const STATIC_ROUTES: Record<string, RouteMeta> = {
   '/pricing': routeMeta.pricing,
   '/payment/success': routeMeta.paymentSuccess,
   '/payment/cancel': routeMeta.paymentCancel,
+  '/500': routeMeta.internalServerError,
+  '/503': routeMeta.serviceUnavailable,
 };
 
 /** Resolves head metadata for a pathname (used by the SPA and the edge worker). */

@@ -25,7 +25,11 @@ export default function Footer({ lang }: FooterProps) {
             <ul className="space-y-3">
               <li className="flex items-center gap-2 font-body text-sm text-purple-300">
                 <img src="/home/sticker-airplane.png" alt="" aria-hidden="true" className="h-6 w-6 shrink-0 object-contain" />
-                <a href="https://t.me/vetoschool_bot" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-pink-300">@vetoschool_bot</a>
+                <a href="https://t.me/vetoschool" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-pink-300">@vetoschool</a>
+              </li>
+              <li className="flex items-center gap-2 font-body text-sm text-purple-300">
+                <img src="/home/sticker-instagram.png" alt="" aria-hidden="true" className="h-6 w-6 shrink-0 object-contain" />
+                <a href="https://www.instagram.com/vetoschool.eu/" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-pink-300">vetoschool.eu</a>
               </li>
               <li className="flex items-center gap-2 font-body text-sm text-purple-300">
                 <img src="/home/sticker-envelope.png" alt="" aria-hidden="true" className="h-6 w-6 shrink-0 object-contain" />
