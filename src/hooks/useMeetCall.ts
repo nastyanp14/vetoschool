@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import {
   getMeetRoster, heartbeatMeet, iceServers, joinMeet, leaveMeet, meetError, sendMeetSignal,
-  tuneVideoSender, type MeetParticipant, type MeetSignal,
+  meetQualityProfile, SCREEN_VIDEO_CONSTRAINTS, tuneVideoSender, type MeetParticipant,
+  type MeetPeerDiagnostic, type MeetQualityLevel, type MeetSignal,
 } from '@/lib/meetMedia';
 
 type ChatMessage = { id: number; userId: string; name: string; text: string; createdAt: string };
@@ -17,7 +18,50 @@ type Peer = {
   settingAnswer: boolean;
   retries: number;
   pendingCandidates: RTCIceCandidateInit[];
+  quality: MeetQualityLevel;
+  goodSamples: number;
+  targetBitrate: number;
+  lastQualityChange: number;
+  previousOutbound?: { bytes: number; timestamp: number };
+  previousInbound?: { bytes: number; timestamp: number };
 };
+
+type MeetRtcStat = RTCStats & {
+  type: string;
+  kind?: string;
+  mediaType?: string;
+  isRemote?: boolean;
+  bytesSent?: number;
+  bytesReceived?: number;
+  frameWidth?: number;
+  frameHeight?: number;
+  framesPerSecond?: number;
+  packetsLost?: number;
+  packetsReceived?: number;
+  fractionLost?: number;
+  roundTripTime?: number;
+  currentRoundTripTime?: number;
+  availableOutgoingBitrate?: number;
+  qualityLimitationReason?: string;
+  codecId?: string;
+  mimeType?: string;
+  state?: string;
+  nominated?: boolean;
+  selected?: boolean;
+};
+
+const QUALITY_ORDER: MeetQualityLevel[] = ['data-saver', 'balanced', 'hd', 'full-hd'];
+const SCREEN_BITRATES: Record<MeetQualityLevel, number> = {
+  'data-saver': 750_000,
+  balanced: 1_500_000,
+  hd: 2_500_000,
+  'full-hd': 4_000_000,
+};
+
+function bitrateKbps(currentBytes: number | undefined, timestamp: number, previous?: { bytes: number; timestamp: number }) {
+  if (currentBytes === undefined || !previous || timestamp <= previous.timestamp) return 0;
+  return Math.max(0, Math.round((currentBytes - previous.bytes) * 8 / (timestamp - previous.timestamp)));
+}
 
 export function useMeetCall({
   conferenceId, userId, connectionId, stream, enabled,
@@ -35,11 +79,13 @@ export function useMeetCall({
   const [handRaised, setHandRaised] = useState(false);
   const [sharingScreen, setSharingScreen] = useState(false);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+  const [diagnostics, setDiagnostics] = useState<MeetPeerDiagnostic[]>([]);
   const peers = useRef(new Map<string, Peer>());
   const participantsRef = useRef<MeetParticipant[]>([]);
   const streamRef = useRef(stream);
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
   const observerOnlyRef = useRef(false);
+  const roleRef = useRef<'teacher' | 'student' | 'admin'>('student');
   const stateRef = useRef({ camera, microphone, handRaised, sharingScreen });
   const activeRef = useRef(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -51,6 +97,19 @@ export function useMeetCall({
   const send = useCallback((target: string | null, event: 'offer' | 'answer' | 'ice' | 'chat', payload: Record<string, unknown>) =>
     sendMeetSignal(conferenceId, connectionId, target, event, payload), [conferenceId, connectionId]);
 
+  const tunePeer = useCallback(async (peer: Peer, remoteId: string, screen = Boolean(screenTrackRef.current)) => {
+    const sender = peer.videoSender;
+    if (!sender) return;
+    const remote = participantsRef.current.find(participant => participant.userId === remoteId);
+    const peerCount = Math.max(1, participantsRef.current.filter(participant => participant.userId !== userId && !participant.observerOnly).length);
+    const totalBudget = screen ? 8_000_000 : roleRef.current === 'teacher' ? 7_000_000 : 5_000_000;
+    let connectionBudget = totalBudget / peerCount;
+    if (!screen && roleRef.current === 'student') connectionBudget *= remote?.role === 'teacher' ? 1.3 : 0.9;
+    const requested = screen ? SCREEN_BITRATES[peer.quality] : meetQualityProfile(peer.quality).bitrate;
+    peer.targetBitrate = Math.round(Math.min(requested, connectionBudget));
+    await tuneVideoSender(sender, { level: peer.quality, screen, maxBitrate: peer.targetBitrate });
+  }, [userId]);
+
   const closePeer = useCallback((remoteId: string) => {
     const peer = peers.current.get(remoteId);
     if (!peer) return;
@@ -60,6 +119,7 @@ export function useMeetCall({
     peer.pc.onconnectionstatechange = null;
     peer.pc.close();
     peers.current.delete(remoteId);
+    setDiagnostics(current => current.filter(item => item.userId !== remoteId));
     setRemoteStreams(current => { const next = { ...current }; delete next[remoteId]; return next; });
   }, []);
 
@@ -68,13 +128,13 @@ export function useMeetCall({
     if (existing?.connectionId === remoteConnectionId) return existing;
     if (existing) closePeer(remoteId);
     const pc = new RTCPeerConnection({ iceServers: iceServers(), bundlePolicy: 'max-bundle' });
-    const peer: Peer = { pc, connectionId: remoteConnectionId, polite: userId.localeCompare(remoteId) > 0, makingOffer: false, ignoreOffer: false, settingAnswer: false, retries: 0, pendingCandidates: [] };
+    const peer: Peer = { pc, connectionId: remoteConnectionId, polite: userId.localeCompare(remoteId) > 0, makingOffer: false, ignoreOffer: false, settingAnswer: false, retries: 0, pendingCandidates: [], quality: 'hd', goodSamples: 0, targetBitrate: 2_000_000, lastQualityChange: 0 };
     peers.current.set(remoteId, peer);
     for (const track of streamRef.current.getTracks().filter(item => item.enabled)) {
       const sender = pc.addTrack(track, streamRef.current);
       if (track.kind === 'audio') peer.audioSender = sender; else peer.videoSender = sender;
     }
-    for (const sender of pc.getSenders()) void tuneVideoSender(sender);
+    void tunePeer(peer, remoteId);
     pc.ontrack = event => {
       const received = event.streams[0] || new MediaStream([event.track]);
       setRemoteStreams(current => ({ ...current, [remoteId]: received }));
@@ -99,7 +159,7 @@ export function useMeetCall({
       }
     };
     return peer;
-  }, [closePeer, send, userId]);
+  }, [closePeer, send, tunePeer, userId]);
 
   const syncRoster = useCallback((next: MeetParticipant[]) => {
     participantsRef.current = next;
@@ -113,7 +173,8 @@ export function useMeetCall({
       }
     }
     for (const remoteId of peers.current.keys()) if (!expected.has(remoteId)) closePeer(remoteId);
-  }, [closePeer, createPeer, userId]);
+    for (const [remoteId, peer] of peers.current) void tunePeer(peer, remoteId);
+  }, [closePeer, createPeer, tunePeer, userId]);
 
   const onSignal = useCallback(async (signal: MeetSignal) => {
     if (!activeRef.current || (signal.sender_user_id === userId && !['control', 'roster'].includes(signal.event_type))) return;
@@ -202,7 +263,7 @@ export function useMeetCall({
               try {
                 const joined = await joinMeet(conferenceId, connectionId, stateRef.current.camera, stateRef.current.microphone);
                 if (disposed) return;
-                observerOnlyRef.current = joined.observerOnly;
+                observerOnlyRef.current = joined.observerOnly; roleRef.current = joined.role;
                 activeRef.current = true; heartbeatFailures = 0; setError(''); setRole(joined.role); setObserverOnly(joined.observerOnly); syncRoster(joined.participants); setStatus('connected');
                 if (!heartbeat) heartbeat = setInterval(() => {
                   if (!activeRef.current) return;
@@ -222,7 +283,7 @@ export function useMeetCall({
     const online = () => {
       if (!activeRef.current) return;
       void joinMeet(conferenceId, connectionId, stateRef.current.camera, stateRef.current.microphone)
-        .then(joined => { observerOnlyRef.current = joined.observerOnly; setObserverOnly(joined.observerOnly); heartbeatFailures = 0; setError(''); setStatus('connected'); syncRoster(joined.participants); })
+        .then(joined => { observerOnlyRef.current = joined.observerOnly; roleRef.current = joined.role; setRole(joined.role); setObserverOnly(joined.observerOnly); heartbeatFailures = 0; setError(''); setStatus('connected'); syncRoster(joined.participants); })
         .catch(() => setStatus('reconnecting'));
     };
     window.addEventListener('online', online);
@@ -234,17 +295,94 @@ export function useMeetCall({
     return () => { disposed = true; clearInterval(heartbeat); window.removeEventListener('online', online); window.removeEventListener('focus', online); window.removeEventListener('pagehide', pagehide); document.removeEventListener('visibilitychange', visible); void shutdown(true); };
   }, [conferenceId, connectionId, enabled, onSignal, shutdown, syncRoster]);
 
+  useEffect(() => {
+    if (!enabled) return;
+    let disposed = false;
+    const inspect = async () => {
+      const nextDiagnostics: MeetPeerDiagnostic[] = [];
+      const peerCount = Math.max(1, peers.current.size);
+      await Promise.all([...peers.current.entries()].map(async ([remoteId, peer]) => {
+        if (!peer.pc.getStats) return;
+        try {
+          const report = await peer.pc.getStats();
+          const records = new Map<string, MeetRtcStat>();
+          report.forEach(value => records.set(value.id, value as MeetRtcStat));
+          const outbound = [...records.values()].find(item => item.type === 'outbound-rtp' && !item.isRemote && (item.kind === 'video' || item.mediaType === 'video'));
+          const inbound = [...records.values()].find(item => item.type === 'inbound-rtp' && !item.isRemote && (item.kind === 'video' || item.mediaType === 'video'));
+          const remoteInbound = [...records.values()].find(item => item.type === 'remote-inbound-rtp' && (item.kind === 'video' || item.mediaType === 'video'));
+          const candidate = [...records.values()].find(item => item.type === 'candidate-pair' && item.state === 'succeeded' && (item.nominated || item.selected));
+          const timestamp = outbound?.timestamp || inbound?.timestamp || performance.now();
+          const outboundKbps = bitrateKbps(outbound?.bytesSent, timestamp, peer.previousOutbound);
+          const inboundKbps = bitrateKbps(inbound?.bytesReceived, timestamp, peer.previousInbound);
+          if (outbound?.bytesSent !== undefined) peer.previousOutbound = { bytes: outbound.bytesSent, timestamp };
+          if (inbound?.bytesReceived !== undefined) peer.previousInbound = { bytes: inbound.bytesReceived, timestamp };
+          const packetLoss = remoteInbound?.fractionLost !== undefined
+            ? Math.max(0, remoteInbound.fractionLost * 100)
+            : remoteInbound?.packetsLost !== undefined
+              ? Math.max(0, remoteInbound.packetsLost / Math.max(1, (remoteInbound.packetsReceived || 0) + remoteInbound.packetsLost) * 100)
+              : inbound?.packetsLost !== undefined
+                ? Math.max(0, inbound.packetsLost / Math.max(1, (inbound.packetsReceived || 0) + inbound.packetsLost) * 100)
+                : 0;
+          const rtt = (remoteInbound?.roundTripTime ?? candidate?.currentRoundTripTime ?? 0) * 1000;
+          const available = candidate?.availableOutgoingBitrate || 0;
+          const limitation = outbound?.qualityLimitationReason || 'none';
+          const target = peer.targetBitrate || meetQualityProfile(peer.quality).bitrate;
+          const poor = packetLoss >= 6 || rtt >= 450 || limitation === 'bandwidth' || (available > 0 && available < target * 1.15);
+          const excellent = Boolean(remoteInbound || candidate) && packetLoss < 2 && (rtt === 0 || rtt < 220) && limitation !== 'bandwidth' && (available === 0 || available > target * 1.55);
+          const currentIndex = QUALITY_ORDER.indexOf(peer.quality);
+          const now = Date.now();
+          if (poor && currentIndex > 0 && now - peer.lastQualityChange > 10_000) {
+            peer.quality = QUALITY_ORDER[currentIndex - 1]; peer.goodSamples = 0; peer.lastQualityChange = now;
+            await tunePeer(peer, remoteId);
+          } else if (excellent) {
+            peer.goodSamples += 1;
+            const maximum = peerCount <= 2 ? QUALITY_ORDER.length - 1 : QUALITY_ORDER.indexOf('hd');
+            if (peer.goodSamples >= 3 && currentIndex < maximum && now - peer.lastQualityChange > 15_000) {
+              peer.quality = QUALITY_ORDER[currentIndex + 1]; peer.goodSamples = 0; peer.lastQualityChange = now;
+              await tunePeer(peer, remoteId);
+            }
+          } else peer.goodSamples = 0;
+          const codec = records.get(outbound?.codecId || '')?.mimeType || records.get(inbound?.codecId || '')?.mimeType || '—';
+          const participant = participantsRef.current.find(item => item.userId === remoteId);
+          nextDiagnostics.push({
+            userId: remoteId,
+            name: participant?.name || 'Учасник',
+            connectionState: peer.pc.connectionState,
+            quality: peer.quality,
+            outboundWidth: outbound?.frameWidth || 0,
+            outboundHeight: outbound?.frameHeight || 0,
+            outboundFps: Math.round(outbound?.framesPerSecond || 0),
+            outboundKbps,
+            inboundWidth: inbound?.frameWidth || 0,
+            inboundHeight: inbound?.frameHeight || 0,
+            inboundFps: Math.round(inbound?.framesPerSecond || 0),
+            inboundKbps,
+            packetLoss: Math.round(packetLoss * 10) / 10,
+            rttMs: Math.round(rtt),
+            availableOutgoingKbps: Math.round(available / 1000),
+            codec: codec.replace(/^video\//, ''),
+            qualityLimitation: limitation,
+          });
+        } catch { /* Stats are best-effort and unavailable in a few WebKit states. */ }
+      }));
+      if (!disposed) setDiagnostics(nextDiagnostics.sort((a, b) => a.name.localeCompare(b.name)));
+    };
+    const timer = setInterval(() => void inspect(), 5_000);
+    void inspect();
+    return () => { disposed = true; clearInterval(timer); };
+  }, [enabled, tunePeer]);
+
   const replaceKind = useCallback(async (kind: 'audio' | 'video', track: MediaStreamTrack | null, screen = false) => {
-    for (const peer of peers.current.values()) {
+    for (const [remoteId, peer] of peers.current) {
       let sender = kind === 'audio' ? peer.audioSender : peer.videoSender;
       if (!sender && track) {
         sender = peer.pc.addTrack(track, streamRef.current);
         if (kind === 'audio') peer.audioSender = sender; else peer.videoSender = sender;
       }
       else if (sender) await sender.replaceTrack(track);
-      if (sender && kind === 'video') await tuneVideoSender(sender, screen);
+      if (sender && kind === 'video') await tunePeer(peer, remoteId, screen);
     }
-  }, []);
+  }, [tunePeer]);
 
   const publishState = useCallback((next: Partial<typeof stateRef.current>) => {
     stateRef.current = { ...stateRef.current, ...next };
@@ -284,9 +422,10 @@ export function useMeetCall({
     if (screenTrackRef.current) return;
     let track: MediaStreamTrack | null = null;
     try {
-      const shared = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 10, max: 15 } }, audio: false });
+      const shared = await navigator.mediaDevices.getDisplayMedia({ video: SCREEN_VIDEO_CONSTRAINTS, audio: false });
       track = shared.getVideoTracks()[0] || null;
       if (!track) return;
+      try { track.contentHint = 'detail'; } catch { /* Optional browser hint. */ }
       await replaceKind('video', track, true);
       screenTrackRef.current = track; setScreenStream(shared); setSharingScreen(true); publishState({ sharingScreen: true });
       track.onended = () => { void finishScreenShare(track); };
@@ -310,6 +449,6 @@ export function useMeetCall({
   }, [replaceKind]);
 
   return { participants, remoteStreams, messages, status, error, notice, setNotice, observerOnly, role,
-    camera, microphone, handRaised, sharingScreen, screenStream, toggleCamera, toggleMicrophone, toggleHand,
+    camera, microphone, handRaised, sharingScreen, screenStream, diagnostics, toggleCamera, toggleMicrophone, toggleHand,
     startScreenShare, stopScreenShare, sendMessage, replaceDeviceTrack, shutdown };
 }

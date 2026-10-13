@@ -27,6 +27,60 @@ export type MeetSignal = {
   created_at: string;
 };
 
+export type MeetQualityLevel = 'full-hd' | 'hd' | 'balanced' | 'data-saver';
+
+export type MeetPeerDiagnostic = {
+  userId: string;
+  name: string;
+  connectionState: RTCPeerConnectionState;
+  quality: MeetQualityLevel;
+  outboundWidth: number;
+  outboundHeight: number;
+  outboundFps: number;
+  outboundKbps: number;
+  inboundWidth: number;
+  inboundHeight: number;
+  inboundFps: number;
+  inboundKbps: number;
+  packetLoss: number;
+  rttMs: number;
+  availableOutgoingKbps: number;
+  codec: string;
+  qualityLimitation: string;
+};
+
+export const CAMERA_VIDEO_CONSTRAINTS: MediaTrackConstraints = {
+  width: { ideal: 1920 },
+  height: { ideal: 1080 },
+  frameRate: { ideal: 30, max: 30 },
+  aspectRatio: { ideal: 16 / 9 },
+  facingMode: 'user',
+};
+
+export const SCREEN_VIDEO_CONSTRAINTS: MediaTrackConstraints = {
+  width: { ideal: 1920 },
+  height: { ideal: 1080 },
+  frameRate: { ideal: 30, max: 30 },
+};
+
+const QUALITY_PROFILES: Record<MeetQualityLevel, { height: number; fps: number; bitrate: number }> = {
+  'full-hd': { height: 1080, fps: 30, bitrate: 3_500_000 },
+  hd: { height: 720, fps: 30, bitrate: 2_000_000 },
+  balanced: { height: 540, fps: 24, bitrate: 1_050_000 },
+  'data-saver': { height: 360, fps: 18, bitrate: 500_000 },
+};
+
+export function meetQualityProfile(level: MeetQualityLevel) {
+  return QUALITY_PROFILES[level];
+}
+
+export function cameraVideoConstraints(videoDeviceId?: string): MediaTrackConstraints {
+  return {
+    ...CAMERA_VIDEO_CONSTRAINTS,
+    ...(videoDeviceId ? { deviceId: { exact: videoDeviceId }, facingMode: undefined } : {}),
+  };
+}
+
 function throwIfError(error: { message?: string } | null) {
   if (error) throw error;
 }
@@ -109,16 +163,45 @@ export function iceServers(): RTCIceServer[] {
 export function mediaConstraints(videoDeviceId?: string, audioDeviceId?: string): MediaStreamConstraints {
   return {
     audio: audioDeviceId ? { deviceId: { exact: audioDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    video: videoDeviceId ? { deviceId: { exact: videoDeviceId }, width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 20, max: 24 } } : { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 20, max: 24 }, facingMode: 'user' },
+    video: cameraVideoConstraints(videoDeviceId),
   };
 }
 
-export async function tuneVideoSender(sender: RTCRtpSender, screen = false) {
+export async function tuneVideoSender(sender: RTCRtpSender, options: {
+  level?: MeetQualityLevel;
+  screen?: boolean;
+  maxBitrate?: number;
+} = {}) {
   if (sender.track?.kind !== 'video' || !sender.getParameters || !sender.setParameters) return;
+  const { level = 'hd', screen = false, maxBitrate } = options;
+  const profile = QUALITY_PROFILES[level];
   const parameters = sender.getParameters();
-  parameters.encodings ||= [{}];
-  parameters.encodings[0].maxBitrate = screen ? 1_500_000 : 550_000;
-  parameters.encodings[0].maxFramerate = screen ? 15 : 24;
-  if (!screen) parameters.encodings[0].scaleResolutionDownBy = 1;
-  try { await sender.setParameters(parameters); } catch { /* Browser controls the final encoding profile. */ }
+  if (!parameters.encodings?.length) parameters.encodings = [{}];
+  parameters.encodings[0].maxBitrate = maxBitrate || (screen ? 4_000_000 : profile.bitrate);
+  parameters.encodings[0].maxFramerate = screen ? 30 : profile.fps;
+  parameters.degradationPreference = screen ? 'maintain-resolution' : 'balanced';
+  const sourceHeight = sender.track.getSettings?.().height;
+  if (sourceHeight && !screen) parameters.encodings[0].scaleResolutionDownBy = Math.max(1, sourceHeight / profile.height);
+  else if (!screen && level === 'full-hd') parameters.encodings[0].scaleResolutionDownBy = 1;
+  try {
+    await sender.setParameters(parameters);
+  } catch {
+    // WebKit versions differ in support for degradationPreference and scaling.
+    // Retry with progressively smaller, standards-compatible parameter sets so
+    // an unsupported hint does not discard the useful bitrate ceiling too.
+    try {
+      const fallback = sender.getParameters();
+      if (!fallback.encodings?.length) fallback.encodings = [{}];
+      fallback.encodings[0].maxBitrate = maxBitrate || (screen ? 4_000_000 : profile.bitrate);
+      fallback.encodings[0].maxFramerate = screen ? 30 : profile.fps;
+      await sender.setParameters(fallback);
+    } catch {
+      try {
+        const bitrateOnly = sender.getParameters();
+        if (!bitrateOnly.encodings?.length) bitrateOnly.encodings = [{}];
+        bitrateOnly.encodings[0].maxBitrate = maxBitrate || (screen ? 4_000_000 : profile.bitrate);
+        await sender.setParameters(bitrateOnly);
+      } catch { /* The browser remains responsible for congestion control. */ }
+    }
+  }
 }

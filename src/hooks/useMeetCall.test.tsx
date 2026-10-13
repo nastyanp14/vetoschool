@@ -14,6 +14,7 @@ const media = vi.hoisted(() => ({
   getMeetRoster: vi.fn(),
   sendMeetSignal: vi.fn().mockResolvedValue(undefined),
   leaveMeet: vi.fn().mockResolvedValue(undefined),
+  tuneVideoSender: vi.fn().mockResolvedValue(undefined),
 }));
 
 function subscribe(handler: (status: string) => void) {
@@ -33,7 +34,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 
 vi.mock('@/lib/meetMedia', async importOriginal => {
   const original = await importOriginal<typeof import('@/lib/meetMedia')>();
-  return { ...original, ...media, iceServers: () => [], tuneVideoSender: vi.fn().mockResolvedValue(undefined) };
+  return { ...original, ...media, iceServers: () => [] };
 });
 
 import { useMeetCall } from './useMeetCall';
@@ -94,11 +95,14 @@ describe('useMeetCall peer lifecycle', () => {
   });
 
   it('replaces a stale peer when the same participant reconnects with a new connection id', async () => {
+    const cameraTrack = { kind: 'video', enabled: true, readyState: 'live', stop: vi.fn() } as unknown as MediaStreamTrack;
+    const cameraStream = { getTracks: () => [cameraTrack], getAudioTracks: () => [], getVideoTracks: () => [cameraTrack] } as unknown as MediaStream;
     media.joinMeet.mockResolvedValue({ role: 'student', observerOnly: false, participants: [self(), remote('remote-1')] });
     media.getMeetRoster.mockResolvedValue([self(), remote('remote-2')]);
-    const { unmount } = renderHook(() => useMeetCall({ conferenceId: 'room', userId: 'self', connectionId: 'self-connection', stream, enabled: true }));
+    const { unmount } = renderHook(() => useMeetCall({ conferenceId: 'room', userId: 'self', connectionId: 'self-connection', stream: cameraStream, enabled: true }));
     await subscribeToRoom();
     await waitFor(() => expect(TestPeerConnection.instances).toHaveLength(1));
+    expect(media.tuneVideoSender).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ level: 'hd', screen: false, maxBitrate: 2_000_000 }));
     const first = TestPeerConnection.instances[0];
     await act(async () => {
       realtime.signal?.({ new: {
@@ -130,6 +134,7 @@ describe('useMeetCall peer lifecycle', () => {
     await act(async () => { await result.current.startScreenShare(); });
     expect(result.current.sharingScreen).toBe(true);
     expect(videoSender.replaceTrack).toHaveBeenCalledWith(screenTrack);
+    expect(media.tuneVideoSender).toHaveBeenCalledWith(videoSender, expect.objectContaining({ screen: true, maxBitrate: 2_500_000 }));
 
     await act(async () => { await result.current.stopScreenShare(); });
     expect(screenTrack.stop).toHaveBeenCalledOnce();
