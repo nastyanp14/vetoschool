@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import {
-  ArrowLeft, Camera, Check, Hand, LogOut, MessageCircle, Mic, MicOff, MonitorUp,
-  PhoneOff, Send, Settings, Shield, UserRoundX, Users, VideoOff, X,
+  ArrowLeft, Camera, Check, ChevronDown, Hand, LogOut, MessageCircle, Mic, MicOff, MonitorUp,
+  PhoneOff, Send, Settings, Shield, UserRoundX, Users, VideoOff, Volume2, X,
 } from 'lucide-react';
 import { controlMeetParticipant, makeConnectionId } from '@/lib/meetMedia';
 import { transitionConferenceRemote } from '@/lib/conferences';
@@ -64,7 +64,7 @@ function useSpeaking(stream?: MediaStream, disabled = false) {
 
 function VideoTile({ participant, stream, self, sinkId }: { participant: ReturnType<typeof useMeetCall>['participants'][number]; stream?: MediaStream; self: boolean; sinkId?: string }) {
   const speaking = useSpeaking(stream, !participant.microphone);
-  return <article className={`meet-video-tile ${speaking ? 'meet-active-tile' : ''}`}>
+  return <article className={`meet-video-tile ${participant.camera ? 'meet-has-video' : 'meet-no-video'} ${speaking ? 'meet-active-tile' : ''}`}>
     <Video stream={stream} muted={self} mirrored={self} sinkId={sinkId} className={participant.camera ? 'meet-video-visible' : 'meet-video-hidden'} />
     {!participant.camera && <div className="meet-person-circle">{initials(participant.name)}</div>}
     <span className="meet-tile-name">{participant.name}{self ? ' (Ви)' : ''}<small>{participant.role === 'teacher' ? 'Викладач' : 'Учень'}</small></span>
@@ -249,7 +249,12 @@ export default function LiveClassroom({ conference, user, onExit, onRefresh }: {
       <button type="button" className="meet-control meet-leave" onClick={() => void leave()}><LogOut /><span>Вийти</span></button>
       {isManager && <button type="button" className="meet-control meet-end" disabled={busy} onClick={() => void endForAll()}><PhoneOff /><span>Завершити для всіх</span></button>}
     </footer>
-    {settingsOpen && <div className="meet-modal-backdrop" role="presentation"><section className="meet-settings" role="dialog" aria-modal="true" aria-labelledby="meet-settings-title"><div className="meet-chat-heading"><h2 id="meet-settings-title">Налаштування</h2><button className="meet-icon-button" type="button" onClick={() => setSettingsOpen(false)} aria-label="Закрити"><X /></button></div><p className="meet-chat-hint"><Check size={14} />Камера і мікрофон перевіряються одразу після вибору.</p><DeviceFields devices={devices} cameraId={cameraId} microphoneId={microphoneId} speakerId={speakerId} outputSelectionSupported={outputSelectionSupported} disabled={busy} onCamera={id => void changeDevice('video', id)} onMicrophone={id => void changeDevice('audio', id)} onSpeaker={id => { setSpeakerId(id); rememberDevice('meet_speaker', id); }} /><button className="meet-button meet-primary" type="button" onClick={() => setSettingsOpen(false)}>Готово</button></section></div>}
+    {settingsOpen && <div className="meet-modal-backdrop" role="presentation"><section className="meet-settings" role="dialog" aria-modal="true" aria-labelledby="meet-settings-title">
+      <div className="meet-chat-heading"><div className="meet-settings-copy"><span className="meet-settings-icon"><Settings size={19} /></span><div><h2 id="meet-settings-title">Налаштування</h2><p>Оберіть пристрої для заняття</p></div></div><button className="meet-icon-button" type="button" onClick={() => setSettingsOpen(false)} aria-label="Закрити"><X /></button></div>
+      <p className="meet-settings-intro"><span><Check size={14} /></span>Камера і мікрофон перевіряються одразу після вибору.</p>
+      <DeviceFields devices={devices} cameraId={cameraId} microphoneId={microphoneId} speakerId={speakerId} outputSelectionSupported={outputSelectionSupported} disabled={busy} onCamera={id => void changeDevice('video', id)} onMicrophone={id => void changeDevice('audio', id)} onSpeaker={id => { setSpeakerId(id); rememberDevice('meet_speaker', id); }} />
+      <button className="meet-button meet-primary" type="button" onClick={() => setSettingsOpen(false)}>Готово</button>
+    </section></div>}
   </main>;
 }
 
@@ -258,9 +263,20 @@ function DeviceFields({ devices, cameraId, microphoneId, speakerId, outputSelect
   onCamera(id: string): void; onMicrophone(id: string): void; onSpeaker(id: string): void;
 }) {
   return <fieldset className="meet-device-fields"><legend>Пристрої</legend>
-    {devices.cameras.length > 0 && <label>Камера<select value={cameraId} disabled={disabled} onChange={event => onCamera(event.target.value)}><option value="">Стандартна камера</option>{devices.cameras.map(device => <option key={device.deviceId} value={device.deviceId}>{device.label}</option>)}</select></label>}
-    {devices.microphones.length > 0 && <label>Мікрофон<select value={microphoneId} disabled={disabled} onChange={event => onMicrophone(event.target.value)}><option value="">Стандартний мікрофон</option>{devices.microphones.map(device => <option key={device.deviceId} value={device.deviceId}>{device.label}</option>)}</select></label>}
-    {outputSelectionSupported && devices.speakers.length > 0 && <label>Динаміки<select value={speakerId} disabled={disabled} onChange={event => onSpeaker(event.target.value)}><option value="">Стандартні динаміки</option>{devices.speakers.map(device => <option key={device.deviceId} value={device.deviceId}>{device.label}</option>)}</select></label>}
-    {!devices.cameras.length && !devices.microphones.length && <p className="meet-muted">Увімкніть камеру або мікрофон, щоб браузер показав доступні пристрої.</p>}
+    {devices.cameras.length > 0 && <DeviceSelect icon={<Camera />} label="Камера" value={cameraId} defaultLabel="Стандартна камера" devices={devices.cameras} disabled={disabled} onChange={onCamera} />}
+    {devices.microphones.length > 0 && <DeviceSelect icon={<Mic />} label="Мікрофон" value={microphoneId} defaultLabel="Стандартний мікрофон" devices={devices.microphones} disabled={disabled} onChange={onMicrophone} />}
+    {outputSelectionSupported && devices.speakers.length > 0 && <DeviceSelect icon={<Volume2 />} label="Динаміки" value={speakerId} defaultLabel="Стандартні динаміки" devices={devices.speakers} disabled={disabled} onChange={onSpeaker} />}
+    {!devices.cameras.length && !devices.microphones.length && <div className="meet-device-empty"><span><Settings size={18} /></span><p>Увімкніть камеру або мікрофон, щоб браузер показав доступні пристрої.</p></div>}
   </fieldset>;
+}
+
+function DeviceSelect({ icon, label, value, defaultLabel, devices, disabled, onChange }: {
+  icon: ReactNode; label: string; value: string; defaultLabel: string; devices: DeviceOption[]; disabled: boolean; onChange(id: string): void;
+}) {
+  return <label className="meet-device-card">
+    <span className="meet-device-icon" aria-hidden="true">{icon}</span>
+    <span className="meet-device-content"><span className="meet-device-label">{label}</span><span className="meet-device-select">
+      <select aria-label={label} value={value} disabled={disabled} onChange={event => onChange(event.target.value)}><option value="">{defaultLabel}</option>{devices.map(device => <option key={device.deviceId} value={device.deviceId}>{device.label}</option>)}</select><ChevronDown aria-hidden="true" />
+    </span></span>
+  </label>;
 }

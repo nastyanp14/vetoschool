@@ -262,6 +262,23 @@ export function useMeetCall({
     const next = !camera; track.enabled = next; await replaceKind('video', next ? track : null); setCamera(next); publishState({ camera: next });
   }, [camera, publishState, replaceKind]);
   const toggleHand = useCallback(() => setHandRaised(current => { const next = !current; publishState({ handRaised: next }); return next; }), [publishState]);
+  const finishScreenShare = useCallback(async (expectedTrack?: MediaStreamTrack | null) => {
+    const track = screenTrackRef.current;
+    if (!track || (expectedTrack && track !== expectedTrack)) return;
+
+    // Calling MediaStreamTrack.stop() does not dispatch `ended` in every browser
+    // (notably Safari), so the button and the browser share picker use the same
+    // explicit cleanup path instead of relying on that event.
+    screenTrackRef.current = null;
+    track.onended = null;
+    if (track.readyState !== 'ended') track.stop();
+    setScreenStream(null);
+    setSharingScreen(false);
+    publishState({ sharingScreen: false });
+
+    const cameraTrack = streamRef.current.getVideoTracks().find(item => item.readyState === 'live');
+    await replaceKind('video', stateRef.current.camera && cameraTrack ? cameraTrack : null);
+  }, [publishState, replaceKind]);
   const startScreenShare = useCallback(async () => {
     if (!navigator.mediaDevices?.getDisplayMedia) { setNotice('Демонстрація екрана не підтримується цим браузером.'); return; }
     if (screenTrackRef.current) return;
@@ -272,19 +289,14 @@ export function useMeetCall({
       if (!track) return;
       await replaceKind('video', track, true);
       screenTrackRef.current = track; setScreenStream(shared); setSharingScreen(true); publishState({ sharingScreen: true });
-      track.onended = () => { void (async () => {
-        if (screenTrackRef.current !== track) return;
-        screenTrackRef.current = null; setScreenStream(null); setSharingScreen(false); publishState({ sharingScreen: false });
-        const cameraTrack = streamRef.current.getVideoTracks()[0];
-        await replaceKind('video', camera && cameraTrack ? cameraTrack : null);
-      })(); };
+      track.onended = () => { void finishScreenShare(track); };
     } catch (caught) {
       if (track) { track.onended = null; track.stop(); }
       if (screenTrackRef.current === track) screenTrackRef.current = null;
       if ((caught as DOMException)?.name !== 'NotAllowedError') setNotice('Не вдалося розпочати демонстрацію екрана.');
     }
-  }, [camera, publishState, replaceKind]);
-  const stopScreenShare = useCallback(() => screenTrackRef.current?.stop(), []);
+  }, [finishScreenShare, publishState, replaceKind]);
+  const stopScreenShare = useCallback(() => finishScreenShare(), [finishScreenShare]);
   const sendMessage = useCallback(async (text: string, ownName: string) => {
     const clean = text.trim().slice(0, 2000); if (!clean) return;
     await send(null, 'chat', { text: clean });
@@ -293,9 +305,9 @@ export function useMeetCall({
   const replaceDeviceTrack = useCallback(async (kind: 'audio' | 'video', track: MediaStreamTrack) => {
     const old = kind === 'audio' ? streamRef.current.getAudioTracks()[0] : streamRef.current.getVideoTracks()[0];
     if (old) { streamRef.current.removeTrack(old); old.stop(); }
-    streamRef.current.addTrack(track); track.enabled = kind === 'audio' ? microphone : camera;
-    if (!(kind === 'video' && sharingScreen)) await replaceKind(kind, track.enabled ? track : null);
-  }, [camera, microphone, replaceKind, sharingScreen]);
+    streamRef.current.addTrack(track); track.enabled = kind === 'audio' ? stateRef.current.microphone : stateRef.current.camera;
+    if (!(kind === 'video' && stateRef.current.sharingScreen)) await replaceKind(kind, track.enabled ? track : null);
+  }, [replaceKind]);
 
   return { participants, remoteStreams, messages, status, error, notice, setNotice, observerOnly, role,
     camera, microphone, handRaised, sharingScreen, screenStream, toggleCamera, toggleMicrophone, toggleHand,

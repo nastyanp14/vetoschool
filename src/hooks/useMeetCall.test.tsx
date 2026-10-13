@@ -41,7 +41,7 @@ import { useMeetCall } from './useMeetCall';
 class TestPeerConnection {
   static instances: TestPeerConnection[] = [];
   close = vi.fn();
-  addTrack = vi.fn(() => ({ track: null, replaceTrack: vi.fn(), getParameters: vi.fn(() => ({})), setParameters: vi.fn() }));
+  addTrack = vi.fn((track: MediaStreamTrack) => ({ track, replaceTrack: vi.fn(), getParameters: vi.fn(() => ({})), setParameters: vi.fn() }));
   getSenders = vi.fn(() => []);
   restartIce = vi.fn();
   setLocalDescription = vi.fn();
@@ -80,6 +80,7 @@ describe('useMeetCall peer lifecycle', () => {
     realtime.signal = undefined;
     realtime.status = undefined;
     vi.clearAllMocks();
+    media.heartbeatMeet.mockResolvedValue([]);
   });
   afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
@@ -108,6 +109,34 @@ describe('useMeetCall peer lifecycle', () => {
     await waitFor(() => expect(TestPeerConnection.instances).toHaveLength(2));
     expect(media.getMeetRoster).toHaveBeenCalledWith('room', 'self-connection');
     expect(first.close).toHaveBeenCalledOnce();
+    unmount();
+  });
+
+  it('stops screen sharing explicitly and restores the camera when stop does not emit ended', async () => {
+    const cameraTrack = { kind: 'video', enabled: true, readyState: 'live', stop: vi.fn() } as unknown as MediaStreamTrack;
+    const screenTrack = { kind: 'video', enabled: true, readyState: 'live', stop: vi.fn(), onended: null } as unknown as MediaStreamTrack;
+    const cameraStream = { getTracks: () => [cameraTrack], getAudioTracks: () => [], getVideoTracks: () => [cameraTrack] } as unknown as MediaStream;
+    const screenStream = { getTracks: () => [screenTrack], getAudioTracks: () => [], getVideoTracks: () => [screenTrack] } as unknown as MediaStream;
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getDisplayMedia: vi.fn().mockResolvedValue(screenStream) } });
+    const roster = [self({ camera: true }), remote('remote-1')];
+    media.joinMeet.mockResolvedValue({ role: 'student', observerOnly: false, participants: roster });
+    media.heartbeatMeet.mockResolvedValue(roster);
+
+    const { result, unmount } = renderHook(() => useMeetCall({ conferenceId: 'room', userId: 'self', connectionId: 'self-connection', stream: cameraStream, enabled: true }));
+    await subscribeToRoom();
+    await waitFor(() => expect(TestPeerConnection.instances).toHaveLength(1));
+    const videoSender = TestPeerConnection.instances[0].addTrack.mock.results[0].value;
+
+    await act(async () => { await result.current.startScreenShare(); });
+    expect(result.current.sharingScreen).toBe(true);
+    expect(videoSender.replaceTrack).toHaveBeenCalledWith(screenTrack);
+
+    await act(async () => { await result.current.stopScreenShare(); });
+    expect(screenTrack.stop).toHaveBeenCalledOnce();
+    expect(result.current.sharingScreen).toBe(false);
+    expect(result.current.screenStream).toBeNull();
+    expect(videoSender.replaceTrack).toHaveBeenLastCalledWith(cameraTrack);
+    expect(media.heartbeatMeet).toHaveBeenCalledWith('room', 'self-connection', expect.objectContaining({ sharingScreen: false }));
     unmount();
   });
 });
