@@ -9,6 +9,9 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { BarChart3, BookOpen, CalendarPlus, CheckCircle2, Loader2, RefreshCw, Search, Trash2, Wand2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribe } from '../lib/storage';
+import ConferenceManager from '../components/meet-management/ConferenceManager';
+import { managerCopy } from '../components/meet-management/copy';
+import type { Conference } from '../components/meet-management/model';
 import ThemeToggle from '../components/ThemeToggle';
 import AdminDictionary from '../components/AdminDictionary';
 import WorkbookBuilder from '../components/WorkbookBuilder';
@@ -60,7 +63,7 @@ function UserAvatar({ user, size = 'md' }: { user: { name: string; avatarId?: st
 
 const DAYS_EN = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
-type Section = 'students' | 'studentCenter' | 'subscriptions' | 'teachers' | 'content' | 'schedule' | 'trialLessons' | 'workbooks' | 'live' | 'teacherReports';
+type Section = 'conferences' | 'students' | 'studentCenter' | 'subscriptions' | 'teachers' | 'content' | 'schedule' | 'trialLessons' | 'workbooks' | 'live' | 'teacherReports';
 type ContentTargetMode = 'current' | 'all' | 'selected';
 type StripePaymentRow = {
   id: string;
@@ -1212,6 +1215,8 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const currentUser = getCurrentUser();
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
+  const [meetPeople, setMeetPeople] = useState<User[]>([]);
+  const [meetConferences, setMeetConferences] = useState<Conference[]>([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'pending'>('all');
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
@@ -1353,7 +1358,11 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   
   useEffect(() => {
     if (!canAccessSubscriptionAdmin(currentUser)) { navigate('/login'); return; }
-    const applyCachedUsers = () => setUsers(getUsers().filter(user => user.role === 'student'));
+    const applyCachedUsers = () => {
+      const people = getUsers();
+      setUsers(people.filter(user => user.role === 'student'));
+      setMeetPeople(people);
+    };
     if (getUsers().length) applyCachedUsers();
     else void loadAllUsers().then(applyCachedUsers);
     const unsub = subscribe(applyCachedUsers);
@@ -1372,6 +1381,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const refreshUsersFromServer = async () => {
     const fresh = await loadAllUsers();
     setUsers(fresh.filter(u => u.role === 'student'));
+    setMeetPeople(fresh);
   };
 
   const runStudentAction = async (uid: string, action: () => Promise<void>, success: string, type: 'success'|'error' = 'success') => {
@@ -2365,6 +2375,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
             { id:'teachers' as Section, label:lang === 'en' ? 'Teachers' : lang === 'ua' ? 'Учителі' : 'Учителя' },
             { id:'content' as Section, label:t(lang,'admin_content_tab') },
             { id:'schedule' as Section, label:t(lang,'admin_schedule_tab') },
+            { id:'conferences' as Section, label:`🎥 ${managerCopy[lang].nav}` },
             { id:'teacherReports' as Section, label:lang === 'en' ? '📝 Reports' : lang === 'ua' ? '📝 Звіти' : '📝 Отчёты' },
             { id:'trialLessons' as Section, label:lang === 'en' ? 'Trial Lessons' : lang === 'ua' ? 'Пробні уроки' : 'Пробные уроки' },
             { id:'workbooks' as Section, label:t(lang,'admin_workbooks_tab') },
@@ -2380,6 +2391,8 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
         <AnimatePresence mode="wait">
 
           {/* ===== STUDENTS ===== */}
+          {activeSection === 'conferences' && <ConferenceManager lang={lang} role="admin" teachers={meetPeople.filter(person => person.role === 'teacher')} students={meetPeople.filter(person => person.role === 'student')} conferences={meetConferences} onChange={setMeetConferences} />}
+
           {activeSection === 'students' && (
             <motion.div key="students" initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-20 }}>
               <div className="glass rounded-3xl p-4 mb-6 flex flex-col sm:flex-row gap-3">

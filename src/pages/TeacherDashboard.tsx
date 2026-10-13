@@ -28,6 +28,8 @@ import {
   Wifi,
   X,
 } from 'lucide-react';
+import ConferenceManager from '@/components/meet-management/ConferenceManager';
+import type { Conference } from '@/components/meet-management/model';
 import ThemeToggle from '@/components/ThemeToggle';
 import { TeacherAvatar } from '@/components/teacher/TeacherAvatar';
 import { TeacherAvatarUploader } from '@/components/teacher/TeacherAvatarUploader';
@@ -77,7 +79,7 @@ import { getLessonById } from '@/lib/workbooks';
 import type { Lesson as WorkbookLesson } from '@/lib/workbooks';
 
 type TeacherRouteMode = 'root' | 'group' | 'student';
-type TeacherSection = 'dashboard' | 'schedule' | 'groups' | 'students' | 'live' | 'lessons' | 'homework' | 'notes' | 'notifications' | 'profile';
+type TeacherSection = 'onlineClass' | 'dashboard' | 'schedule' | 'groups' | 'students' | 'live' | 'lessons' | 'homework' | 'notes' | 'notifications' | 'profile';
 type LessonWorkspaceTab = string;
 type NoteType = 'Private' | 'Visible to Admin' | 'Important' | 'Follow-up';
 
@@ -122,6 +124,7 @@ interface LessonCompletionDraft {
 const navItems: Array<{ id: TeacherSection; emoji: string }> = [
   { id: 'dashboard', emoji: '🏠' },
   { id: 'schedule', emoji: '🗓️' },
+  { id: 'onlineClass', emoji: '🎥' },
   { id: 'groups', emoji: '👥' },
   { id: 'students', emoji: '👩‍🎓' },
   { id: 'live', emoji: '📡' },
@@ -135,6 +138,7 @@ const navItems: Array<{ id: TeacherSection; emoji: string }> = [
 const copyByLang = {
   ru: {
     lang: 'ru' as Lang,
+    onlineClass: 'Онлайн-класс',
     dashboard: 'Главная',
     schedule: 'Расписание',
     groups: 'Мои группы',
@@ -372,6 +376,7 @@ const copyByLang = {
   },
   ua: {
     lang: 'ua' as Lang,
+    onlineClass: 'Онлайн-клас',
     dashboard: 'Головна',
     schedule: 'Розклад',
     groups: 'Мої групи',
@@ -609,6 +614,7 @@ const copyByLang = {
   },
   en: {
     lang: 'en' as Lang,
+    onlineClass: 'Online classroom',
     dashboard: 'Dashboard',
     schedule: 'Schedule',
     groups: 'My Groups',
@@ -1113,6 +1119,7 @@ export default function TeacherDashboard({
   const params = useParams();
   const user = getCurrentUser();
   const [workspace, setWorkspace] = useState<TeacherWorkspace | null>(null);
+  const [meetConferences, setMeetConferences] = useState<Conference[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [active, setActive] = useState<TeacherSection>('dashboard');
@@ -1481,6 +1488,7 @@ export default function TeacherDashboard({
   const content = (() => {
     if (mode === 'group' && visibleGroup) return <GroupProfile groupId={visibleGroup.id} workspace={workspace} localNotes={localNotes} onOpenLesson={openLesson} onSaveNote={saveNote} copy={copy} />;
     if (mode === 'student' && visibleStudent) return <StudentProfile student={visibleStudent} workspace={workspace} copy={copy} onOpenLesson={openLesson} />;
+    if (active === 'onlineClass') return <ConferenceManager lang={lang} role="teacher" teacherId={user.id} teachers={[{ id: user.id, name: teacherDisplayName(workspace.teacher, lang) }]} students={workspace.students} conferences={meetConferences} onChange={setMeetConferences} />;
     if (active === 'dashboard') return <DashboardPage workspace={workspace} notifications={notifications} copy={copy} onOpenLesson={openLesson} onNavigate={navigateSection} />;
     if (active === 'schedule') return <SchedulePage workspace={workspace} copy={copy} onOpenLesson={openLesson} onStartLesson={startLesson} onRequestChange={requestScheduleChange} />;
     if (active === 'groups') return <GroupsPage workspace={workspace} copy={copy} onOpenGroup={id => navigate(`/teacher/groups/${id}`)} />;
