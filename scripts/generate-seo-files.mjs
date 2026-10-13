@@ -30,6 +30,7 @@ const disallowedPaths = [
   '/admin',
   '/teacher',
   '/analytics/',
+  '/classroom/',
   '/checkout/',
   '/payment/',
   '/pending-activation',

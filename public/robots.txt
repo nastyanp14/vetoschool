@@ -10,6 +10,7 @@ Disallow: /dashboard
 Disallow: /admin
 Disallow: /teacher
 Disallow: /analytics/
+Disallow: /classroom/
 Disallow: /checkout/
 Disallow: /payment/
 Disallow: /pending-activation

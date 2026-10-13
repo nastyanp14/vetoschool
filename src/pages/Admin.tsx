@@ -9,9 +9,8 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { BarChart3, BookOpen, CalendarPlus, CheckCircle2, Loader2, RefreshCw, Search, Trash2, Wand2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribe } from '../lib/storage';
-import ConferenceManager from '../components/meet-management/ConferenceManager';
+import ConferenceManager from '../components/meet-management/ConnectedConferenceManager';
 import { managerCopy } from '../components/meet-management/copy';
-import type { Conference } from '../components/meet-management/model';
 import ThemeToggle from '../components/ThemeToggle';
 import AdminDictionary from '../components/AdminDictionary';
 import WorkbookBuilder from '../components/WorkbookBuilder';
@@ -1215,8 +1214,6 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const currentUser = getCurrentUser();
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
-  const [meetPeople, setMeetPeople] = useState<User[]>([]);
-  const [meetConferences, setMeetConferences] = useState<Conference[]>([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'pending'>('all');
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
@@ -1361,7 +1358,6 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
     const applyCachedUsers = () => {
       const people = getUsers();
       setUsers(people.filter(user => user.role === 'student'));
-      setMeetPeople(people);
     };
     if (getUsers().length) applyCachedUsers();
     else void loadAllUsers().then(applyCachedUsers);
@@ -2391,7 +2387,7 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
         <AnimatePresence mode="wait">
 
           {/* ===== STUDENTS ===== */}
-          {activeSection === 'conferences' && <ConferenceManager lang={lang} role="admin" teachers={meetPeople.filter(person => person.role === 'teacher')} students={meetPeople.filter(person => person.role === 'student')} conferences={meetConferences} onChange={setMeetConferences} />}
+          {activeSection === 'conferences' && <ConferenceManager lang={lang} role="admin" />}
 
           {activeSection === 'students' && (
             <motion.div key="students" initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-20 }}>

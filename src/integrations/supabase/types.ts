@@ -3280,6 +3280,14 @@ export type Database = {
       }
     }
     Functions: {
+      meet_save: {
+        Args: { _title: string; _description: string; _teacher_id: string; _type: string; _scheduled_at: string; _duration: number; _students: string[]; _id?: string; _version?: number; _schedule_id?: string }
+        Returns: string
+      }
+      meet_transition: { Args: { _id: string; _version: number; _status: string }; Returns: undefined }
+      meet_list: { Args: { _room?: string; _offset?: number }; Returns: Json }
+      meet_people: { Args: Record<PropertyKey, never>; Returns: Json }
+
       adjust_subscription_lessons_remaining: {
         Args: {
           p_idempotency_key: string

@@ -28,8 +28,7 @@ import {
   Wifi,
   X,
 } from 'lucide-react';
-import ConferenceManager from '@/components/meet-management/ConferenceManager';
-import type { Conference } from '@/components/meet-management/model';
+import ConferenceManager from '@/components/meet-management/ConnectedConferenceManager';
 import ThemeToggle from '@/components/ThemeToggle';
 import { TeacherAvatar } from '@/components/teacher/TeacherAvatar';
 import { TeacherAvatarUploader } from '@/components/teacher/TeacherAvatarUploader';
@@ -1119,7 +1118,6 @@ export default function TeacherDashboard({
   const params = useParams();
   const user = getCurrentUser();
   const [workspace, setWorkspace] = useState<TeacherWorkspace | null>(null);
-  const [meetConferences, setMeetConferences] = useState<Conference[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [active, setActive] = useState<TeacherSection>('dashboard');
@@ -1488,7 +1486,7 @@ export default function TeacherDashboard({
   const content = (() => {
     if (mode === 'group' && visibleGroup) return <GroupProfile groupId={visibleGroup.id} workspace={workspace} localNotes={localNotes} onOpenLesson={openLesson} onSaveNote={saveNote} copy={copy} />;
     if (mode === 'student' && visibleStudent) return <StudentProfile student={visibleStudent} workspace={workspace} copy={copy} onOpenLesson={openLesson} />;
-    if (active === 'onlineClass') return <ConferenceManager lang={lang} role="teacher" teacherId={user.id} teachers={[{ id: user.id, name: teacherDisplayName(workspace.teacher, lang) }]} students={workspace.students} conferences={meetConferences} onChange={setMeetConferences} />;
+    if (active === 'onlineClass') return <ConferenceManager lang={lang} role="teacher" />;
     if (active === 'dashboard') return <DashboardPage workspace={workspace} notifications={notifications} copy={copy} onOpenLesson={openLesson} onNavigate={navigateSection} />;
     if (active === 'schedule') return <SchedulePage workspace={workspace} copy={copy} onOpenLesson={openLesson} onStartLesson={startLesson} onRequestChange={requestScheduleChange} />;
     if (active === 'groups') return <GroupsPage workspace={workspace} copy={copy} onOpenGroup={id => navigate(`/teacher/groups/${id}`)} />;
