@@ -2480,6 +2480,8 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                 hasAccess={billingHasAccess}
                 lang={lang}
                 assignedContent={content.filter(item => !!item.interactiveLessonId)}
+                schedule={schedule}
+                onOpenSchedule={() => setActiveTab('schedule')}
                 onStarsChanged={refreshStars}
                 onContentChanged={refreshStudentData}
               />
