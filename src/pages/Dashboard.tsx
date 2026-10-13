@@ -8,6 +8,9 @@ import { ensureStudentContent, ContentItem, getStudentRating, isGradedContentTyp
 import { loadStudentSchedule } from '../lib/schedule';
 import { Lang, t } from '../lib/i18n';
 import ThemeToggle from '../components/ThemeToggle';
+import OnlineClass from '../components/meet/OnlineClass';
+import OnlineClassBanner from '../components/meet/OnlineClassBanner';
+import { meetCopy } from '../components/meet/copy';
 import DictionaryView from '../components/DictionaryView';
 import AvatarShop, { StarCelebration } from '../components/AvatarShop';
 import InteractiveLessonMap from '../components/InteractiveLessonMap';
@@ -26,7 +29,7 @@ const RATING_STAR_SRC = '/dashboard/rating-user-star.png?v=20260815';
 const withoutLeadingStar = (value: string) => value.replace(/^⭐\s*/, '');
 export { DashboardGradeStars } from '../components/DashboardGrades';
 
-type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades' | 'shop' | 'interactive';
+type Tab = 'overview' | 'lessons' | 'homework' | 'schedule' | 'online-class' | 'practice' | 'grammar' | 'listening' | 'checkpoint' | 'dictionary' | 'grades' | 'shop' | 'interactive';
 
 type BillingSummary = {
   access_status: string | null;
@@ -1527,7 +1530,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   const previewUserId = searchParams.get('preview');
   const isPreview = !!previewUserId;
   const initialTabParam = searchParams.get('tab');
-  const allowedTabs: Tab[] = ['overview', 'interactive', 'lessons', 'homework', 'schedule', 'practice', 'grammar', 'listening', 'checkpoint', 'dictionary', 'grades', 'shop'];
+  const allowedTabs: Tab[] = ['overview', 'interactive', 'lessons', 'homework', 'schedule', 'online-class', 'practice', 'grammar', 'listening', 'checkpoint', 'dictionary', 'grades', 'shop'];
   const initialTab = allowedTabs.includes(initialTabParam as Tab) ? initialTabParam as Tab : 'overview';
 
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
@@ -1832,6 +1835,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
     { id: 'lessons', label: t(lang, 'dash_lessons'), iconSrc: '/dashboard/lessons-header-books.png' },
     { id: 'homework', label: t(lang, 'dash_homework'), iconSrc: '/dashboard/menu-icons/homework.png' },
     { id: 'schedule', label: t(lang, 'dash_schedule'), iconSrc: '/dashboard/menu-icons/schedule.png' },
+    { id: 'online-class', label: meetCopy[lang].title, iconSrc: '/dashboard/meet/camera.png' },
     { id: 'practice', label: t(lang, 'dash_practice'), iconSrc: '/dashboard/menu-icons/practice.png' },
     { id: 'grammar', label: t(lang, 'dash_grammar'), iconSrc: '/dashboard/menu-icons/grammar.png' },
     { id: 'listening', label: t(lang, 'dash_listening'), iconSrc: '/dashboard/menu-icons/listening.png' },
@@ -1856,7 +1860,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
           <span className="relative h-6 w-6 flex-shrink-0">
             <img src={tab.iconSrc} alt="" aria-hidden="true" draggable={false}
               className={`absolute left-1/2 top-1/2 max-w-none -translate-x-1/2 -translate-y-1/2 object-contain drop-shadow-sm ${
-                tab.id === 'interactive' ? 'h-9 w-9' : ['practice', 'listening', 'shop'].includes(tab.id) ? 'h-8 w-8' : 'h-7 w-7'
+                tab.id === 'interactive' ? 'h-9 w-9' : ['practice', 'listening', 'shop', 'online-class'].includes(tab.id) ? 'h-8 w-8' : 'h-7 w-7'
               }`} />
           </span>
           <span>{tab.label}</span>
@@ -1975,7 +1979,9 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
 	        {/* Welcome banner */}
 	        {activeTab !== 'shop' && activeTab !== 'dictionary' && (<>
-	        {activeTab !== 'dictionary' && (
+	        {activeTab === 'online-class' ? (
+              <div className="mb-8"><OnlineClassBanner lang={lang} pageHeading /></div>
+            ) : activeTab !== 'dictionary' && (
 	        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
 	          className={`student-welcome-banner rounded-3xl p-6 md:p-8 mb-8 text-white relative overflow-visible ${activeTab === 'dictionary' ? 'min-h-[166px]' : ''} ${isWelcomeScrolledUnderHeader ? 'z-10' : 'z-[60]'}`}>
           <div className="absolute inset-0 overflow-hidden rounded-3xl opacity-10">
@@ -2399,6 +2405,9 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                     );
                   })()
             )}
+
+            {/* ONLINE CLASS */}
+            {activeTab === 'online-class' && <OnlineClass lang={lang} showBanner={false} />}
 
             {/* PRACTICE */}
             {activeTab === 'practice' && (

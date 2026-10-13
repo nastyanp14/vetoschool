@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { ContentCard, FileModal, LockedModal } from '../pages/Dashboard';
 import DictionaryView from '../components/DictionaryView';
+import MeetDesignPreview from './MeetDesignPreview';
 import DashboardGrades from '../components/DashboardGrades';
 import type { ContentItem } from '../lib/content';
 import type { DictWord } from '../lib/dictionary';
 import { t, type Lang } from '../lib/i18n';
 
-type PreviewSection = 'listening' | 'checkpoint' | 'grammar' | 'practice' | 'homework' | 'dictionary' | 'grades';
+type PreviewSection = 'online-class' | 'listening' | 'checkpoint' | 'grammar' | 'practice' | 'homework' | 'dictionary' | 'grades';
 type Example = { label: string; item: ContentItem };
 const base: ContentItem = { id: 'demo', moduleId: 'preview', type: 'listening', title: '', emoji: '🎧', unlocked: true };
 const date = '2026-08-29T12:00:00';
@@ -104,16 +105,16 @@ export default function CardPreview() {
   const previewDailyReview = previewParams.get('review') === 'daily';
   const forceDarkPreview = previewParams.get('theme') === 'dark';
   const previewUserId = previewDailyReview ? 'local-daily-review-preview-v1' : 'local-dictionary-preview';
-  const [lang, setLang] = useState<Lang>('ru');
+  const [lang, setLang] = useState<Lang>(() => { const value = previewParams.get('lang'); return value === 'ua' || value === 'en' ? value : 'ru'; });
   const [section, setSection] = useState<PreviewSection>(() => {
     const requested = previewParams.get('section');
-    return requested === 'grammar' || requested === 'checkpoint' || requested === 'practice' || requested === 'homework' || requested === 'dictionary' || requested === 'grades' ? requested : 'listening';
+    return requested === 'online-class' || requested === 'grammar' || requested === 'checkpoint' || requested === 'practice' || requested === 'homework' || requested === 'dictionary' || requested === 'grades' ? requested : 'listening';
   });
   const [selectedId, setSelectedId] = useState<string | null>(() => previewParams.get('open'));
   const [changes, setChanges] = useState<Record<string, Partial<ContentItem>>>({});
   const [message, setMessage] = useState('');
   const [resetKey, setResetKey] = useState(0);
-  const cards = section === 'dictionary' || section === 'grades' ? [] : (section === 'homework' ? homeworkExamples : section === 'practice' ? practiceExamples : section === 'grammar' ? grammarExamples : examples).map(example => ({ ...example, item: { ...example.item, ...changes[`${section}:${example.item.id}`], type: section } }));
+  const cards = section === 'online-class' || section === 'dictionary' || section === 'grades' ? [] : (section === 'homework' ? homeworkExamples : section === 'practice' ? practiceExamples : section === 'grammar' ? grammarExamples : examples).map(example => ({ ...example, item: { ...example.item, ...changes[`${section}:${example.item.id}`], type: section } }));
   const selected = cards.find(example => example.item.id === selectedId)?.item;
 
   useEffect(() => {
@@ -169,14 +170,14 @@ export default function CardPreview() {
         </div>
         <p className="mt-3 max-w-3xl text-sm leading-relaxed text-purple-500">Переключай разделы и нажимай на карточки. Здесь используются настоящие компоненты сайта — правки появляются автоматически. Аккаунт не нужен: данные вымышленные, выбранные файлы никуда не отправляются.</p>
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          {([{ id: 'listening', title: 'Аудирование' }, { id: 'checkpoint', title: 'Unit Checkpoint' }, { id: 'grammar', title: 'Грамматика' }, { id: 'practice', title: 'Практика' }, { id: 'homework', title: 'Домашние задания' }, { id: 'dictionary', title: 'Словарик' }, { id: 'grades', title: 'Оценки' }] as const).map(tab => (
+          {([{ id: 'listening', title: 'Аудирование' }, { id: 'checkpoint', title: 'Unit Checkpoint' }, { id: 'grammar', title: 'Грамматика' }, { id: 'practice', title: 'Практика' }, { id: 'homework', title: 'Домашние задания' }, { id: 'dictionary', title: 'Словарик' }, { id: 'grades', title: 'Оценки' }, { id: 'online-class', title: 'Онлайн-клас' }] as const).map(tab => (
             <button key={tab.id} type="button" aria-pressed={section === tab.id} onClick={() => { setSelectedId(null); setSection(tab.id); setMessage(''); }} className={`rounded-full px-5 py-2.5 font-bold ${section === tab.id ? 'student-accent-gradient text-white shadow-sm' : 'bg-purple-50 hover:bg-purple-100'}`}>{tab.title}</button>
           ))}
           <button type="button" onClick={reset} className="rounded-full border border-purple-200 px-4 py-2.5 text-sm hover:bg-purple-50 sm:ml-auto">Сбросить примеры</button>
         </div>
         {message && <p role="status" className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</p>}
       </header>
-      {section === 'grades' ? <GradesPreview lang={lang} /> : section === 'dictionary' ? <div className="mx-auto max-w-[1488px]"><DictionaryView key={resetKey} userId={previewUserId} lang={lang} previewWords={dictionaryWords} previewDailyReview={previewDailyReview} /></div> : <div className="mx-auto grid max-w-[1248px] gap-x-5 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
+      {section === 'online-class' ? <MeetDesignPreview lang={lang} /> : section === 'grades' ? <GradesPreview lang={lang} /> : section === 'dictionary' ? <div className="mx-auto max-w-[1488px]"><DictionaryView key={resetKey} userId={previewUserId} lang={lang} previewWords={dictionaryWords} previewDailyReview={previewDailyReview} /></div> : <div className="mx-auto grid max-w-[1248px] gap-x-5 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map(({ label, item }, index) => (
             <section key={`${section}:${item.id}`}>
               <p className="mb-2 px-1 text-sm font-bold text-purple-500">{index + 1}. {label}</p>

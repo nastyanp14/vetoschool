@@ -17,6 +17,7 @@ import ForgotPassword from './ForgotPassword';
 import ResetPassword from './ResetPassword';
 import AccountSecurity from './AccountSecurity';
 import Dashboard from './Dashboard';
+import Classroom from './Classroom';
 import Admin from './Admin';
 import TeacherDashboard from './TeacherDashboard';
 import Analytics from './Analytics';
@@ -31,6 +32,7 @@ import { routeMeta } from '../lib/routeMeta';
 import CookieConsentBanner from '../components/CookieConsentBanner';
 import CookiePreferencesModal from '../components/CookiePreferencesModal';
 import AppLoadingScreen from '../components/AppLoadingScreen';
+import ConferenceManagementPreview from '../dev/ConferenceManagementPreview';
 
 const seo = routeMeta;
 
@@ -87,6 +89,7 @@ export default function Index() {
         <Route path="/account/security" element={<><Seo {...seo.accountSecurity} /><ProtectedRoute><AccountSecurity lang={lang} /></ProtectedRoute></>} />
 
         <Route path="/dashboard" element={<><Seo {...seo.dashboard} /><ProtectedRoute role="student"><Dashboard lang={lang} /></ProtectedRoute></>} />
+        <Route path="/classroom/:roomId" element={<><Seo title="Vetoschool Meet" description="Private Vetoschool classroom." path="/classroom" noindex /><ProtectedRoute><Classroom lang={lang} /></ProtectedRoute></>} />
         <Route path="/admin" element={<><Seo {...seo.admin} /><ProtectedRoute role="admin"><Admin lang={lang} setLang={setLang} /></ProtectedRoute></>} />
         <Route path="/teacher" element={<><Seo {...seo.teacher} /><ProtectedRoute role="teacher"><TeacherDashboard lang={lang} setLang={setLang} /></ProtectedRoute></>} />
         <Route path="/teacher/groups/:groupId" element={<><Seo {...seo.teacher} /><ProtectedRoute role="teacher"><TeacherDashboard lang={lang} setLang={setLang} mode="group" /></ProtectedRoute></>} />
@@ -101,6 +104,7 @@ export default function Index() {
         <Route path="/payment/cancel" element={<><Seo {...seo.paymentCancel} /><Navbar lang={lang} setLang={setLang} /><PaymentResult lang={lang} variant="cancel" /></>} />
         <Route path="/500" element={<><Seo {...seo.internalServerError} /><InternalServerError lang={lang} /></>} />
         <Route path="/503" element={<><Seo {...seo.serviceUnavailable} /><ServiceUnavailable lang={lang} /></>} />
+        <Route path="/preview/conferences" element={<><Seo title="Vetoschool Meet Preview" description="Interactive preview of Vetoschool Meet conference management interfaces." path="/preview/conferences" noindex /><ConferenceManagementPreview /></>} />
         {import.meta.env.DEV && <Route path="/preview/loading" element={<AppLoadingScreen lang={lang} />} />}
         <Route path="*" element={<><Seo {...seo.notFound} /><NotFound lang={lang} /></>} />
       </Routes>
