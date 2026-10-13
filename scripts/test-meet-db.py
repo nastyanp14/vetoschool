@@ -15,7 +15,7 @@ with tempfile.TemporaryDirectory(prefix='vetoschool-meet-',dir='/private/tmp') a
                 for name in ['is_admin','is_teacher','teacher_id_for_user','teacher_can_access_student']:
                     match=re.search(r'CREATE OR REPLACE FUNCTION private\.'+name+r'\(.*?\n\$\$;',s,re.S)
                     if match:out.write(match[0]+'\n')
-        for file in ['supabase/tests/meet_bootstrap.sql',str(helper),'supabase/migrations/20261013120000_vetoschool_meet.sql','supabase/tests/meet_permissions.sql','supabase/tests/meet_extra.sql']:
+        for file in ['supabase/tests/meet_bootstrap.sql',str(helper),'supabase/migrations/20261013120000_vetoschool_meet.sql','supabase/tests/meet_permissions.sql','supabase/tests/meet_extra.sql','supabase/migrations/20261013153000_vetoschool_meet_media.sql','supabase/tests/meet_media_permissions.sql']:
             run(['psql','-X','-v','ON_ERROR_STOP=1','-f',file],stdout=subprocess.DEVNULL)
         run(['python3','scripts/test-meet-concurrency.py'])
     finally:

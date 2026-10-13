@@ -33,6 +33,7 @@ import CookieConsentBanner from '../components/CookieConsentBanner';
 import CookiePreferencesModal from '../components/CookiePreferencesModal';
 import AppLoadingScreen from '../components/AppLoadingScreen';
 import ConferenceManagementPreview from '../dev/ConferenceManagementPreview';
+import MeetLivePreview from '../dev/MeetLivePreview';
 
 const seo = routeMeta;
 
@@ -106,6 +107,7 @@ export default function Index() {
         <Route path="/503" element={<><Seo {...seo.serviceUnavailable} /><ServiceUnavailable lang={lang} /></>} />
         <Route path="/preview/conferences" element={<><Seo title="Vetoschool Meet Preview" description="Interactive preview of Vetoschool Meet conference management interfaces." path="/preview/conferences" noindex /><ConferenceManagementPreview /></>} />
         {import.meta.env.DEV && <Route path="/preview/loading" element={<AppLoadingScreen lang={lang} />} />}
+        {import.meta.env.DEV && <Route path="/preview/meet-live" element={<MeetLivePreview />} />}
         <Route path="*" element={<><Seo {...seo.notFound} /><NotFound lang={lang} /></>} />
       </Routes>
       <CookieConsentBanner lang={lang} />

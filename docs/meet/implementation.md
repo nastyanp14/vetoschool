@@ -1,106 +1,59 @@
-# Vetoschool Meet — управление конференциями, 13.10.2026
+# Vetoschool Meet — implementation notes, 13.10.2026
 
-## Статус применения
+## Current status
 
-Реализация и локальные проверки завершены. Миграция применена к подключённому Supabase отдельной транзакцией и зарегистрирована в журнале как `20261013120000_vetoschool_meet`. После применения read-only проверка подтвердила таблицы, RLS, политики, RPC, привилегии и пустое начальное состояние таблиц Meet. Массовый push остальных миграций не выполнялся.
+The existing conference management layer remains the source of truth: `video_conferences`, `conference_participants`, `conference_events`, `meet_save`, `meet_transition`, `meet_list`, and `meet_people` are reused unchanged.
 
-Фронтенд публикуется через `main` в Cloudflare Pages из чистой релизной копии, поэтому посторонние изменения основного рабочего каталога не входят в релиз.
+The media client is implemented in the existing `/classroom/:roomId` route. It uses browser WebRTC mesh for audio/video and short-lived Supabase Realtime Postgres-change events for signalling. Supabase never transports media.
 
-Дополнительные настройки: Realtime должен быть включён в Supabase. Подтверждены `realtime.send`, RLS и SELECT для authenticated на `realtime.messages`; политика своего канала добавляется миграцией. Добавлять таблицы Meet в `supabase_realtime` publication не нужно, так как используется Broadcast. Секреты/новые Edge Functions/платные интеграции не требуются. У преподавателя должна быть активная запись `teachers` со связанным `teacher_user_id` и ролью teacher; ученики доступны через существующие прямые назначения и группы.
+`20261013153000_vetoschool_meet_media.sql` is a new, separate migration. It has passed the disposable PostgreSQL permission/concurrency suite but has **not** been applied to production. Do not publish the frontend before this migration is explicitly approved and applied; otherwise joining a real room will fail safely because the new RPCs do not exist.
 
-## Объём
+## Browser flow
 
-Существующие формы и карточки подключены к Supabase. CSS, палитра, баннеры, изображения и навигация не изменялись. Реальные кабинеты не используют демонстрационные конференции. Отдельное ранее существовавшее дизайн-превью сохраняет вымышленные данные и явную маркировку.
+- Protected route and `meet_list` verify Auth, room membership, conference status, and safe projection.
+- Active rooms open a prejoin screen without requesting camera or microphone automatically.
+- Users may enable either device, select available input/output devices, or join in presence-only mode.
+- Calls show up to five media participants, local mirrored video, remote unmirrored video, mute/camera/hand state, active-speaker highlighting, chat, roster, and responsive panels.
+- The teacher can share a real display track, mute a student, request unmute, kick a student for the current conference, and complete the room through `meet_transition`.
+- Admins enter an observer-only control mode. They do not create a sixth peer/media connection.
+- Completed rooms render the dedicated completion screen.
 
-Нет WebRTC, аудио/видео, чата, доски, записи, автоматического завершения по длительности или внешнего видеосервиса. Активная комната показывает сообщение о разработке видеосвязи.
+## WebRTC
 
-## Анализ существующей архитектуры
+`useMeetCall` owns one `RTCPeerConnection` per remote media participant. It implements deterministic polite peers (perfect-negotiation collision handling), queued early ICE candidates, bounded ICE restart, sender track replacement, reconnect on online/focus, duplicate-session replacement, and complete peer/track/channel cleanup.
 
-Проверены локальные миграции, Auth, `profiles`, `user_roles`, `teachers`, `teacher_students`, `student_groups`, `student_group_members`, `schedules`, их RLS и действующие серверные helpers. Read-only запрос к подключённому Supabase подтвердил необходимые колонки и helpers, отсутствие таблиц Meet и наличие `realtime.send`. Каталог `teachers.id` отличается от `teachers.teacher_user_id` — API использует каталог, а права проверяет по связанному аккаунту.
+Default video constraints are 640×360, up to 24 fps, approximately 550 kbps. Screen share targets up to 15 fps and approximately 1.5 Mbps for readable text. Audio keeps echo cancellation, noise suppression, and automatic gain control. Default ICE servers are Cloudflare and Google STUN. Optional TURN/STUN configuration can be supplied through `VITE_MEET_ICE_SERVERS` as an `RTCIceServer[]` JSON value; no paid TURN service or secret is included.
 
-Универсального аудита нет: существующие журналы относятся к Stripe, уведомлениям и интерактивным урокам. История Meet хранится отдельно.
+Without TURN, calls cannot be guaranteed on restrictive corporate/mobile NATs. The UI reports a connection failure instead of claiming a false connected state.
 
-Локальный и удалённый журналы миграций расходятся; массовый `supabase db push` для этого изменения не применяется.
+## Signalling and security
 
-## Миграция и данные
+The additional schema contains only:
 
-`supabase/migrations/20261013120000_vetoschool_meet.sql`:
+- `conference_connections`: one server-controlled active session per `(conference,user)`, heartbeat, device state, observer flag, and current-room kick block.
+- `conference_signals`: short-lived, RLS-protected offers, answers, ICE candidates, chat, moderation control, and roster invalidations.
 
-- `video_conferences`: название, описание, каталог преподавателя, создатель, тип, дата UTC `timestamptz`, длительность 1–1440 мин, статус, UUID комнаты, уникальный случайный 12-символьный код, фактические timestamps, версия и nullable `schedule_id`.
-- `conference_participants`: UUID записи, FK конференции и существующего профиля, уникальная пара `(conference_id,user_id)`. Максимум 4 ученика, индивидуально — 1. Преподаватель отдельно. Удаление профиля каскадно убирает его участие; удаление автора обнуляет `created_by`. Удаление записи преподавателя обнуляет `teacher_id`, отменяет открытое занятие и сохраняет историю. Новые FK не блокируют существующее удаление пользователей/преподавателей.
-- `conference_events`: действие, автор, время, минимальные metadata. Нет копирования имён, описаний или контактов в аудит.
+All writes are RPC-only. `meet_join`, `meet_heartbeat`, `meet_roster`, `meet_signal`, `meet_control`, and `meet_leave` bind the actor to `auth.uid()` on the server. Clients cannot choose the sender identity. SDP/ICE is target-addressed and readable only by a currently connected authorized target. Chat payloads are normalized to a bounded text string; React renders them as text, not HTML.
 
-`schedule_id` ссылается на существующий `schedules.id`; при использовании проверяются преподаватель и принадлежность каждого ученика занятию. Расписание не дублируется и автоматически не изменяется. Поле подготовлено для следующего этапа интеграции, новый выбор расписания в утверждённую форму не добавлялся.
+Room-row locking serializes joins. A second tab replaces the first session for the same user. Media seats are counted from fresh, non-observer server sessions; the teacher plus four assigned students is the maximum. An admin remains observer-only. Kicked students cannot rejoin that conference. Terminal status closes sessions and deletes ephemeral signals.
 
-## Права и атомарность
+## Validation completed
 
-RLS включён на всех трёх таблицах. `authenticated` имеет только SELECT таблиц; прямые INSERT/UPDATE/DELETE запрещены, в том числе менеджерам. Управление выполняется через RPC:
+- Targeted ESLint: pass.
+- Vite production build: pass (existing large-chunk warning remains).
+- Full Vitest: 45 files, 254 tests passed.
+- Disposable PostgreSQL suite: pass, including existing management/RLS/concurrency cases plus media seats, observer admin, duplicate tab, sender binding, outsider denial, mute, kick, blocked rejoin, and terminal cleanup.
+- In-app browser: narrow responsive prejoin inspected at 419×736 with no horizontal overflow.
 
-- `meet_save`: создание или изменение по исходному ID. Валидирует роль, преподавателя, учеников, лимиты, дату, длительность, связь расписания. Конференция, состав, аудит и сигнал обновления сохраняются одной транзакцией. `created_by`, `room_id`, код и статус клиент не задаёт.
-- `meet_transition`: scheduled → active/cancelled; active → completed/cancelled. Терминальные статусы не перезапускаются. Преподаватель управляет только собственной конференцией, администратор — любой.
-- `meet_list`: безопасная проекция доступных конференций, фильтр комнаты или кода и постраничная загрузка. Ученикам не возвращаются имена/ID одноклассников. Название преподавателя разрешено, его email, телефон и admin_note не читаются.
-- `meet_people`: доступные имена и ID для формы, с серверной фильтрацией ролей и назначений.
+The browser preview is a visual check only. The database suite validates authorization and state transitions, not WebRTC media. A real multi-user test still requires the migration in a non-production Supabase environment and separate authenticated browsers/devices. Five simultaneous real camera/microphone streams, Safari/iPhone autoplay/device behavior, screen sharing, network loss, and restrictive-NAT behavior remain manual acceptance items.
 
-Ученики видят только свои конференции и свою запись участия; аудит доступен только менеджерам. RLS использует внутренние SECURITY DEFINER helpers без рекурсивных политик. Все новые SECURITY DEFINER функции имеют `search_path=''`; PUBLIC/anon лишены EXECUTE, клиенту доступны только четыре RPC и helpers, нужные RLS. Trigger и уведомляющая функция клиенту недоступны.
+## Relevant files
 
-Редактирование и статус блокируют строку `FOR UPDATE` и сверяют `version`. Устаревший запрос отклоняется. Состав изменяется внутри той же блокировки; триггер также блокирует родителя перед проверкой ёмкости. Из активной конференции разрешены переходы жизненного цикла, редактирование закрыто. ID комнаты при редактировании сохраняется.
-
-## Синхронизация
-
-Один приватный Broadcast-канал `meet:<auth.uid()>` на смонтированную страницу. Политика `realtime.messages` разрешает читать только свой канал. Сообщение содержит `{}` и событие `changed`; после получения клиент заново запрашивает данные с проверкой прав. Сигнал получают администраторы, старый/новый преподаватель и старые/новые ученики, поэтому исключённый участник также очищает карточку.
-
-Есть очистка каналов, обработчиков и Auth-подписки, объединение быстрых событий, обновление после reconnect/focus/online, очистка данных при выходе. Постоянного polling нет. При недоступном Realtime выводится ошибка и кнопка обновления. Supabase Broadcast: https://supabase.com/docs/guides/realtime/broadcast
-
-## Интерфейс
-
-Сохранение формы асинхронное, повторная отправка блокируется. Неудачная запись сохраняет введённые данные; конфликт предлагает заново открыть форму. Ошибки пользователю — украинские, без PostgreSQL-сообщений. Даты преобразуются из локального времени в UTC и обратно. Отмена и завершение требуют подтверждения. Копируются реальные ссылки и коды. Ученикам доступны только просмотр и переход в активную комнату; отменённые/завершённые занятия находятся в истории.
-
-`/classroom/:roomId` сохраняет существующую авторизацию и дополнительно запрашивает разрешённую конференцию из БД. Неверная/чужая комната не раскрывает персональные данные. Cloudflare worker обслуживает deep link с HTTP 200 и `noindex`.
-
-## Файлы этого этапа
-
-Новые:
-
-- `supabase/migrations/20261013120000_vetoschool_meet.sql`
-- `supabase/tests/meet_bootstrap.sql`, `meet_permissions.sql`, `meet_extra.sql`
-- `scripts/test-meet-db.py`, `scripts/test-meet-concurrency.py`
-- `src/lib/conferences.ts`, `src/lib/conferences.test.ts`
-- `src/hooks/useConferences.ts`, `src/hooks/useConferences.test.tsx`
-- `src/components/meet-management/ConnectedConferenceManager.tsx`
-- `src/components/meet-management/ConferenceManager.integration.test.tsx`
-- `src/components/meet/OnlineClass.test.tsx`, `src/pages/Classroom.test.tsx`
-- `docs/meet/implementation.md`
-
-Изменены существующие файлы, включая ранее неотслеживаемые файлы утверждённого интерфейса:
-
-- `src/components/meet-management/ConferenceManager.tsx`, `ConferenceForm.tsx`, `model.ts`
-- `src/components/meet/OnlineClass.tsx`
-- `src/pages/Admin.tsx`, `TeacherDashboard.tsx`, `Classroom.tsx`
-- `src/integrations/supabase/types.ts` — сигнатуры RPC
-- `scripts/generate-seo-files.mjs`, генерируемый `public/robots.txt`
-
-Другие изменения, уже присутствовавшие в рабочем каталоге, не являются результатом этого этапа.
-
-## Проверки
-
-- PASS: 51 SQL-проверка + 2 теста с конкурентными соединениями в изолированной PostgreSQL.
-- PASS: целевой запуск Meet — 32 теста в 6 файлах; общий запуск Vitest — 249 тестов в 43 файлах.
-- PASS: production-сборка Vite, целевой ESLint, `git diff --check`.
-- PASS: после применения read-only проверены журнал миграций, RLS всех трёх таблиц, отсутствие прямой записи для `authenticated`, отсутствие доступа `anon`, четыре RPC и безопасный `search_path` SECURITY DEFINER-функций.
-- PASS: браузерное открытие и визуальная проверка утверждённой формы в существующем design-preview.
-- NOT TESTED: сквозной CRUD с реальными аккаунтами в рабочем Supabase и доставка приватного WebSocket между одновременно открытыми кабинетами.
-- KNOWN LIMITATION: полный `tsc` завершается ошибками вне компонентов Meet (см. ниже).
-
-Запуск серверных тестов: `python3 scripts/test-meet-db.py` (локальная PostgreSQL 18; путь бинарников можно задать `MEET_PG_BIN`). Скрипт создаёт и удаляет только собственную временную БД; production не использует. Он загружает реальные определения role helpers из предыдущих миграций, минимальную структуру существующих таблиц и новую миграцию. Realtime-транспорт в этом стенде заменён таблицей сообщений: проверяются получатели, содержимое и политика канала, а не доставка WebSocket Supabase.
-
-Все 10 обязательных сценариев проверены SQL-запросами под ролью `authenticated` с разными `auth.uid()`: создание администратором и преподавателем, видимость у назначенных пользователей, перенос времени, отмена, отказ чужому ученику, отказ прямому INSERT ученика, отказ чужому преподавателю, лимит, старт и завершение. Дополнительно: rollback ошибки вставки участника, неизменность room_id, stale version, запрет редактирования активной, запрет перезапуска, отзыв доступа, reassignment, приватность имён/аудита/каталогов, доступ по коду, анонимный доступ, связь расписания, два настоящих конкурентных соединения.
-
-React/RPC тесты проверяют UTC-конверсию, атомарный вызов сохранения, передачу версии, ошибки, постраничную загрузку, подтверждение отмены, завершение администратором, запрет редактирования активной, инвалидирование карточек, выход, первичное состояние без авторизации и cleanup.
-
-Браузерная проверка формы выполнялась на существующем локальном дизайн-превью. Она подтверждает отображение формы, но не является проверкой авторизованной production-сессии.
-
-Полный TypeScript `tsc --noEmit -p tsconfig.app.json` не проходит: ошибки вне Meet в AssessmentStep, content, dailyReview, Admin (`refreshUsers`) и Dashboard. Они не исправлялись в рамках этой задачи. Сборка Vite проходит отдельно.
-
-## Следующий этап
-
-Готовы идентификаторы комнат, серверное разграничение прав, участники, статусы, история, временные метки и связь с расписанием. Перед добавлением видеосервиса требуется отдельное подтверждение. Выдачу токенов будущего видеосервиса нужно проверять на сервере по актуальному статусу и участию; знание ссылки/кода не является разрешением.
+- `src/pages/Classroom.tsx`
+- `src/components/meet/LiveClassroom.tsx`
+- `src/hooks/useMeetCall.ts`
+- `src/lib/meetMedia.ts`
+- `src/components/meet/meet.css`
+- `supabase/migrations/20261013153000_vetoschool_meet_media.sql`
+- `supabase/tests/meet_media_permissions.sql`
+- `scripts/test-meet-db.py`

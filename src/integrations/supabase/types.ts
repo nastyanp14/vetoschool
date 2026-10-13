@@ -3287,6 +3287,12 @@ export type Database = {
       meet_transition: { Args: { _id: string; _version: number; _status: string }; Returns: undefined }
       meet_list: { Args: { _room?: string; _offset?: number }; Returns: Json }
       meet_people: { Args: Record<PropertyKey, never>; Returns: Json }
+      meet_join: { Args: { _id: string; _connection_id: string; _camera?: boolean; _microphone?: boolean }; Returns: Json }
+      meet_heartbeat: { Args: { _id: string; _connection_id: string; _camera: boolean; _microphone: boolean; _hand: boolean; _sharing: boolean }; Returns: Json }
+      meet_roster: { Args: { _id: string; _connection_id: string }; Returns: Json }
+      meet_signal: { Args: { _id: string; _connection_id: string; _target: string | null; _event: string; _payload: Json }; Returns: undefined }
+      meet_control: { Args: { _id: string; _connection_id: string; _target: string; _action: string }; Returns: undefined }
+      meet_leave: { Args: { _id: string; _connection_id: string }; Returns: undefined }
 
       adjust_subscription_lessons_remaining: {
         Args: {
