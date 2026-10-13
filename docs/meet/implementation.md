@@ -8,7 +8,7 @@ The media client is implemented in the existing `/classroom/:roomId` route. It u
 
 `20261013153000_vetoschool_meet_media.sql` was explicitly approved and applied to the linked production Supabase on 13.10.2026 as one isolated transaction, then recorded in the Supabase migration journal. Read-only catalog checks confirmed both tables with RLS, both SELECT policies, six authenticated-only RPCs, safe table privileges, empty initial media state, and `conference_signals` in the `supabase_realtime` publication.
 
-Frontend commit `3161645` was pushed to GitHub `main` and the Cloudflare Workers build completed successfully. Production serves the new `index-BkhQPn8S.js` bundle; `/` and `/classroom/:roomId` return HTTP 200, classroom deep links remain `noindex`, and unauthenticated access redirects to login.
+Frontend commit `272c999` was pushed to GitHub `main` and the Cloudflare build completed successfully. Production serves `index-Dc9wUsvt.js`; `/` and `/classroom/:roomId` return HTTP 200, both completion-screen stickers return HTTP 200, classroom deep links remain `noindex`, and unauthenticated access redirects to login. No production Supabase change was required for the video-quality upgrade.
 
 ## Browser flow
 
@@ -54,7 +54,7 @@ Room-row locking serializes joins. A second tab replaces the first session for t
 - Full Vitest: 46 files, 260 tests passed, including HD/FHD constraints, sender bitrate tuning, WebKit fallbacks, mesh sender setup, screen-share restoration, and the existing signalling lifecycle.
 - Disposable PostgreSQL suite: pass, including existing management/RLS/concurrency cases plus media seats, observer admin, duplicate tab, sender binding, outsider denial, mute, kick, blocked rejoin, and terminal cleanup.
 - In-app browser: narrow responsive prejoin inspected at 419×736 with no horizontal overflow; the redesigned completion screen was inspected at mobile and 1440×900 desktop sizes with both supplied transparent stickers loaded correctly.
-- Production: Cloudflare build succeeded, WebRTC/signalling identifiers are present in the deployed bundle, protected classroom routing works, and no browser console errors were observed on public/redirected routes.
+- Production: Cloudflare build succeeded; the deployed bundle contains the 1080p constraints, adaptive quality tiers, developer diagnostics, and completion assets. The authenticated completed lesson `dddd` was visually verified in Safari with the real 91-minute / 1-student summary.
 
 The browser preview and production bundle checks are not a real multi-user media test. Five simultaneous real camera/microphone streams, Safari/iPhone autoplay/device behavior, screen sharing, chat/moderation between authenticated accounts, network loss, and restrictive-NAT behavior remain manual acceptance items on separate browsers/devices.
 
