@@ -112,3 +112,19 @@ describe('worker error pages', () => {
     expect(body).toContain('<link rel="canonical" href="https://vetoschool.eu/503" />');
   });
 });
+
+describe('worker Meet routes', () => {
+  it.each([
+    ['/preview/conferences', 'Vetoschool Meet Preview'],
+    ['/classroom/design-preview', 'Vetoschool Meet'],
+  ])('serves the SPA shell for %s', async (pathname, title) => {
+    const response = await worker.fetch(new Request(`https://vetoschool.eu${pathname}`, {
+      headers: { accept: 'text/html' },
+    }), createSpaEnv());
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain(`<title>${title}</title>`);
+    expect(body).toContain('<meta name="robots" content="noindex,nofollow" />');
+  });
+});

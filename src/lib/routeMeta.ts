@@ -89,6 +89,18 @@ export const routeMeta = {
     path: '/payment/cancel',
     noindex: true,
   },
+  conferencePreview: {
+    title: 'Vetoschool Meet Preview',
+    description: 'Interactive preview of Vetoschool Meet conference management interfaces.',
+    path: '/preview/conferences',
+    noindex: true,
+  },
+  classroom: {
+    title: 'Vetoschool Meet',
+    description: 'Private Vetoschool classroom.',
+    path: '/classroom',
+    noindex: true,
+  },
   checkEmail: {
     title: 'Check Your Email | Vetoschool',
     description: 'Confirm your Vetoschool email address with the code we just sent to finish creating your account.',
@@ -178,6 +190,7 @@ const STATIC_ROUTES: Record<string, RouteMeta> = {
   '/pricing': routeMeta.pricing,
   '/payment/success': routeMeta.paymentSuccess,
   '/payment/cancel': routeMeta.paymentCancel,
+  '/preview/conferences': routeMeta.conferencePreview,
   '/500': routeMeta.internalServerError,
   '/503': routeMeta.serviceUnavailable,
 };
@@ -190,6 +203,7 @@ export function resolveRouteMeta(pathname: string): RouteMeta {
 
   if (/^\/analytics\/[^/]+$/.test(normalized)) return routeMeta.analytics;
   if (/^\/checkout\/[^/]+$/.test(normalized)) return routeMeta.checkout;
+  if (/^\/classroom\/[^/]+$/.test(normalized)) return routeMeta.classroom;
   if (/^\/teacher\/(groups|students)\/[^/]+$/.test(normalized)) return routeMeta.teacher;
 
   return routeMeta.notFound;
