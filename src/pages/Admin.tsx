@@ -247,7 +247,7 @@ function StudentProfileModal({ user, users, lang, onClose, onCredentialsSaved, o
                 </div>
               </div>
             </div>
-            <button onClick={onClose} className="text-purple-400 hover:text-pink-500 text-3xl leading-none">×</button>
+            <button onClick={onClose} className="text-purple-400 hover:text-red-500 text-3xl leading-none">×</button>
           </div>
         </div>
 
@@ -1377,7 +1377,6 @@ export default function Admin({ lang, setLang }: { lang: Lang; setLang: (l: Lang
   const refreshUsersFromServer = async () => {
     const fresh = await loadAllUsers();
     setUsers(fresh.filter(u => u.role === 'student'));
-    setMeetPeople(fresh);
   };
 
   const runStudentAction = async (uid: string, action: () => Promise<void>, success: string, type: 'success'|'error' = 'success') => {

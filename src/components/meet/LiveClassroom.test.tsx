@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const callState = vi.hoisted(() => ({
   participants: [], remoteStreams: {}, messages: [], status: 'connected', error: '', notice: '', observerOnly: false, role: 'student',
   camera: false, microphone: false, handRaised: false, sharingScreen: false, screenStream: null,
-  diagnostics: [],
   setNotice: vi.fn(), toggleCamera: vi.fn(), toggleMicrophone: vi.fn(), toggleHand: vi.fn(), startScreenShare: vi.fn(), stopScreenShare: vi.fn(),
   sendMessage: vi.fn(), replaceDeviceTrack: vi.fn(), shutdown: vi.fn(),
 }));
@@ -53,19 +52,6 @@ describe('LiveClassroom prejoin', () => {
     fireEvent.click(screen.getByRole('button', { name:/Мікрофон/ }));
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
     expect(getUserMedia.mock.calls[0][0]).toMatchObject({ video:false, audio:expect.any(Object) });
-  });
-
-  it('requests an ideal Full HD camera stream at 30 FPS', async () => {
-    const track = { kind:'video', enabled:true, readyState:'live', stop:vi.fn(), contentHint:'' } as unknown as MediaStreamTrack;
-    getUserMedia.mockResolvedValue(new TestStream([track]));
-    render(<LiveClassroom conference={conference} user={user} onExit={vi.fn()} onRefresh={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name:/Камера/ }));
-    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
-    expect(getUserMedia.mock.calls[0][0]).toMatchObject({
-      audio:false,
-      video:{ width:{ ideal:1920 }, height:{ ideal:1080 }, frameRate:{ ideal:30, max:30 }, aspectRatio:{ ideal:16/9 } },
-    });
-    expect(track.contentHint).toBe('detail');
   });
 
   it('can enter presence mode without media', () => {

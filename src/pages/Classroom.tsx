@@ -5,24 +5,6 @@ import { getCurrentUser, homePathForUser } from '@/lib/auth';
 import { useConferences } from '@/hooks/useConferences';
 import LiveClassroom from '@/components/meet/LiveClassroom';
 
-export function FinishedClassroom({ title, minutes, studentCount, showSummary, onExit }: {
-  title: string;
-  minutes: number | null;
-  studentCount: number;
-  showSummary: boolean;
-  onExit: () => void;
-}) {
-  return <main className="meet-room meet-finished"><section className="meet-finished-card" aria-labelledby="meet-finished-title">
-    <span className="meet-finished-glow" aria-hidden="true" />
-    <img className="meet-finished-owl" src="/dashboard/meet/completion-owl.png" alt="Совка з сердечком показує, що заняття завершено" />
-    <span className="meet-finished-kicker">Vetoschool Meet</span>
-    <h1 id="meet-finished-title">Заняття завершено!</h1>
-    <div className="meet-finished-thanks"><span>Дякуємо за участь</span><img src="/dashboard/meet/completion-heart.png" alt="" /></div>
-    {showSummary && <div className="meet-finished-summary"><strong>{title}</strong><div>{minutes !== null && <span><small>Тривалість</small>{minutes} хв</span>}<span><small>Учнів</small>{studentCount}</span></div></div>}
-    <button className="meet-button meet-primary" type="button" onClick={onExit}>Повернутися до онлайн-класу</button>
-  </section></main>;
-}
-
 export default function Classroom({ lang }: { lang: Lang }) {
   const { roomId } = useParams();
   const navigate = useNavigate();
@@ -35,7 +17,7 @@ export default function Classroom({ lang }: { lang: Lang }) {
   if (conference?.status === 'active' && user) return <LiveClassroom conference={conference} user={user} onExit={exit} onRefresh={data.refresh} />;
   if (conference?.status === 'completed') {
     const seconds = conference.startedAt && conference.endedAt ? Math.max(0, Math.round((new Date(conference.endedAt).getTime()-new Date(conference.startedAt).getTime())/60000)) : null;
-    return <FinishedClassroom title={conference.title} minutes={seconds} studentCount={conference.studentIds.length} showSummary={user?.role !== 'student'} onExit={exit} />;
+    return <main className="meet-room meet-finished"><div className="meet-finished-card"><span className="meet-finished-heart">💜</span><h1>Заняття завершено!</h1><p>Дякуємо за участь 💜</p>{user?.role !== 'student' && <div className="meet-finished-summary"><strong>{conference.title}</strong>{seconds !== null && <span>Тривалість: {seconds} хв</span>}<span>Учнів: {conference.studentIds.length}</span></div>}<button className="meet-button meet-primary" type="button" onClick={exit}>Повернутися до онлайн-класу</button></div></main>;
   }
   const message=data.loading ? 'Перевірка доступу…' : data.error || (!conference ? 'У вас немає доступу до цієї конференції' :
     conference.status==='cancelled' ? 'Цю конференцію скасовано' :

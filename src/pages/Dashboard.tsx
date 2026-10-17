@@ -1,7 +1,7 @@
 import { useCallback, useState, useEffect, type MouseEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Check, Clock, Crown, Lock, Unlock } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, Check, Copy, Crown, GraduationCap, Infinity, Lock, Settings } from 'lucide-react';
 import { getCurrentUser, logout } from '../lib/auth';
 import { getStudentSchedule } from '../lib/schedule';
 import { ensureStudentContent, ContentItem, getStudentRating, isGradedContentType, loadContentItemFile, loadStudentContentSummary, openOrDownload, submitStudentContentWork } from '../lib/content';
@@ -13,7 +13,7 @@ import OnlineClassBanner from '../components/meet/OnlineClassBanner';
 import { meetCopy } from '../components/meet/copy';
 import DictionaryView from '../components/DictionaryView';
 import AvatarShop, { StarCelebration } from '../components/AvatarShop';
-import InteractiveLessonMap from '../components/InteractiveLessonMap';
+import InteractiveLessonMap, { InteractiveHeader } from '../components/InteractiveLessonMap';
 import InteractiveLessonRoom from '../components/InteractiveLessonRoom';
 import ListeningAudioPlayer from '../components/ListeningAudioPlayer';
 import DashboardGrades, { DashboardGradeStars } from '../components/DashboardGrades';
@@ -146,7 +146,7 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
   const text = {
     ru: {
       title: 'Telegram для родителей',
-      desc: 'Подключите Telegram, чтобы родители получали напоминания, домашние задания, оценки и переносы уроков.',
+      desc: 'Будьте в курсе успехов ребёнка: напоминания о занятиях, домашние задания, оценки и изменения расписания.',
       button: 'Подключить Telegram',
       copy: copied ? 'Скопировано' : 'Скопировать ссылку',
       expires: 'Ссылка активна до',
@@ -159,14 +159,14 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
       disconnected: 'Родитель отключён',
       notFound: 'Связь уже отключена',
       failed: 'Не удалось отключить. Попробуйте ещё раз.',
-      settings: 'Настройки уведомлений меняются в боте: напоминания, домашки, оценки, переносы и отмены.',
+      features: ['Напоминания о занятиях', 'Домашние задания и оценки', 'Изменения в расписании', 'Важные уведомления'],
       waiting: 'Ждём подтверждения из Telegram...',
       linkedAt: 'Подключён',
       prefs: ['Напоминания', 'Домашки', 'Оценки', 'Расписание'],
     },
     ua: {
       title: 'Telegram для батьків',
-      desc: 'Підключіть Telegram, щоб батьки отримували нагадування, домашні завдання, оцінки та перенесення уроків.',
+      desc: 'Будьте в курсі успіхів дитини: нагадування про заняття, домашні завдання, оцінки та зміни в розкладі.',
       button: 'Підключити Telegram',
       copy: copied ? 'Скопійовано' : 'Скопіювати посилання',
       expires: 'Посилання активне до',
@@ -179,14 +179,14 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
       disconnected: 'Батька відключено',
       notFound: "Зв'язок вже відключено",
       failed: 'Не вдалося відключити. Спробуйте ще раз.',
-      settings: 'Налаштування сповіщень змінюються в боті: нагадування, домашки, оцінки, перенесення та скасування.',
+      features: ['Нагадування про заняття', 'Домашні завдання та оцінки', 'Зміни в розкладі', 'Важливі сповіщення'],
       waiting: 'Чекаємо підтвердження з Telegram...',
       linkedAt: 'Підключено',
       prefs: ['Нагадування', 'Домашки', 'Оцінки', 'Розклад'],
     },
     en: {
       title: 'Telegram for parents',
-      desc: 'Connect Telegram so parents receive reminders, homework, grades, reschedules and cancellations.',
+      desc: 'Stay up to date with your child’s progress, lesson reminders, homework, grades and schedule changes.',
       button: 'Connect Telegram',
       copy: copied ? 'Copied' : 'Copy link',
       expires: 'Link active until',
@@ -199,58 +199,88 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
       disconnected: 'Parent disconnected',
       notFound: 'This link is already disconnected',
       failed: 'Could not disconnect. Please try again.',
-      settings: 'Notification settings are changed in the bot: reminders, homework, grades, reschedules and cancellations.',
+      features: ['Lesson reminders', 'Homework and grades', 'Schedule updates', 'Important notifications'],
       waiting: 'Waiting for Telegram confirmation...',
       linkedAt: 'Linked',
       prefs: ['Reminders', 'Homework', 'Grades', 'Schedule'],
     },
   }[lang];
   const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
+  const featureStickerSources = [
+    '/dashboard/telegram-feature-bell.png',
+    '/dashboard/telegram-feature-homework.png',
+    '/dashboard/telegram-feature-schedule.png',
+    '/dashboard/telegram-feature-alert.png',
+  ];
 
   return (
     <div className="relative overflow-visible">
-      <div className="glass relative overflow-hidden rounded-3xl p-6 border border-sky-100 bg-white">
+      <div className="glass relative min-h-[24rem] overflow-hidden rounded-3xl border border-sky-100 bg-white p-6 lg:aspect-[3/2] lg:self-start dark:border-violet-300/20 dark:bg-[#171025]">
         <img
-          src="/dashboard/telegram-parents-bg.png"
+          src="/dashboard/telegram-parents-full-scene.png"
           alt=""
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 h-full w-full scale-[1.08] select-none object-cover dark:hidden"
+          className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain object-center dark:hidden"
         />
         <img
           src="/dashboard/telegram-parents-bg-dark.png"
           alt=""
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 hidden h-full w-full scale-[1.08] select-none object-cover dark:block"
+          className="pointer-events-none absolute inset-0 hidden h-full w-full select-none object-cover object-center dark:block"
         />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/70 via-white/34 to-white/8 dark:hidden" />
-        <div className="relative z-10 flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-        <div>
-          <h3 className="font-display font-bold text-xl text-purple-700 mb-1 dark:text-violet-50">💬 {text.title}</h3>
-          <p className="font-body text-sm text-purple-400 max-w-2xl dark:text-violet-100/78">{text.desc}</p>
-          <p className="font-body text-xs text-purple-400 mt-2 dark:text-violet-200/65">{text.settings}</p>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/90 via-white/68 to-white/18 dark:hidden" />
+        <div className="relative z-10 flex flex-col gap-4">
+        <div className="max-w-[22rem]">
+          <h3 className="mb-1 flex items-center gap-2 font-display text-2xl font-black leading-tight text-purple-700 dark:text-violet-50">
+            <img src="/dashboard/telegram-icon.png" alt="" aria-hidden="true" className="h-10 w-10 shrink-0 object-contain" />
+            {text.title}
+          </h3>
+          <p className="max-w-[21rem] font-body text-sm leading-relaxed text-[#7f83a5] dark:text-white">{text.desc}</p>
+          {link && <ul className="ml-2 mt-0 grid w-full max-w-[18rem] grid-cols-4 gap-1 font-body text-[10px] font-700 leading-tight text-[#7f83a5] dark:text-white">
+            {text.features.map((feature, index) => (
+              <li key={feature} className="flex min-w-0 flex-col items-center gap-1.5 text-center">
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-white/65 shadow-sm backdrop-blur-sm dark:border-violet-200/15 dark:bg-[#251143]/70">
+                  <img src={featureStickerSources[index]} alt="" aria-hidden="true" className={`telegram-feature-sticker ${index === 0 ? 'telegram-feature-sticker--bell' : 'telegram-feature-sticker--pop'} ${index === 3 ? 'h-14 w-14 -translate-y-0.5' : 'h-11 w-11'} object-contain`} />
+                </span>
+                {feature}
+              </li>
+            ))}
+          </ul>}
+          {link && (
+            <div className="relative -left-3 mt-0 w-full max-w-[20rem] rounded-[1.75rem] border border-white/80 bg-white/35 p-3.5 shadow-sm shadow-violet-900/5 backdrop-blur-sm dark:border-violet-200/25 dark:bg-[#211338]/35">
+              <a
+                href={link}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-16 w-full items-center justify-between gap-2 rounded-full bg-gradient-to-r from-[#b54df2] via-[#9742f5] to-[#7040ed] px-5 py-3 font-display text-base font-bold text-white shadow-[0_10px_20px_rgba(133,73,236,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(133,73,236,0.34)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2"
+              >
+                <span className="flex min-w-0 items-center gap-3">
+                  <img src="/dashboard/telegram-plane.png" alt="" aria-hidden="true" className="h-7 w-7 shrink-0 object-contain" />
+                  <span className="truncate">{text.button}</span>
+                </span>
+                <ArrowRight className="h-6 w-6 shrink-0" aria-hidden="true" />
+              </a>
+              <div className="mt-3 grid grid-cols-[minmax(0,1fr)_1px_auto] items-center gap-1.5 px-0.5">
+                {expiresAt && <p className="flex min-w-0 items-center gap-1.5 truncate font-body text-[9px] font-700 text-[#777bad] dark:text-violet-100/80"><span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(52,211,153,0.16)]" /><span className="truncate">{text.expires} {new Date(expiresAt).toLocaleDateString(locale)}</span></p>}
+                <span aria-hidden="true" className="h-8 w-px bg-violet-300/50 dark:bg-violet-200/25" />
+                <button onClick={copy} className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-white/75 px-2 py-2.5 font-display text-[9px] font-bold text-violet-600 shadow-sm transition hover:bg-white dark:bg-violet-950/45 dark:text-violet-100 dark:hover:bg-violet-950/65"><Copy className="h-3 w-3" aria-hidden="true" />{text.copy}</button>
+              </div>
+            </div>
+          )}
+          {!link && <ul className="ml-2 mt-4 grid w-full max-w-[18rem] grid-cols-4 gap-1 font-body text-[10px] font-700 leading-tight text-[#7f83a5] dark:text-white">
+            {text.features.map((feature, index) => {
+              return <li key={feature} className="flex min-w-0 flex-col items-center gap-1.5 text-center">
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-white/65 shadow-sm backdrop-blur-sm dark:border-violet-200/15 dark:bg-[#251143]/70">
+                  <img src={featureStickerSources[index]} alt="" aria-hidden="true" className={`telegram-feature-sticker ${index === 0 ? 'telegram-feature-sticker--bell' : 'telegram-feature-sticker--pop'} ${index === 3 ? 'h-14 w-14 -translate-y-0.5' : 'h-11 w-11'} object-contain`} />
+                </span>
+                {feature}
+              </li>;
+            })}
+          </ul>}
         </div>
-        <button onClick={createLink} disabled={loading}
-          className="btn-magic px-5 py-3 text-white text-sm font-display font-bold disabled:opacity-60 flex-shrink-0">
-          {loading ? '...' : text.button}
-        </button>
       </div>
 
-      {link && (
-        <div className="relative z-10 mt-4 rounded-2xl bg-white/80 border border-purple-100 p-3">
-          <div className="flex flex-col sm:flex-row gap-2">
-            <input readOnly value={link} className="input-magic text-sm py-2 flex-1" onFocus={e => e.currentTarget.select()} />
-            <button onClick={copy} className="btn-outline px-4 py-2 text-sm font-display font-bold">{text.copy}</button>
-          </div>
-          {expiresAt && (
-            <p className="font-body text-xs text-purple-400 mt-2">
-              {text.expires}: {new Date(expiresAt).toLocaleString(lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU')}
-            </p>
-          )}
-          {waitingForLink && <p className="mt-2 font-body text-xs font-700 text-sky-500">{text.waiting}</p>}
-        </div>
-      )}
-
-      <div className="relative z-10 mt-4">
+      {parents.length > 0 && <div className="relative z-10 mt-4">
         <div className="mb-2 flex items-center justify-between gap-3">
           <div className="font-body font-700 text-sm text-purple-600 dark:text-violet-100">{text.linked}</div>
           <button onClick={refreshParents} disabled={refreshing} className="rounded-xl bg-white/70 px-3 py-1.5 font-body text-xs font-800 text-purple-500 hover:bg-pink-50 disabled:opacity-60 dark:bg-[#251143]/72 dark:text-violet-100 dark:hover:bg-[#311858]">
@@ -323,20 +353,16 @@ function TelegramConnectCard({ studentId, lang }: { studentId: string; lang: Lan
             {text[statusMessage.text as 'disconnected' | 'notFound' | 'failed']}
           </div>
         )}
+      </div>}
+      {!link && <button onClick={createLink} disabled={loading}
+        className="relative z-10 mt-5 inline-flex min-h-16 w-full max-w-[20rem] flex-shrink-0 items-center justify-between gap-2 rounded-full bg-gradient-to-r from-[#b54df2] via-[#9742f5] to-[#7040ed] px-5 py-3 font-display text-base font-bold text-white shadow-[0_10px_20px_rgba(133,73,236,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(133,73,236,0.34)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 disabled:opacity-60">
+        <span className="flex min-w-0 items-center gap-3">
+          <img src="/dashboard/telegram-plane.png" alt="" aria-hidden="true" className="h-7 w-7 shrink-0 object-contain" />
+          <span className="truncate">{loading ? '...' : text.button}</span>
+        </span>
+        <ArrowRight className="h-6 w-6 shrink-0" aria-hidden="true" />
+      </button>}
       </div>
-      </div>
-      <img
-        src="/dashboard/telegram-phone-sticker.png"
-        alt=""
-        aria-hidden="true"
-        className="pointer-events-none absolute bottom-[-0.4rem] right-[-1.1rem] z-20 h-32 w-auto select-none object-contain drop-shadow-[0_16px_20px_rgba(88,28,135,0.18)] dark:hidden md:h-40"
-      />
-      <img
-        src="/dashboard/telegram-phone-sticker-dark.png"
-        alt=""
-        aria-hidden="true"
-        className="pointer-events-none absolute bottom-[-0.8rem] right-[-1.1rem] z-20 hidden h-[8.5rem] w-auto select-none object-contain drop-shadow-[0_18px_24px_rgba(88,28,135,0.28)] dark:block md:h-[10.5rem]"
-      />
     </div>
   );
 }
@@ -522,7 +548,7 @@ export function FileModal({ item, userId, canSubmitWork, onClose, onSubmitted, o
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-[2.2%] top-[1.5%] z-20 flex-shrink-0 text-4xl leading-none text-purple-300 transition-colors hover:text-pink-500"
+            className="absolute right-[2.2%] top-[1.5%] z-20 flex-shrink-0 text-4xl leading-none text-purple-300 transition-colors hover:text-red-500"
             aria-label={t(lang, 'dash_close')}
           >
             ×
@@ -774,7 +800,7 @@ export function FileModal({ item, userId, canSubmitWork, onClose, onSubmitted, o
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-[3.2%] top-[4.5%] z-20 flex-shrink-0 text-4xl leading-none text-purple-300 transition-colors hover:text-pink-500"
+            className="absolute right-[3.2%] top-[4.5%] z-20 flex-shrink-0 text-4xl leading-none text-purple-300 transition-colors hover:text-red-500"
             aria-label={t(lang, 'dash_close')}
           >
             ×
@@ -948,7 +974,7 @@ export function FileModal({ item, userId, canSubmitWork, onClose, onSubmitted, o
               </p>
             )}
           </div>
-          <button onClick={onClose} className="text-purple-300 hover:text-pink-500 text-4xl leading-none flex-shrink-0 transition-colors">×</button>
+          <button onClick={onClose} className="text-purple-300 hover:text-red-500 text-4xl leading-none flex-shrink-0 transition-colors">×</button>
         </div>
 
         {/* Content */}
@@ -1222,7 +1248,7 @@ export function LockedModal({ item, onClose, lang }: { item: ContentItem; onClos
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-[3.2%] top-[4.5%] z-20 flex-shrink-0 text-4xl leading-none text-white transition-colors hover:text-pink-500"
+          className="absolute right-[3.2%] top-[4.5%] z-20 flex-shrink-0 text-4xl leading-none text-white transition-colors hover:text-red-500"
           aria-label={t(lang, 'dash_close')}
         >
           ×
@@ -1535,6 +1561,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [greeting, setGreeting] = useState('');
+  const [greetingIcon, setGreetingIcon] = useState('/dashboard/greeting-sun.png');
   const [schedule, setSchedule] = useState<ReturnType<typeof getStudentSchedule>>([]);
   const [content, setContent] = useState<ContentItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
@@ -1610,8 +1637,16 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
-    const h = new Date().getHours();
-    setGreeting(h < 12 ? t(lang, 'dash_morning') : h < 17 ? t(lang, 'dash_afternoon') : t(lang, 'dash_evening'));
+    const updateGreeting = () => {
+      const h = new Date().getHours();
+      const isMorning = h >= 5 && h < 12;
+      const isAfternoon = h >= 12 && h < 17;
+      setGreeting(isMorning ? t(lang, 'dash_morning') : isAfternoon ? t(lang, 'dash_afternoon') : t(lang, 'dash_evening'));
+      setGreetingIcon(isMorning || isAfternoon ? '/dashboard/greeting-sun.png' : '/dashboard/greeting-moon.png');
+    };
+    updateGreeting();
+    const interval = window.setInterval(updateGreeting, 60_000);
+    return () => window.clearInterval(interval);
   }, [user, navigate, lang]);
 
   useEffect(() => {
@@ -1727,15 +1762,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   const listening = content.filter(i => i.type === 'listening');
   const checkpoint = content.filter(i => i.type === 'checkpoint');
   const completedLessons = lessons.filter(l => l.unlocked).length;
-  const recentLesson = lessons[lessons.length - 1] || null;
-  const recentLessonCompleted = Boolean(
-    recentLesson?.interactiveCompletedAt ||
-    recentLesson?.checkedAt ||
-    (recentLesson?.starRating && recentLesson.starRating > 0)
-  );
-  const recentLessonUnlocked = Boolean(recentLesson?.unlocked);
   const { avg: ratingAvg } = getStudentRating(effectiveUserId);
-  const ratingFullStars = Math.max(0, Math.min(5, Math.floor(ratingAvg)));
   const locale = lang === 'en' ? 'en-GB' : lang === 'ua' ? 'uk-UA' : 'ru-RU';
   const billingPlanId = billing?.plan_id && billing.plan_id in pricingPlanNameKeys ? billing.plan_id as PricingPlanId : null;
   const billingKind = activeSubscriptionStatus({
@@ -1849,7 +1876,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
   const equippedAvatar = findAvatar(starProfile.avatarId);
 
   const renderDashboardTabs = () => (
-    <div className="mb-6 flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
+    <div className={`flex gap-2 overflow-x-auto pb-2 ${activeTab === 'overview' ? 'mb-4' : 'mb-6'}`} style={{ scrollbarWidth: 'none' }}>
       {visibleTabs.map(tab => (
         <button key={tab.id} onClick={() => setActiveTab(tab.id)}
           className={`flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-2xl px-4 py-2.5 font-body text-sm font-600 transition-all duration-300 ${
@@ -1912,7 +1939,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
       >
         <div className="relative max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <span className="font-display font-black text-xl bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">Vetoschool</span>
+            <span className="student-dashboard-brand font-display font-black text-xl bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">Vetoschool</span>
           </Link>
           {(activeTab === 'shop' || activeTab === 'dictionary') && (
             <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2">
@@ -1950,7 +1977,13 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 	            </button>
             <div className="hidden sm:block text-right">
               <div className="font-display font-bold text-purple-700 text-sm">{user.name}</div>
-              <div className="font-body text-xs text-purple-400">{billingHasAccess ? t(lang, 'dash_active') : t(lang, 'dash_pending')}</div>
+              <div className="mt-0.5 flex items-center justify-end gap-1 font-body text-xs text-purple-400">
+                <span
+                  aria-hidden="true"
+                  className={`student-status-dot${billingHasAccess ? ' student-status-dot--active' : ''}`}
+                />
+                {billingHasAccess ? t(lang, 'dash_active') : t(lang, 'dash_pending')}
+              </div>
             </div>
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-300 to-purple-300 flex items-center justify-center font-display font-black text-white text-lg overflow-hidden">
               {equippedAvatar
@@ -1979,16 +2012,36 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
 	        {/* Welcome banner */}
 	        {activeTab !== 'shop' && activeTab !== 'dictionary' && (<>
-	        {activeTab === 'online-class' ? (
+	        {activeTab === 'interactive' ? (
+              <InteractiveHeader lang={lang} />
+            ) : activeTab === 'online-class' ? (
               <div className="mb-8"><OnlineClassBanner lang={lang} pageHeading /></div>
             ) : activeTab !== 'dictionary' && (
 	        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-	          className={`student-welcome-banner rounded-3xl p-6 md:p-8 mb-8 text-white relative overflow-visible ${activeTab === 'dictionary' ? 'min-h-[166px]' : ''} ${isWelcomeScrolledUnderHeader ? 'z-10' : 'z-[60]'}`}>
-          <div className="absolute inset-0 overflow-hidden rounded-3xl opacity-10">
+	          className={`student-welcome-banner rounded-3xl px-6 py-6 md:px-0 md:py-8 md:aspect-[4.8/1] mb-8 text-white relative overflow-visible ${activeTab === 'dictionary' ? 'min-h-[166px]' : ''} ${isWelcomeScrolledUnderHeader ? 'z-10' : 'z-[60]'}`}>
+          <img
+            src="/dashboard/student-welcome-banner-fit.png"
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 h-full w-full rounded-3xl select-none object-cover object-center dark:hidden"
+          />
+          <img
+            src="/dashboard/student-welcome-banner-dark.png"
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 hidden h-full w-full rounded-3xl select-none object-cover object-center dark:block"
+          />
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-[1] overflow-hidden rounded-3xl dark:hidden">
+            <div className="absolute inset-0 bg-[linear-gradient(110deg,rgba(176,148,242,0.9)_0%,rgba(183,149,239,0.82)_21%,rgba(197,151,233,0.55)_31%,rgba(211,157,229,0.2)_38%,transparent_44%)]" />
+          </div>
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-[1] hidden overflow-hidden rounded-3xl dark:block">
+            <div className="absolute inset-0 bg-[linear-gradient(110deg,rgba(20,7,48,0.97)_0%,rgba(30,9,67,0.9)_21%,rgba(43,14,88,0.74)_32%,rgba(48,17,94,0.42)_41%,rgba(48,17,94,0.12)_49%,transparent_54%)]" />
+          </div>
+          <div className="absolute inset-0 overflow-hidden rounded-3xl opacity-10 dark:hidden">
             {[...Array(15)].map((_, i) => <div key={i} className="absolute text-xl" style={{ left: `${(i * 6.7) % 100}%`, top: `${(i * 7.3) % 100}%` }}>✨</div>)}
           </div>
-          <div
-            className={`student-welcome-owl-stage pointer-events-none absolute bottom-0 right-0 top-[-80px] hidden w-[68%] max-w-[850px] overflow-hidden rounded-r-3xl md:block ${isWelcomeScrolledUnderHeader ? 'z-20' : 'z-[70]'}`}
+	          <div
+	            className={`student-welcome-owl-stage pointer-events-none absolute bottom-0 right-0 top-[-80px] hidden w-[68%] max-w-[850px] overflow-hidden rounded-r-3xl dark:hidden ${isWelcomeScrolledUnderHeader ? 'z-20' : 'z-[70]'}`}
             style={{ clipPath: 'inset(0 round 0 1.5rem 1.5rem 0)' }}
           >
             <img
@@ -2002,31 +2055,34 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
               className="student-welcome-owl-art absolute bottom-[-135px] right-[2px] hidden w-full origin-bottom-right scale-[0.9] select-none object-contain drop-shadow-[0_22px_32px_rgba(3,1,12,0.36)] dark:block"
             />
           </div>
-          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div>
-              <p className="font-body text-white/80 text-sm mb-1">{greeting}! 👋</p>
-	              <h1 className="font-display font-black text-2xl md:text-3xl">
-	                {activeTab === 'dictionary' ? t(lang, 'dict_tab') : isPreview ? `👁️ Preview` : `${user.name}`}
-	              </h1>
-		              <p className="font-body text-white/80 mt-1 flex items-center gap-1.5 text-sm">
-		                {activeTab !== 'dictionary' && !isLimitedAccess && billingHasAccess && (
-		                  <img src={RATING_STAR_SRC} alt="" aria-hidden="true" className="h-6 w-6 object-contain drop-shadow-[0_5px_8px_rgba(217,119,6,0.24)]" />
-		                )}
-		                <span>{activeTab === 'dictionary'
-		                  ? (lang === 'en' ? 'Learn new words every day! ⭐' : lang === 'ua' ? 'Вивчаємо нові слова щодня! ⭐' : 'Учим новые слова каждый день! ⭐')
-		                  : isLimitedAccess ? limitedCopy.banner : billingHasAccess ? withoutLeadingStar(t(lang, 'dash_keep_up')) : t(lang, 'dash_locked_desc')}</span>
-		              </p>
+          <div className="relative z-10 flex flex-col md:absolute md:inset-0 md:flex-row items-start md:items-center justify-between gap-4">
+	            <div className="relative isolate ml-2 md:ml-[4.4%]">
+              <div className="mb-1 flex items-center gap-1">
+                <img src={greetingIcon} alt="" aria-hidden="true" className="h-8 w-8 object-contain drop-shadow-[0_3px_8px_rgba(255,180,50,0.4)] md:h-10 md:w-10" />
+                <p className="font-body text-base font-medium text-white/90 drop-shadow-[0_2px_5px_rgba(77,35,130,0.45)] md:text-xl">{greeting},</p>
+              </div>
+	              <h1 className="ml-1 font-display text-3xl font-black leading-tight text-white drop-shadow-[0_3px_8px_rgba(77,35,130,0.48)] md:ml-1 md:text-4xl">
+                {activeTab === 'dictionary' ? t(lang, 'dict_tab') : isPreview ? `👁️ Preview` : `${user.name}`}
+              </h1>
+              <p className="mt-1 inline-flex items-center gap-1 font-body text-sm font-medium text-white/95 md:text-base">
+                {activeTab !== 'dictionary' && !isLimitedAccess && billingHasAccess && (
+                  <img src="/dashboard/greeting-star.png" alt="" aria-hidden="true" className="h-7 w-7 object-contain drop-shadow-[0_4px_7px_rgba(217,119,6,0.28)] md:h-8 md:w-8" />
+                )}
+                <span>{activeTab === 'dictionary'
+                  ? (lang === 'en' ? 'Learn new words every day! ⭐' : lang === 'ua' ? 'Вивчаємо нові слова щодня! ⭐' : 'Учим новые слова каждый день! ⭐')
+                  : isLimitedAccess ? limitedCopy.banner : billingHasAccess ? withoutLeadingStar(t(lang, 'dash_keep_up')) : t(lang, 'dash_locked_desc')}</span>
+              </p>
             </div>
             {isLimitedAccess ? (
               <Link
                 to="/trial-booking"
-                className="bg-white text-purple-600 font-display font-bold px-6 py-3 rounded-2xl hover:scale-105 transition-transform shadow-lg text-sm flex-shrink-0"
+                className="bg-white text-purple-600 font-display font-bold px-6 py-3 rounded-2xl hover:scale-105 transition-transform shadow-lg text-sm flex-shrink-0 md:mr-[4.4%]"
               >
                 {limitedCopy.cta}
               </Link>
             ) : !billingHasAccess && !isPreview && (
               <a href="https://t.me/vetoschool_bot" target="_blank" rel="noopener noreferrer"
-                className="bg-white text-purple-600 font-display font-bold px-6 py-3 rounded-2xl hover:scale-105 transition-transform shadow-lg text-sm flex-shrink-0">
+                className="bg-white text-purple-600 font-display font-bold px-6 py-3 rounded-2xl hover:scale-105 transition-transform shadow-lg text-sm flex-shrink-0 md:mr-[4.4%]">
                 {t(lang, 'dash_activate')}
               </a>
             )}
@@ -2087,46 +2143,68 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
-                    { label: t(lang, 'dash_lessons_done'), value: `${completedLessons}/${lessons.length}`, icon: '/dashboard/stat-icons/lessons.png', color: 'from-pink-100 to-rose-100', border: 'border-pink-200', iconClass: 'h-full w-full object-contain drop-shadow-[0_8px_10px_rgba(126,34,206,0.16)]' },
-                    { label: t(lang, 'dash_rating'), value: ratingAvg > 0 ? `${ratingAvg}` : '—', icon: null, color: 'from-yellow-100 to-amber-100', border: 'border-yellow-200', iconClass: '' },
-                    { label: t(lang, 'dash_hw_due'), value: homework.filter(h => !h.starRating || h.starRating === 0).length.toString(), icon: '/dashboard/stat-icons/homework.png', color: 'from-purple-100 to-violet-100', border: 'border-purple-200', iconClass: 'h-full w-full object-contain drop-shadow-[0_8px_10px_rgba(126,34,206,0.16)]' },
-                    { label: t(lang, 'dash_week'), value: `${schedule.length}`, icon: '/dashboard/stat-icons/schedule.png', color: 'from-blue-100 to-cyan-100', border: 'border-blue-200', iconClass: 'h-full w-full object-contain drop-shadow-[0_8px_10px_rgba(14,116,144,0.16)]' },
+                    { label: t(lang, 'dash_lessons_done'), value: `${completedLessons}/${lessons.length}`, icon: null, background: '/dashboard/stat-lessons-completed.png', darkBackground: '/dashboard/stat-lessons-completed-dark.png', backgroundScale: '', color: 'from-pink-100 to-rose-100', border: 'border-pink-200', iconClass: '' },
+                    { label: t(lang, 'dash_rating'), value: ratingAvg > 0 ? `${ratingAvg}` : '—', icon: null, background: '/dashboard/stat-rating.png', darkBackground: '/dashboard/stat-rating-dark.png', backgroundScale: 'scale-[1.05]', color: 'from-yellow-100 to-amber-100', border: 'border-yellow-200', iconClass: '' },
+                    { label: t(lang, 'dash_hw_due'), value: homework.filter(h => !h.starRating || h.starRating === 0).length.toString(), icon: null, background: '/dashboard/stat-homework.png', darkBackground: '/dashboard/stat-homework-dark.png', backgroundScale: '', color: 'from-purple-100 to-violet-100', border: 'border-purple-200', iconClass: '' },
+                    { label: t(lang, 'dash_week'), value: `${schedule.length}`, icon: null, background: '/dashboard/stat-week.png', darkBackground: '/dashboard/stat-week-dark.png', backgroundScale: '', color: 'from-blue-100 to-cyan-100', border: 'border-blue-200', iconClass: '' },
                   ].map((stat, i) => (
                     <motion.div key={stat.label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.1 }}
-                      className={`bg-gradient-to-br ${stat.color} border ${stat.border} rounded-3xl p-5 pt-4 min-h-[8.5rem] card-hover`}>
-                      <div className="-mt-2 mb-1 flex h-14 w-14 items-center justify-center">
+                      className={`relative overflow-hidden bg-gradient-to-br ${stat.color} border ${stat.border} rounded-3xl p-5 pt-4 min-h-[7.5rem] md:min-h-[8rem] card-hover dark:border-violet-300/20`}>
+                      {stat.background && <img src={stat.background} alt="" aria-hidden="true" className={`pointer-events-none absolute inset-0 z-0 h-full w-full select-none object-cover object-center dark:hidden ${stat.backgroundScale}`} />}
+                      {stat.darkBackground && <img src={stat.darkBackground} alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 hidden h-full w-full select-none object-cover object-center dark:block" />}
+                      <div className="relative z-10 -mt-2 mb-1 flex h-6 w-14 items-center justify-center">
                         {stat.icon ? (
                           <img src={stat.icon} alt="" className={stat.iconClass} aria-hidden="true" />
-                        ) : (
+                        ) : !stat.background ? (
                           <RatingStatIcon />
-                        )}
+                        ) : null}
                       </div>
-                      <div className="font-display font-black text-2xl text-purple-700">{stat.value}</div>
-                      <div className="mt-1 font-display text-[13px] font-bold leading-none text-purple-500/90">{stat.label}</div>
+                      <div className={`relative z-10 ml-2 font-display font-black text-2xl ${stat.background ? 'text-purple-800 dark:text-white' : 'text-purple-700'}`}>{stat.value}</div>
+                      <div className={`relative z-10 ml-2 mt-1 font-display text-[13px] font-bold leading-none ${stat.background ? 'text-purple-700 dark:text-violet-100' : 'text-purple-500/90 dark:text-white'}`}>{stat.label}</div>
                     </motion.div>
                   ))}
                 </div>
 
-                <div className="grid gap-6 md:grid-cols-2">
-                <div className="glass relative min-h-[20.5rem] overflow-hidden rounded-3xl p-6 md:p-7">
+                <div className="grid items-stretch gap-5 lg:grid-cols-[1.43fr_1fr]">
+                <div className="glass relative min-h-[24rem] overflow-hidden rounded-3xl border border-violet-100/80 p-6 shadow-lg shadow-violet-100/25 md:p-7 dark:border-violet-300/15 dark:shadow-black/15">
                   <img
-                    src="/dashboard/tariff-intensive-bg.png"
+                    src="/dashboard/tariff-intensive-owl-scene.png"
                     alt=""
                     aria-hidden="true"
-                    className="pointer-events-none absolute inset-0 h-full w-full -translate-x-6 scale-[1.10] select-none object-cover dark:hidden"
+                    className="pointer-events-none absolute inset-0 h-full w-full scale-105 select-none object-cover object-bottom blur-[2px] dark:hidden"
+                  />
+                  <img
+                    src="/dashboard/tariff-intensive-owl-scene.png"
+                    alt=""
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-0 top-0 h-auto w-full select-none object-contain object-top dark:hidden"
+                    style={{
+                      maskImage: 'linear-gradient(to bottom, #000 0%, #000 78%, transparent 100%)',
+                      WebkitMaskImage: 'linear-gradient(to bottom, #000 0%, #000 78%, transparent 100%)',
+                    }}
                   />
                   <img
                     src="/dashboard/tariff-intensive-bg-dark.png"
                     alt=""
                     aria-hidden="true"
-                    className="pointer-events-none absolute inset-0 hidden h-full w-full -translate-x-6 scale-[1.10] select-none object-cover dark:block"
+                    className="pointer-events-none absolute inset-0 hidden h-full w-full scale-105 select-none object-cover object-bottom blur-[2px] dark:block"
                   />
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/45 via-white/18 to-transparent dark:hidden" />
-                  <div className="relative z-10 flex max-w-[39rem] flex-col gap-5">
-                    <div>
+                  <img
+                    src="/dashboard/tariff-intensive-bg-dark.png"
+                    alt=""
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-0 top-0 hidden h-auto w-full select-none object-contain object-top dark:block"
+                    style={{
+                      maskImage: 'linear-gradient(to bottom, #000 0%, #000 78%, transparent 100%)',
+                      WebkitMaskImage: 'linear-gradient(to bottom, #000 0%, #000 78%, transparent 100%)',
+                    }}
+                  />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/75 via-white/48 to-white/5 dark:hidden" />
+                  <div className="relative z-10 flex max-w-[39rem] flex-col gap-7">
+                    <div className="translate-y-3">
                       <p className="font-display text-sm font-bold uppercase tracking-[0.08em] text-violet-400 dark:text-violet-200/85">{tariffLabel}</p>
                       <h3 className="mt-2 font-display text-2xl font-black leading-tight text-violet-700 drop-shadow-[0_2px_0_rgba(255,255,255,0.65)] dark:text-violet-50 dark:drop-shadow-[0_0_18px_rgba(168,85,247,0.42)] md:text-3xl">{billingPlanName}</h3>
-                      <p className={`mt-4 inline-flex rounded-2xl border px-4 py-1.5 font-body text-sm font-800 ${billingStatusClass(billingKind)}`}>{billingStatus}</p>
+                      <p className={`mt-4 inline-flex items-center gap-2 rounded-2xl border px-4 py-1.5 font-body text-sm font-800 ${billingStatusClass(billingKind)}`}><span className={`h-3 w-3 rounded-full ${billingKind === 'active' || billingKind === 'trial' ? 'student-status-dot--active bg-emerald-500' : 'bg-violet-400'}`} aria-hidden="true" />{billingStatus}</p>
                       {billingKind === 'manual_access' && billing?.manual_access_override_at && (
                         <p className={`mt-2 font-body text-xs font-700 ${billingStatusTextClass}`}>
                           {lang === 'en' ? 'Manual access' : lang === 'ua' ? 'Ручний доступ' : 'Ручной доступ'}: {new Date(billing.manual_access_override_at).toLocaleString(locale)}
@@ -2143,38 +2221,41 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                         </p>
                       )}
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-2xl border border-violet-100 bg-white/70 px-4 py-3 shadow-sm shadow-violet-100/40 backdrop-blur dark:border-violet-300/16 dark:bg-[#241042]/62 dark:shadow-black/15">
-                        <p className="font-display text-sm font-bold text-violet-400 dark:text-violet-200/80">{formatLabel}</p>
-                        <p className="mt-1 font-display text-lg font-black text-violet-800 dark:text-white">{billingFormat}</p>
+                    <div className="grid translate-y-12 gap-3 sm:grid-cols-3">
+                      <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-violet-100 bg-white/70 px-3 py-3 shadow-sm shadow-violet-100/40 backdrop-blur dark:border-violet-300/16 dark:bg-[#241042]/62 dark:shadow-black/15">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100/80 text-violet-600 dark:bg-violet-300/15 dark:text-violet-200"><GraduationCap className="h-5 w-5" aria-hidden="true" /></span>
+                        <div className="min-w-0"><p className="break-words font-display text-xs font-bold leading-tight text-violet-400 dark:text-violet-200/80">{formatLabel}</p><p className="mt-1 break-words font-display text-sm font-black leading-tight text-violet-800 dark:text-white">{billingFormat}</p></div>
                       </div>
-                      <div className="rounded-2xl border border-violet-100 bg-white/70 px-4 py-3 shadow-sm shadow-violet-100/40 backdrop-blur dark:border-violet-300/16 dark:bg-[#241042]/62 dark:shadow-black/15">
-                        <p className="font-display text-sm font-bold text-violet-400 dark:text-violet-200/80">{lessonsBalanceLabel}</p>
-                        <p className="mt-1 font-display text-lg font-black text-violet-800 dark:text-white">
+                      <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-violet-100 bg-white/70 px-3 py-3 shadow-sm shadow-violet-100/40 backdrop-blur dark:border-violet-300/16 dark:bg-[#241042]/62 dark:shadow-black/15">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100/80 text-violet-600 dark:bg-violet-300/15 dark:text-violet-200"><Infinity className="h-5 w-5" aria-hidden="true" /></span>
+                        <div className="min-w-0"><p className="break-words font-display text-xs font-bold leading-tight text-violet-400 dark:text-violet-200/80">{lessonsBalanceLabel}</p>
+                        <p className="mt-1 break-words font-display text-sm font-black leading-tight text-violet-800 dark:text-white">
                           {billing ? `${billing.lessons_remaining ?? 0}/${billing.lessons_total ?? 0}` : '—'}
-                        </p>
+                        </p></div>
                       </div>
-                      <div className="rounded-2xl border border-violet-100 bg-white/70 px-4 py-3 shadow-sm shadow-violet-100/40 backdrop-blur dark:border-violet-300/16 dark:bg-[#241042]/62 dark:shadow-black/15">
-                        <p className="font-display text-sm font-bold text-violet-400 dark:text-violet-200/80">{billingDateLabel}</p>
-                        <p className="mt-1 font-display text-sm font-black text-violet-800 dark:text-white">
+                      <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-violet-100 bg-white/70 px-3 py-3 shadow-sm shadow-violet-100/40 backdrop-blur dark:border-violet-300/16 dark:bg-[#241042]/62 dark:shadow-black/15">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100/80 text-violet-600 dark:bg-violet-300/15 dark:text-violet-200"><CalendarDays className="h-5 w-5" aria-hidden="true" /></span>
+                        <div className="min-w-0"><p className="break-words font-display text-xs font-bold leading-tight text-violet-400 dark:text-violet-200/80">{billingDateLabel}</p>
+                        <p className="mt-1 break-words font-display text-sm font-black leading-tight text-violet-800 dark:text-white">
                           {nextPaymentDate ? new Date(nextPaymentDate).toLocaleDateString(locale) : '—'}
-                        </p>
+                        </p></div>
                       </div>
                     </div>
                   </div>
                   {(hasPaymentProblem || hasStripeCustomer || !isPreview) && (
-                    <div className="relative z-10 mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="relative z-10 mt-6 flex translate-y-12 flex-col gap-3 sm:flex-row sm:items-center">
                       {hasStripeCustomer && (
                         <button
                           type="button"
                           onClick={handleManageSubscription}
                           disabled={portalLoading}
-                          className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-purple-600 px-6 py-3 font-display text-base font-bold text-white shadow-lg shadow-violet-300/45 transition hover:-translate-y-0.5 hover:shadow-violet-300/60 disabled:opacity-60"
+                          className="inline-flex min-h-16 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#b54df2] via-[#9742f5] to-[#7040ed] px-5 py-3 font-display text-base font-bold text-white shadow-[0_10px_20px_rgba(133,73,236,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(133,73,236,0.34)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 disabled:opacity-60"
                         >
                           {portalLoading ? '...' : (
                             <>
                               <Crown className="h-5 w-5 fill-yellow-300 text-yellow-300" aria-hidden="true" />
                               {manageSubscriptionLabel}
+                              <ArrowRight className="h-4 w-4" aria-hidden="true" />
                             </>
                           )}
                         </button>
@@ -2182,9 +2263,9 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                       {!isPreview && (
                         <Link
                           to="/pricing"
-                          className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-violet-100 bg-white px-6 py-3 font-display text-base font-bold text-violet-700 shadow-md shadow-violet-100/50 transition hover:-translate-y-0.5 hover:bg-white dark:border-violet-300/20 dark:bg-[#241042]/76 dark:text-violet-50 dark:shadow-black/20 dark:hover:bg-[#2b124f]"
+                          className="inline-flex min-h-16 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#b54df2] via-[#9742f5] to-[#7040ed] px-5 py-3 font-display text-base font-bold !text-white shadow-[0_10px_20px_rgba(133,73,236,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(133,73,236,0.34)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2"
                         >
-                          <Clock className="h-5 w-5 text-violet-600 dark:text-violet-200" aria-hidden="true" />
+                          <Settings className="h-5 w-5 text-white" aria-hidden="true" />
                           {changeTariffLabel}
                         </Link>
                       )}
@@ -2209,119 +2290,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                   )}
                 </div>
 
-                <div className="grid gap-6 md:grid-cols-2">
-                  {ratingAvg > 0 && (
-                    <div className="glass relative overflow-hidden rounded-3xl p-6" data-testid="student-rating-card">
-                      <img
-	                        src="/dashboard/rating-bg.png"
-	                        alt=""
-	                        aria-hidden="true"
-	                        className="pointer-events-none absolute inset-0 h-full w-full scale-[1.03] select-none object-cover dark:hidden"
-	                      />
-	                      <img
-	                        src="/dashboard/rating-bg-dark.png"
-	                        alt=""
-	                        aria-hidden="true"
-	                        className="pointer-events-none absolute inset-0 hidden h-full w-full scale-[1.03] select-none object-cover dark:block"
-	                      />
-	                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/72 via-white/34 to-white/6 dark:hidden" />
-	                      <h3 className="relative z-10 mb-4 flex items-center gap-2 font-display text-xl font-bold text-purple-700 dark:text-violet-50">
-                        <img
-                          src={RATING_STAR_SRC}
-                          alt=""
-                          className="h-7 w-7 object-contain drop-shadow-[0_4px_7px_rgba(217,119,6,0.18)]"
-                          aria-hidden="true"
-                        />
-                        {t(lang, 'dash_rating')}
-                      </h3>
-                      <div className="relative z-10 flex flex-wrap items-center gap-x-5 gap-y-3">
-                        <div className="flex items-center gap-1.5" data-testid="student-rating-stars" aria-label={`${ratingAvg} / 5 ${t(lang, 'dash_stars')}`}>
-                          {[1,2,3,4,5].map(s => (
-	                            <img
-	                              key={s}
-	                              src={RATING_STAR_SRC}
-	                              alt=""
-	                              className={`h-9 w-9 object-contain drop-shadow-[0_6px_8px_rgba(217,119,6,0.16)] transition sm:h-10 sm:w-10 ${
-	                                s <= ratingFullStars ? 'opacity-100' : 'opacity-30'
-	                              }`}
-	                              aria-hidden="true"
-	                            />
-                          ))}
-                        </div>
-                        <div className="flex items-baseline gap-2">
-	                          <span className="font-display text-4xl font-black leading-none text-purple-700 dark:text-violet-50">{ratingAvg}</span>
-	                          <span className="font-body text-sm font-700 text-purple-400 dark:text-violet-200/78">/ 5 {t(lang, 'dash_stars')}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
 
-	                  <div
-	                    className="student-recent-lessons-card glass rounded-3xl p-6"
-	                    data-recent-lesson-state={recentLessonUnlocked ? 'open' : 'locked'}
-	                    style={{
-	                      backgroundImage: `url('${recentLessonUnlocked ? '/dashboard/recent-lessons-open-bg.png' : '/dashboard/recent-lessons-bg.png'}')`,
-	                      backgroundPosition: 'calc(50% - 3px) 48.5%',
-                      backgroundRepeat: 'no-repeat',
-                      backgroundSize: '104% auto',
-                    }}
-                  >
-	                    <h3 className="-translate-y-3 font-display font-bold text-xl text-purple-700 dark:text-violet-50 mb-4">{t(lang, 'dash_recent')}</h3>
-                    {recentLesson ? (
-                      <button
-                        type="button"
-                        onClick={() => handleItemClick(recentLesson)}
-                        className="ml-[4.75rem] block h-14 w-[min(23.5rem,62%)] rounded-2xl px-3 py-0.5 text-left transition hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-purple-300 focus:ring-offset-2 focus:ring-offset-white/70"
-                      >
-	                        <div className="-translate-y-[0.6rem] truncate font-display text-sm font-black leading-5 text-purple-700 dark:text-violet-50">{recentLesson.title}</div>
-                        <div className="-translate-y-1 mt-0.5 grid grid-cols-3 items-start gap-2">
-                          <div className="flex min-w-0 flex-col items-center gap-0.5">
-                            <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-violet-200 bg-white text-violet-500 shadow-[0_3px_8px_rgba(139,92,246,0.18)]">
-                              <Check className="h-3.5 w-3.5" strokeWidth={3.2} aria-hidden="true" />
-                            </div>
-                            <span className="w-full truncate text-center font-display text-[10px] font-bold leading-3 text-violet-300">{t(lang, 'dash_recent_start')}</span>
-                          </div>
-                          <div className="relative flex min-w-0 flex-col items-center gap-0.5">
-                            <div className="absolute left-[calc(-50%+0.75rem)] right-[calc(50%+0.75rem)] top-3 h-0.5 rounded-full bg-[repeating-linear-gradient(90deg,rgba(167,139,250,0.82)_0_6px,transparent_6px_11px)]" />
-                            <div className="absolute left-[calc(50%+0.75rem)] right-[calc(-50%+0.75rem)] top-3 h-0.5 rounded-full bg-[repeating-linear-gradient(90deg,rgba(167,139,250,0.82)_0_6px,transparent_6px_11px)]" />
-                            <div className={`relative z-10 flex h-6 w-6 items-center justify-center rounded-full border-2 shadow-[0_3px_8px_rgba(139,92,246,0.18)] ${
-                              recentLessonCompleted
-                                ? 'border-violet-300 bg-white text-violet-500'
-                                : recentLessonUnlocked
-                                  ? 'border-white bg-gradient-to-br from-violet-400 to-purple-500 text-white'
-                                  : 'border-violet-200 bg-white text-violet-300'
-                            }`}>
-                              {recentLessonCompleted ? (
-                                <Check className="h-3.5 w-3.5" strokeWidth={3.2} aria-hidden="true" />
-                              ) : (
-                                <span className="h-2.5 w-2.5 rounded-full bg-current ring-2 ring-white/75" aria-hidden="true" />
-                              )}
-                            </div>
-                            <span className={`w-full truncate text-center font-display text-[10px] font-bold leading-3 ${
-                              recentLessonUnlocked ? 'text-violet-500' : 'text-violet-300'
-                            }`}>
-                              {t(lang, 'dash_recent_progress')}
-                            </span>
-                          </div>
-                          <div className="flex min-w-0 flex-col items-center gap-0.5">
-                            <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-violet-200 bg-white text-violet-500 shadow-[0_4px_9px_rgba(139,92,246,0.18)] ring-1 ring-white/80">
-                              {recentLessonUnlocked ? (
-                                <Unlock className="h-3.5 w-3.5" strokeWidth={3} aria-hidden="true" />
-                              ) : (
-                                <Lock className="h-3.5 w-3.5" strokeWidth={3} aria-hidden="true" />
-                              )}
-                            </div>
-                            <span className="w-full truncate text-center font-display text-[10px] font-bold leading-3 text-violet-500">
-                              {recentLessonUnlocked ? t(lang, 'dash_recent_unlocked') : t(lang, 'dash_recent_locked')}
-                            </span>
-                          </div>
-                        </div>
-                      </button>
-                    ) : (
-                      <p className="font-body text-purple-400 text-sm text-center py-4">{t(lang, 'dash_lessons_empty_desc')}</p>
-                    )}
-                  </div>
-                </div>
               </div>
             )}
 
@@ -2480,8 +2449,6 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
                 hasAccess={billingHasAccess}
                 lang={lang}
                 assignedContent={content.filter(item => !!item.interactiveLessonId)}
-                schedule={schedule}
-                onOpenSchedule={() => setActiveTab('schedule')}
                 onStarsChanged={refreshStars}
                 onContentChanged={refreshStudentData}
               />

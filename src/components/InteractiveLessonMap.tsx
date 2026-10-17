@@ -1,384 +1,261 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
-import {
-  ArrowRight,
-  BookOpen,
-  CalendarDays,
-  Check,
-  CheckCircle2,
-  Clock3,
-  Loader2,
-  Lock,
-  Play,
-  RotateCcw,
-  Star,
-} from 'lucide-react';
-import {
-  type Lesson,
-  type Unit,
-  type Workbook,
-  getLessonProgress,
-  listAvailableWorkbooks,
-  listLessonsForUnits,
-  listUnitsForWorkbooks,
-} from '../lib/workbooks';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowRight, Check, ChevronRight, Home, Lock, PawPrint, PlayCircle, RefreshCw, Sun, Users, Utensils } from 'lucide-react';
+import { Workbook, Unit, Lesson, listAvailableWorkbooks, listUnitsForWorkbooks, listLessonsForUnits, getLessonProgress } from '../lib/workbooks';
 import { canReward } from '../lib/mechanics';
-import {
-  isActiveScheduleSlot,
-  scheduleSlotTimeValue,
-  type ScheduleSlot,
-} from '../lib/schedule';
 import InteractiveLessonRoom from './InteractiveLessonRoom';
-import { type Lang, t } from '../lib/i18n';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { Lang, t } from '../lib/i18n';
+import './InteractiveLessonMap.css';
 
-const mapCopy = {
-  ru: {
-    loading: 'Загрузка интерактива...',
-    title: 'Интерактивная тетрадь',
-    subtitle: 'Учись, играй и открывай новое!',
-    yourProgress: 'Твой прогресс',
-    lessonsCompleted: 'уроков завершено',
-    of: 'из',
-    nextLesson: 'Следующее занятие',
-    noNextLesson: 'Ближайших занятий пока нет',
-    noNextLessonHint: 'Новое занятие появится здесь после добавления в расписание.',
-    onlineLesson: 'Онлайн-занятие',
-    schedule: 'К расписанию',
-    unitsTitle: 'Твои юниты',
-    unit: 'UNIT',
-    lesson: 'УРОК',
-    lessons: 'урока',
-    completed: 'Завершено',
-    selectUnit: 'Выбрать юнит',
-    lessonsTitle: 'Уроки юнита',
-    notStarted: 'Не начато',
-    inProgress: 'В процессе',
-    locked: 'Откроется позже',
-    start: 'Начать',
-    continue: 'Продолжить',
-    repeat: 'Повторить',
-    reward: 'зв.',
-  },
+const copyByLang = {
   en: {
-    loading: 'Loading interactive...',
-    title: 'Interactive workbook',
-    subtitle: 'Learn, play and discover something new!',
-    yourProgress: 'Your progress',
-    lessonsCompleted: 'lessons completed',
-    of: 'of',
-    nextLesson: 'Next lesson',
-    noNextLesson: 'No upcoming lessons yet',
-    noNextLessonHint: 'A new lesson will appear here once it is added to your schedule.',
-    onlineLesson: 'Online lesson',
-    schedule: 'View schedule',
-    unitsTitle: 'Your units',
-    unit: 'UNIT',
-    lesson: 'LESSON',
-    lessons: 'lessons',
-    completed: 'Completed',
-    selectUnit: 'Select unit',
-    lessonsTitle: 'Unit lessons',
-    notStarted: 'Not started',
-    inProgress: 'In progress',
-    locked: 'Unlocks later',
-    start: 'Start',
-    continue: 'Continue',
-    repeat: 'Repeat',
-    reward: 'stars',
+    eyebrow: 'INTERACTIVE', title: 'Interactive units', subtitle: 'Learn English step by step. Take lessons, complete tasks and earn stars!',
+    tip: 'Small lessons — big results!', tipText: 'Work through your lessons in order and discover new topics.',
+    loading: 'Loading interactive…', error: 'Could not load your lessons.', retry: 'Try again', units: 'Choose a unit',
+    lesson: 'Lesson', lessons: 'lessons', progress: 'Unit progress', completed: 'lessons completed', of: 'of',
+    continue: 'Continue', start: 'Start', repeat: 'Repeat', locked: 'Locked', done: 'Completed',
+    description: 'Learn new words, practise and take the next step in English.',
+    rewardTitle: 'Complete your unit and celebrate your progress!', rewardText: 'Complete tasks and collect stars for your work.',
+    rewards: 'View rewards', earned: 'Stars earned', rewardInfo: 'Stars earned from completed lessons in this unit.',
+    rewardDialogTitle: 'Unit rewards', unitLabel: 'Unit', allCompleted: 'All lessons completed!', greatJob: 'Great job!',
+    empty: 'New lessons are coming soon.', emptyUnits: 'Your units are being prepared.', scroll: 'More units',
+  },
+  ru: {
+    eyebrow: 'ИНТЕРАКТИВ', title: 'Интерактивные юниты', subtitle: 'Изучай английский шаг за шагом. Проходи уроки, выполняй задания и получай звёздочки!',
+    tip: 'Небольшие уроки — большие результаты!', tipText: 'Проходи уроки последовательно и открывай новые темы.',
+    loading: 'Загрузка интерактива…', error: 'Не удалось загрузить уроки.', retry: 'Попробовать снова', units: 'Выбрать юнит',
+    lesson: 'Урок', lessons: 'уроков', progress: 'Прогресс юнита', completed: 'уроков завершено', of: 'из',
+    continue: 'Продолжить', start: 'Начать', repeat: 'Повторить', locked: 'Заблокировано', done: 'Завершено',
+    description: 'Учи новые слова, практикуйся и делай следующий шаг в английском.',
+    rewardTitle: 'Заверши юнит и порадуйся своему прогрессу!', rewardText: 'Выполняй задания и собирай звёздочки за свою работу.',
+    rewards: 'Смотреть награды', earned: 'Заработано звёзд', rewardInfo: 'Звёзды за пройденные уроки этого юнита',
+    rewardDialogTitle: 'Награды за юнит', unitLabel: 'Юнит', allCompleted: 'Все уроки завершены!', greatJob: 'Отличная работа!',
+    empty: 'Новые уроки скоро появятся.', emptyUnits: 'Твои юниты готовятся.', scroll: 'Другие юниты',
   },
   ua: {
-    loading: 'Завантаження інтерактиву...',
-    title: 'Інтерактивний зошит',
-    subtitle: 'Навчайся, грай та відкривай нове!',
-    yourProgress: 'Твій прогрес',
-    lessonsCompleted: 'уроків завершено',
-    of: 'із',
-    nextLesson: 'Наступне заняття',
-    noNextLesson: 'Найближчих занять поки немає',
-    noNextLessonHint: 'Нове заняття зʼявиться тут після додавання до розкладу.',
-    onlineLesson: 'Онлайн-заняття',
-    schedule: 'До розкладу',
-    unitsTitle: 'Твої юніти',
-    unit: 'UNIT',
-    lesson: 'УРОК',
-    lessons: 'уроки',
-    completed: 'Завершено',
-    selectUnit: 'Обрати юніт',
-    lessonsTitle: 'Уроки юніта',
-    notStarted: 'Не розпочато',
-    inProgress: 'У процесі',
-    locked: 'Відкриється пізніше',
-    start: 'Розпочати',
-    continue: 'Продовжити',
-    repeat: 'Повторити',
-    reward: 'зір.',
+    eyebrow: 'ІНТЕРАКТИВ', title: 'Інтерактивні юніти', subtitle: 'Вивчай англійську крок за кроком. Проходь уроки, виконуй завдання та отримуй зірочки!',
+    tip: 'Невеликі уроки — великі результати!', tipText: 'Проходь уроки послідовно та відкривай нові теми.',
+    loading: 'Завантаження інтерактиву…', error: 'Не вдалося завантажити уроки.', retry: 'Спробувати знову', units: 'Обрати юніт',
+    lesson: 'Урок', lessons: 'уроків', progress: 'Прогрес юніта', completed: 'уроків завершено', of: 'з',
+    continue: 'Продовжити', start: 'Почати', repeat: 'Повторити', locked: 'Заблоковано', done: 'Завершено',
+    description: 'Вивчай нові слова, практикуйся та роби наступний крок в англійській.',
+    rewardTitle: 'Заверши юніт і відсвяткуй свій прогрес!', rewardText: 'Виконуй завдання та збирай зірочки за свою роботу.',
+    rewards: 'Переглянути нагороди', earned: 'Зароблено зірок', rewardInfo: 'Зірки за пройдені уроки цього юніта.',
+    rewardDialogTitle: 'Нагороди за юніт', unitLabel: 'Юніт', allCompleted: 'Усі уроки завершено!', greatJob: 'Чудова робота!',
+    empty: 'Нові уроки незабаром з’являться.', emptyUnits: 'Твої юніти готуються.', scroll: 'Інші юніти',
   },
 };
-
-type Copy = typeof mapCopy.ru;
-type AssignedInteractiveContent = {
-  id: string;
-  interactiveLessonId?: string | null;
-  interactiveCompletedAt?: string | null;
-  interactiveScorePercent?: number | null;
+const GIFT = '/dashboard/interactive/reward-gift.png';
+const TROPHY = '/dashboard/interactive/reward-trophy.png';
+const REWARD_SCENE = '/dashboard/interactive/reward-owl-reference.png';
+const HOME_STICKER = '/dashboard/interactive/unit-home.png';
+const RATING_STAR = '/dashboard/rating-user-star.png?v=20260815';
+const unitIcons = [Home, Users, Sun, Utensils, Home, PawPrint];
+const lessonArt: Record<Lesson['type'], string> = {
+  theory: '/dashboard/lessons-header-books.png', class_task: '/dashboard/interactive-tablet.png',
+  homework: '/dashboard/homework-notebook.png', practice: '/dashboard/practice-gamepad.png',
+  grammar: '/dashboard/grammar-header-book.png', listening: '/dashboard/listening-headphones.png',
+  checkpoint: '/dashboard/checkpoint-flag-full.png',
 };
+export type InteractiveProgress = Record<string, { completed_at: string; stars_awarded: number }>;
+type AssignedInteractiveContent = { id: string; interactiveLessonId?: string | null };
+const percentage = (done: number, total: number) => total ? Math.round(done / total * 100) : 0;
 
-type InteractiveLessonMapProps = {
-  userId: string;
-  hasAccess: boolean;
-  lang?: Lang;
-  assignedContent?: AssignedInteractiveContent[];
-  schedule?: ScheduleSlot[];
-  onOpenSchedule?: () => void;
-  onStarsChanged?: () => void;
-  onContentChanged?: () => void;
-};
-
-function percent(done: number, total: number) {
-  return total === 0 ? 0 : Math.round((done / total) * 100);
+export function InteractiveHeader({ lang }: { lang: Lang }) {
+  const copy = copyByLang[lang];
+  return <section className="interactive-units interactive-hero" aria-labelledby="interactive-heading">
+    <div className="interactive-hero-copy">
+      <h1 id="interactive-heading" className="font-display font-black">{copy.title}</h1>
+      <p className="interactive-intro font-body">{copy.subtitle}</p>
+    </div>
+    <img className="interactive-hero-owl dark:hidden" src="/dashboard/interactive/hero-owl-banner.png" alt="" draggable={false} />
+    <img className="interactive-hero-owl hidden dark:block" src="/dashboard/interactive/hero-owl-banner-dark.png" alt="" draggable={false} />
+  </section>;
 }
 
-function localeFor(lang: Lang) {
-  if (lang === 'ua') return 'uk-UA';
-  if (lang === 'en') return 'en-GB';
-  return 'ru-RU';
+function ProgressBar({ value, label }: { value: number; label: string }) {
+  return <div className="interactive-progress" role="progressbar" aria-label={label} aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}>
+    <span style={{ width: `${value}%` }} />
+  </div>;
 }
 
-function formatScheduleDate(slot: ScheduleSlot, lang: Lang) {
-  if (!slot.date) return slot.day;
-  const date = new Date(`${slot.date}T12:00:00`);
-  if (Number.isNaN(date.getTime())) return slot.day || slot.date;
-  return new Intl.DateTimeFormat(localeFor(lang), { day: 'numeric', month: 'long' }).format(date);
-}
-
-function formatTimeRange(slot: ScheduleSlot) {
-  const start = slot.time || '';
-  const [hours, minutes] = start.split(':').map(Number);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return start;
-  const endMinutes = hours * 60 + minutes + (slot.durationMinutes || 45);
-  return `${start}–${String(Math.floor(endMinutes / 60) % 24).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`;
-}
-
-function unitLabel(copy: Copy, unit: Unit) {
-  return `${copy.unit} ${unit.unit_number || unit.order || 1}`;
-}
-
-function LessonCard({ lesson, index, copy, done, inProgress, unlocked, onOpen }: {
-  lesson: Lesson;
-  index: number;
-  copy: Copy;
-  done: boolean;
-  inProgress: boolean;
-  unlocked: boolean;
-  onOpen: () => void;
+export function InteractiveUnits({ units, lessons, progress, hasAccess, lang, onOpen, selectedUnitId, onSelectUnit }: {
+  units: Unit[]; lessons: Record<string, Lesson[]>; progress: InteractiveProgress;
+  hasAccess: boolean; lang: Lang; onOpen: (lesson: Lesson) => void;
+  selectedUnitId?: string | null; onSelectUnit?: (id: string) => void;
 }) {
-  const lessonNumber = lesson.lesson_number || index + 1;
-  const reward = canReward(lesson.type) ? lesson.stars_reward : 0;
-  const statusLabel = done ? copy.completed : inProgress ? copy.inProgress : unlocked ? copy.notStarted : copy.locked;
-  const actionLabel = done ? copy.repeat : inProgress ? copy.continue : unlocked ? copy.start : copy.locked;
-  const ActionIcon = done ? RotateCcw : unlocked ? Play : Lock;
-
-  return (
-    <motion.article
-      whileHover={unlocked ? { y: -3 } : undefined}
-      transition={{ duration: 0.18 }}
-      className={`interactive-lesson-card${done ? ' is-complete' : ''}${unlocked ? '' : ' is-locked'}`}
-    >
-      <div className="interactive-lesson-card__topline">
-        <span className="interactive-lesson-card__number">{copy.lesson} {lessonNumber}</span>
-        {done && reward > 0 && (
-          <span className="interactive-lesson-card__reward" aria-label={`${reward} ${copy.reward}`}>
-            <Star aria-hidden="true" /> {reward}
-          </span>
-        )}
-      </div>
-      <div className="interactive-lesson-card__icon" aria-hidden="true">
-        {done ? <CheckCircle2 /> : unlocked ? <BookOpen /> : <Lock />}
-      </div>
-      <h4>{lesson.title || `${copy.lessonsTitle} ${lessonNumber}`}</h4>
-      <span className={`interactive-lesson-status${done ? ' is-complete' : ''}${unlocked ? '' : ' is-locked'}`}>
-        {done && <Check aria-hidden="true" />}
-        {statusLabel}
-      </span>
-      <button type="button" onClick={onOpen} disabled={!unlocked}>
-        <span>{actionLabel}</span>
-        <ActionIcon aria-hidden="true" />
-      </button>
-    </motion.article>
+  const copy = copyByLang[lang];
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [rewardsOpen, setRewardsOpen] = useState(false);
+  const strip = useRef<HTMLDivElement>(null);
+  const unit = units.find(item => item.id === (selectedUnitId ?? selectedId)) || units[0];
+  if (!unit) return <div className="interactive-units interactive-empty">{copy.emptyUnits}</div>;
+  const unitLessons = lessons[unit.id] || [];
+  const completed = unitLessons.filter(lesson => progress[lesson.id]).length;
+  const percent = percentage(completed, unitLessons.length);
+  const earned = unitLessons.reduce(
+    (sum, lesson) => canReward(lesson.type)
+      ? sum + Math.max(0, Number(progress[lesson.id]?.stars_awarded) || 0)
+      : sum,
+    0,
   );
+  const unlocked = (lesson: Lesson, index: number) => hasAccess && (!!progress[lesson.id] || index === 0 || !!progress[unitLessons[index - 1]?.id]);
+  const nextLesson = unitLessons.find((lesson, index) => !progress[lesson.id] && unlocked(lesson, index))
+    || unitLessons.find((lesson, index) => unlocked(lesson, index));
+  const completionLabel = `${completed} ${copy.of} ${unitLessons.length} ${copy.completed}`;
+
+  return <div className="interactive-units interactive-unit-content">
+    <div className="interactive-unit-nav">
+      <div className="interactive-unit-strip" ref={strip} role="group" aria-label={copy.units}>
+        {units.map((item, index) => {
+          const list = lessons[item.id] || [];
+          const done = list.filter(lesson => progress[lesson.id]).length;
+          const Icon = unitIcons[index % unitIcons.length];
+          return <button key={item.id} type="button" aria-pressed={unit.id === item.id}
+            className={`interactive-unit-chip interactive-tone-${index % 6}`} onClick={() => { setSelectedId(item.id); onSelectUnit?.(item.id); }}>
+            <span className="interactive-unit-icon">
+              {index === 0 ? <img src={HOME_STICKER} alt="" aria-hidden="true" /> : <Icon aria-hidden="true" />}
+            </span>
+            <span className="interactive-unit-chip-copy"><strong>Unit {item.unit_number || index + 1}</strong><span>{item.title}</span>
+              <span className="interactive-chip-progress"><ProgressBar value={percentage(done, list.length)} label={`${item.title}: ${copy.progress}`} /><small>{done}/{list.length}</small></span>
+            </span>
+          </button>;
+        })}
+      </div>
+      {units.length > 1 && <button className="interactive-scroll-next" type="button" aria-label={copy.scroll} onClick={() => {
+        const element = strip.current;
+        if (element) element.scrollTo({ left: element.scrollLeft + element.clientWidth >= element.scrollWidth - 5 ? 0 : element.scrollLeft + element.clientWidth * .7, behavior: 'smooth' });
+      }}><ChevronRight /></button>}
+    </div>
+
+    <div className="interactive-learning-grid">
+      <article className="interactive-unit-summary">
+        <p className="interactive-eyebrow">UNIT {unit.unit_number || units.indexOf(unit) + 1}</p>
+        <h2>{unit.title}</h2>
+        <p className="interactive-unit-description">{copy.description}</p>
+        <div className="interactive-summary-progress"><span>{copy.progress}</span><strong>{completed} {copy.of} {unitLessons.length} {copy.lessons}</strong>
+          <div className="interactive-summary-meter"><ProgressBar value={percent} label={copy.progress} /><b>{percent}%</b></div>
+        </div>
+        <button className="interactive-primary interactive-continue" disabled={!nextLesson} onClick={() => nextLesson && onOpen(nextLesson)}>
+          <PlayCircle />{percent === 100 ? copy.repeat : copy.continue}<ChevronRight />
+        </button>
+      </article>
+
+      <div className="interactive-lesson-grid">
+        {unitLessons.map((lesson, index) => {
+          const done = !!progress[lesson.id];
+          const available = unlocked(lesson, index);
+          const stars = Math.max(0, Math.min(5, progress[lesson.id]?.stars_awarded || 0));
+          return <article key={lesson.id} className={`interactive-lesson-card ${done ? 'is-complete' : available ? 'is-ready' : 'is-locked'}`}>
+            <span className="interactive-lesson-state" aria-label={done ? copy.done : available ? copy.start : copy.locked}>
+              {done ? <Check /> : available ? <ChevronRight /> : <Lock />}
+            </span>
+            <p className="interactive-lesson-number">{copy.lesson} {lesson.lesson_number || index + 1}</p>
+            <h3>{lesson.title || `${copy.lesson} ${index + 1}`}</h3>
+            <img className="interactive-lesson-art" src={lessonArt[lesson.type] || lessonArt.theory} alt="" draggable={false} />
+            <div className="interactive-lesson-footer">
+              {canReward(lesson.type) ? <div className="interactive-stars" aria-label={`${copy.earned}: ${stars} / 5`}>
+                {[0, 1, 2, 3, 4].map(star => <img key={star} src={RATING_STAR} alt="" aria-hidden="true" className={star < stars ? 'is-earned' : ''} />)}
+              </div> : <span className="interactive-lesson-status">{done ? copy.done : ''}</span>}
+              <button disabled={!available} onClick={() => onOpen(lesson)} className="interactive-lesson-action">
+                {done && <RefreshCw />}{done ? copy.repeat : available ? copy.start : copy.locked}
+              </button>
+            </div>
+          </article>;
+        })}
+        {!unitLessons.length && <div className="interactive-empty">{copy.empty}</div>}
+      </div>
+    </div>
+
+    <section className="interactive-reward-banner">
+      <img className="interactive-trophy" src={TROPHY} alt="" />
+      <div className="interactive-reward-copy"><h2>{copy.rewardTitle}</h2><p>{copy.rewardText}</p></div>
+      <div className="interactive-reward-progress">
+        <img src={GIFT} alt="" /><div><p>{completionLabel}</p><ProgressBar value={percent} label={copy.progress} /></div>
+        <button className="interactive-primary" onClick={() => setRewardsOpen(true)}>{copy.rewards}<ArrowRight /></button>
+      </div>
+    </section>
+    <Dialog open={rewardsOpen} onOpenChange={setRewardsOpen}>
+      <DialogContent
+        className="interactive-units interactive-rewards-dialog"
+        overlayClassName="interactive-rewards-overlay"
+      >
+        <div className="interactive-rewards-scroll">
+          <DialogHeader className="interactive-rewards-heading">
+            <DialogTitle>{copy.rewardDialogTitle}</DialogTitle>
+            <DialogDescription>{copy.rewardInfo}</DialogDescription>
+          </DialogHeader>
+          <div className="interactive-rewards-art" aria-hidden="true">
+            <img className="interactive-rewards-scene interactive-rewards-scene-light" src={REWARD_SCENE} alt="" draggable={false} />
+            <img className="interactive-rewards-scene interactive-rewards-scene-dark" src="/dashboard/interactive/reward-owl-night.png" alt="" draggable={false} />
+          </div>
+          <div className="interactive-rewards-score">
+            <img src={RATING_STAR} alt="" aria-hidden="true" />
+            <strong>{earned}</strong>
+            <span>{copy.earned}</span>
+            <span className="sr-only">{earned} ★</span>
+          </div>
+          <p className="interactive-rewards-unit"><span className="interactive-rewards-unit-label">{copy.unitLabel}:</span>{' '}<strong>{unit.title}</strong></p>
+          <div className="interactive-rewards-meter">
+            <ProgressBar value={percent} label={copy.progress} />
+            <b>{completed}/{unitLessons.length}</b>
+          </div>
+          <p className="interactive-rewards-complete"><span><Check /></span>{copy.allCompleted}</p>
+          <button type="button" className="interactive-primary interactive-rewards-done" onClick={() => setRewardsOpen(false)}>
+            {copy.greatJob}<ArrowRight />
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  </div>;
 }
 
-export default function InteractiveLessonMap({
-  userId,
-  hasAccess,
-  lang = 'ru',
-  assignedContent = [],
-  schedule = [],
-  onOpenSchedule,
-  onStarsChanged,
-  onContentChanged,
-}: InteractiveLessonMapProps) {
+export default function InteractiveLessonMap({ userId, hasAccess, lang = 'ru', assignedContent = [], onStarsChanged, onContentChanged }: {
+  userId: string; hasAccess: boolean; lang?: Lang; assignedContent?: AssignedInteractiveContent[]; onStarsChanged?: () => void; onContentChanged?: () => void;
+}) {
+  const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [workbooks, setWorkbooks] = useState<Workbook[]>([]);
-  const [units, setUnits] = useState<Record<string, Unit[]>>({});
+  const [units, setUnits] = useState<Unit[]>([]);
   const [lessons, setLessons] = useState<Record<string, Lesson[]>>({});
-  const [progress, setProgress] = useState<Record<string, { completed_at: string; stars_awarded: number }>>({});
-  const [activeUnitId, setActiveUnitId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<InteractiveProgress>({});
   const [active, setActive] = useState<{ lesson: Lesson; contentItem: AssignedInteractiveContent | null } | null>(null);
   const [loading, setLoading] = useState(true);
-
+  const [error, setError] = useState(false);
+  const copy = copyByLang[lang];
   const refresh = useCallback(async () => {
     setLoading(true);
-    const [nextWorkbooks, nextProgress] = await Promise.all([
-      listAvailableWorkbooks(userId),
-      getLessonProgress(userId),
-    ]);
-    const unitRows = await listUnitsForWorkbooks(nextWorkbooks.map(workbook => workbook.id));
-    const lessonRows = await listLessonsForUnits(unitRows.map(unit => unit.id));
-    const nextUnits = Object.fromEntries(nextWorkbooks.map(workbook => [
-      workbook.id,
-      unitRows.filter(unit => unit.workbook_id === workbook.id),
-    ]));
-    const nextLessons = Object.fromEntries(unitRows.map(unit => [
-      unit.id,
-      lessonRows.filter(lesson => lesson.unit_id === unit.id),
-    ]));
-
-    setWorkbooks(nextWorkbooks);
-    setUnits(nextUnits);
-    setLessons(nextLessons);
-    setProgress(nextProgress);
-    setActiveUnitId(current => unitRows.some(unit => unit.id === current) ? current : unitRows[0]?.id || null);
-    setLoading(false);
+    setError(false);
+    try {
+      const [wbs, nextProgress] = await Promise.all([listAvailableWorkbooks(userId), getLessonProgress(userId)]);
+      const unitRows = await listUnitsForWorkbooks(wbs.map(workbook => workbook.id));
+      const lessonRows = await listLessonsForUnits(unitRows.map(unit => unit.id));
+      setWorkbooks(wbs);
+      setUnits(wbs.flatMap(workbook => unitRows.filter(unit => unit.workbook_id === workbook.id)));
+      setLessons(Object.fromEntries(unitRows.map(unit => [unit.id, lessonRows.filter(lesson => lesson.unit_id === unit.id)])));
+      setProgress(nextProgress);
+    } catch { setError(true); } finally { setLoading(false); }
   }, [userId]);
-
   useEffect(() => { void refresh(); }, [refresh]);
-
-  const copy = mapCopy[lang] || mapCopy.ru;
-  const allUnits = useMemo(() => workbooks.flatMap(workbook => units[workbook.id] || []), [units, workbooks]);
-  const allLessons = useMemo(() => allUnits.flatMap(unit => lessons[unit.id] || []), [allUnits, lessons]);
-  const selectedUnit = allUnits.find(unit => unit.id === activeUnitId) || allUnits[0] || null;
-  const selectedLessons = selectedUnit ? lessons[selectedUnit.id] || [] : [];
-  const doneCount = allLessons.filter(lesson => !!progress[lesson.id]).length;
-  const overallPercent = percent(doneCount, allLessons.length);
-  const nextScheduleSlot = useMemo(() => [...schedule]
-    .filter(isActiveScheduleSlot)
-    .filter(slot => !slot.date || scheduleSlotTimeValue(slot) >= Date.now())
-    .sort((a, b) => scheduleSlotTimeValue(a) - scheduleSlotTimeValue(b))[0] || null, [schedule]);
-  const contentByLessonId = useMemo(() => new Map(assignedContent
-    .filter(item => item.interactiveLessonId)
-    .map(item => [item.interactiveLessonId as string, item])), [assignedContent]);
-
-  const openLesson = (lesson: Lesson) => {
-    setActive({ lesson, contentItem: contentByLessonId.get(lesson.id) || null });
-  };
-
-  if (loading) {
-    return (
-      <div className="interactive-loading" role="status">
-        <Loader2 aria-hidden="true" />
-        {copy.loading}
+  if (loading) return (
+    <div className="interactive-units interactive-loading-card" role="status" aria-live="polite" aria-label={copy.loading}>
+      <div className="interactive-loading-visual" aria-hidden="true">
+        <img className="interactive-loading-owl" src="/owl/loading-owl-clock.png" alt="" />
       </div>
-    );
-  }
-
-  if (workbooks.length === 0) {
-    return (
-      <div className="interactive-empty-state">
-        <img src="/dashboard/interactive-tablet.png" alt="" aria-hidden="true" />
-        <h3>{t(lang, 'map_empty_title')}</h3>
-        <p>{t(lang, 'map_empty_desc')}</p>
+      <div className="interactive-loading-copy">
+        <span className="interactive-loading-eyebrow">{copy.eyebrow}</span>
+        <p>{copy.loading}</p>
+        <div className="interactive-loading-progress" aria-hidden="true"><span /></div>
       </div>
-    );
-  }
-
-  return (
-    <div className="interactive-dashboard-shell" data-testid="interactive-dashboard">
-      <section className="interactive-welcome" aria-labelledby="interactive-welcome-title">
-        <div className="interactive-welcome__content">
-          <span className="interactive-welcome__eyebrow">VETOSCHOOL</span>
-          <h2 id="interactive-welcome-title">{copy.title}</h2>
-          <p>{copy.subtitle}</p>
-          <div className="interactive-overall-progress">
-            <div className="interactive-overall-progress__label">
-              <span>{copy.yourProgress}</span>
-              <strong>{doneCount} {copy.of} {allLessons.length} {copy.lessonsCompleted}</strong>
-            </div>
-            <div className="interactive-progress-track" role="progressbar" aria-label={copy.yourProgress} aria-valuemin={0} aria-valuemax={100} aria-valuenow={overallPercent}>
-              <span style={{ width: `${overallPercent}%` }} />
-            </div>
-          </div>
-        </div>
-        <img className="interactive-welcome__owl" src="/owl/hero-owl-headphones.png" alt="" aria-hidden="true" />
-      </section>
-
-      <section className="interactive-next-lesson" aria-labelledby="interactive-next-lesson-title">
-        <span className="interactive-next-lesson__icon" aria-hidden="true"><CalendarDays /></span>
-        <div className="interactive-next-lesson__content">
-          <h3 id="interactive-next-lesson-title">{copy.nextLesson}</h3>
-          {nextScheduleSlot ? (
-            <>
-              <p className="interactive-next-lesson__time"><Clock3 aria-hidden="true" />{formatScheduleDate(nextScheduleSlot, lang)} · {formatTimeRange(nextScheduleSlot)}</p>
-              <p className="interactive-next-lesson__topic">{nextScheduleSlot.topic || copy.onlineLesson}</p>
-            </>
-          ) : (
-            <>
-              <p className="interactive-next-lesson__topic">{copy.noNextLesson}</p>
-              <p className="interactive-next-lesson__empty">{copy.noNextLessonHint}</p>
-            </>
-          )}
-        </div>
-        <button type="button" onClick={onOpenSchedule} disabled={!onOpenSchedule}>{copy.schedule}<ArrowRight aria-hidden="true" /></button>
-      </section>
-
-      <section className="interactive-units" aria-labelledby="interactive-units-title">
-        <div className="interactive-section-heading">
-          <div><span>{copy.selectUnit}</span><h3 id="interactive-units-title">{copy.unitsTitle}</h3></div>
-        </div>
-        <div className="interactive-unit-grid">
-          {allUnits.map(unit => {
-            const unitLessons = lessons[unit.id] || [];
-            const completed = unitLessons.filter(lesson => !!progress[lesson.id]).length;
-            const unitPercent = percent(completed, unitLessons.length);
-            const isSelected = unit.id === selectedUnit?.id;
-            return (
-              <button key={unit.id} type="button" aria-pressed={isSelected} className={`interactive-unit-card${isSelected ? ' is-active' : ''}`} onClick={() => setActiveUnitId(unit.id)}>
-                <span className="interactive-unit-card__label">{unitLabel(copy, unit)}</span>
-                <strong>{unit.title}</strong>
-                <span className="interactive-unit-card__meta">{unitLessons.length} {copy.lessons} · {completed === unitLessons.length && unitLessons.length > 0 ? copy.completed : `${completed}/${unitLessons.length}`}</span>
-                <span className="interactive-unit-card__progress" aria-hidden="true"><i style={{ width: `${unitPercent}%` }} /></span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="interactive-lessons" aria-labelledby="interactive-lessons-title">
-        <div className="interactive-section-heading interactive-section-heading--lessons">
-          <div><span>{selectedUnit ? unitLabel(copy, selectedUnit) : copy.unit}</span><h3 id="interactive-lessons-title">{selectedUnit?.title || copy.lessonsTitle}</h3></div>
-          {selectedUnit && <p>{selectedLessons.filter(lesson => !!progress[lesson.id]).length} / {selectedLessons.length} {copy.lessonsCompleted}</p>}
-        </div>
-        <div className="interactive-lesson-grid">
-          {selectedLessons.map((lesson, index) => {
-            const previous = selectedLessons[index - 1];
-            const contentItem = contentByLessonId.get(lesson.id);
-            const done = !!progress[lesson.id] || !!contentItem?.interactiveCompletedAt;
-            const inProgress = !done && Number(contentItem?.interactiveScorePercent || 0) > 0;
-            const unlocked = hasAccess && (index === 0 || !!(previous && progress[previous.id]));
-            return <LessonCard key={lesson.id} lesson={lesson} index={index} copy={copy} done={done} inProgress={inProgress} unlocked={unlocked} onOpen={() => openLesson(lesson)} />;
-          })}
-        </div>
-      </section>
-
-      {active && (
-        <InteractiveLessonRoom
-          lesson={active.lesson}
-          userId={userId}
-          contentItemId={active.contentItem?.id || null}
-          lang={lang}
-          onExit={() => { setActive(null); void refresh(); onStarsChanged?.(); onContentChanged?.(); }}
-          onCompleted={() => { onStarsChanged?.(); onContentChanged?.(); }}
-        />
-      )}
     </div>
   );
+  if (error) return <div className="interactive-units interactive-empty" role="alert"><p>{copy.error}</p><button className="interactive-primary" onClick={() => void refresh()}>{copy.retry}</button></div>;
+  if (!workbooks.length) return <div className="interactive-units interactive-empty"><img src="/dashboard/interactive-tablet.png" alt="" width="90" /><h2>{t(lang, 'map_empty_title')}</h2><p>{t(lang, 'map_empty_desc')}</p></div>;
+  return <>
+    <InteractiveUnits selectedUnitId={selectedUnitId} onSelectUnit={setSelectedUnitId} units={units} lessons={lessons} progress={progress} hasAccess={hasAccess} lang={lang} onOpen={lesson => {
+      setActive({ lesson, contentItem: assignedContent.find(item => item.interactiveLessonId === lesson.id) || null });
+    }} />
+    {active && <InteractiveLessonRoom lesson={active.lesson} userId={userId} contentItemId={active.contentItem?.id || null} lang={lang}
+      onExit={() => { setActive(null); void refresh(); onStarsChanged?.(); onContentChanged?.(); }}
+      onCompleted={() => { onStarsChanged?.(); onContentChanged?.(); }} />}
+  </>;
 }

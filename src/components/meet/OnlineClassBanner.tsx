@@ -8,7 +8,8 @@ export default function OnlineClassBanner({ lang, pageHeading = false }: { lang:
 
   return (
     <div className="meet-banner">
-      <img src="/dashboard/meet/banner.png" alt="" width="2172" height="724" className="meet-banner-art" />
+      <img src="/dashboard/meet/banner.png" alt="" width="2172" height="724" className="meet-banner-art dark:hidden" />
+      <img src="/dashboard/meet/banner-dark.png" alt="" width="2170" height="725" className="meet-banner-art hidden dark:block" />
       <div className="meet-banner-copy">
         <p>Vetoschool Meet</p>
         <Heading>{c.title}</Heading>

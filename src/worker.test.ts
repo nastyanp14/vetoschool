@@ -113,18 +113,15 @@ describe('worker error pages', () => {
   });
 });
 
-describe('worker Meet routes', () => {
-  it.each([
-    ['/preview/conferences', 'Vetoschool Meet Preview'],
-    ['/classroom/design-preview', 'Vetoschool Meet'],
-  ])('serves the SPA shell for %s', async (pathname, title) => {
-    const response = await worker.fetch(new Request(`https://vetoschool.eu${pathname}`, {
+
+describe('Meet room deep links', () => {
+  it('serves the private classroom SPA with HTTP 200 instead of a 404', async () => {
+    const response = await worker.fetch(new Request('https://vetoschool.eu/classroom/12345678-1234-1234-1234-123456789abc', {
       headers: { accept: 'text/html' },
     }), createSpaEnv());
-
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(body).toContain(`<title>${title}</title>`);
-    expect(body).toContain('<meta name="robots" content="noindex,nofollow" />');
+    expect(body).toContain('<title>Vetoschool Meet</title>');
+    expect(body).toContain('noindex,nofollow');
   });
 });

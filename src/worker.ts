@@ -50,7 +50,6 @@ const VALID_SPA_ROUTES = new Set([
   '/pricing',
   '/payment/success',
   '/payment/cancel',
-  '/preview/conferences',
   '/500',
   '/503',
 ]);
@@ -68,8 +67,8 @@ function isValidSpaRoute(pathname: string) {
   return (
     VALID_SPA_ROUTES.has(normalizedPathname) ||
     /^\/analytics\/[^/]+$/.test(normalizedPathname) ||
-    /^\/checkout\/[^/]+$/.test(normalizedPathname) ||
     /^\/classroom\/[^/]+$/.test(normalizedPathname) ||
+    /^\/checkout\/[^/]+$/.test(normalizedPathname) ||
     /^\/teacher\/groups\/[^/]+$/.test(normalizedPathname) ||
     /^\/teacher\/students\/[^/]+$/.test(normalizedPathname)
   );

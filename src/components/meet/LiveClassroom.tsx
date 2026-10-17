@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import {
-  Activity, ArrowLeft, Camera, Check, ChevronDown, Hand, LogOut, MessageCircle, Mic, MicOff, MonitorUp,
+  ArrowLeft, Camera, Check, ChevronDown, Hand, LogOut, MessageCircle, Mic, MicOff, MonitorUp,
   PhoneOff, Send, Settings, Shield, UserRoundX, Users, VideoOff, Volume2, X,
 } from 'lucide-react';
-import { cameraVideoConstraints, controlMeetParticipant, makeConnectionId } from '@/lib/meetMedia';
+import { controlMeetParticipant, makeConnectionId } from '@/lib/meetMedia';
 import { transitionConferenceRemote } from '@/lib/conferences';
 import type { Conference } from '@/components/meet-management/model';
 import type { User } from '@/lib/auth';
@@ -134,12 +134,11 @@ export default function LiveClassroom({ conference, user, onExit, onRefresh }: {
   const acquire = useCallback(async (kind: 'audio' | 'video', deviceId?: string) => {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error('unsupported');
     const constraints: MediaStreamConstraints = kind === 'video'
-      ? { video: cameraVideoConstraints(deviceId), audio: false }
+      ? { video: { deviceId: deviceId ? { exact: deviceId } : undefined, width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 20, max: 24 }, facingMode: deviceId ? undefined : 'user' }, audio: false }
       : { audio: { deviceId: deviceId ? { exact: deviceId } : undefined, echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false };
     const captured = await navigator.mediaDevices.getUserMedia(constraints);
     const track = kind === 'video' ? captured.getVideoTracks()[0] : captured.getAudioTracks()[0];
     if (!track) throw new Error('missing');
-    if (kind === 'video') try { track.contentHint = 'detail'; } catch { /* Optional browser hint. */ }
     if (phase === 'call') await call.replaceDeviceTrack(kind, track);
     else {
       const old = kind === 'video' ? localStream.current.getVideoTracks()[0] : localStream.current.getAudioTracks()[0];
@@ -246,42 +245,17 @@ export default function LiveClassroom({ conference, user, onExit, onRefresh }: {
       <button type="button" className="meet-control" aria-expanded={panel === 'chat'} onClick={() => setPanel(panel === 'chat' ? null : 'chat')}><MessageCircle /><span>Чат{unread ? ` (${unread})` : ''}</span></button>
       <button type="button" className="meet-control" aria-expanded={panel === 'participants'} onClick={() => setPanel(panel === 'participants' ? null : 'participants')}><Users /><span>Учасники</span></button>
       <button type="button" className="meet-control" aria-pressed={call.handRaised} onClick={call.toggleHand}><Hand /><span>{call.handRaised ? 'Опустити руку' : 'Підняти руку'}</span></button>
-      {(!call.observerOnly || isManager) && <button type="button" className="meet-control" onClick={() => setSettingsOpen(true)}><Settings /><span>Налаштування</span></button>}
+      {!call.observerOnly && <button type="button" className="meet-control" onClick={() => setSettingsOpen(true)}><Settings /><span>Налаштування</span></button>}
       <button type="button" className="meet-control meet-leave" onClick={() => void leave()}><LogOut /><span>Вийти</span></button>
       {isManager && <button type="button" className="meet-control meet-end" disabled={busy} onClick={() => void endForAll()}><PhoneOff /><span>Завершити для всіх</span></button>}
     </footer>
     {settingsOpen && <div className="meet-modal-backdrop" role="presentation"><section className="meet-settings" role="dialog" aria-modal="true" aria-labelledby="meet-settings-title">
       <div className="meet-chat-heading"><div className="meet-settings-copy"><span className="meet-settings-icon"><Settings size={19} /></span><div><h2 id="meet-settings-title">Налаштування</h2><p>Оберіть пристрої для заняття</p></div></div><button className="meet-icon-button" type="button" onClick={() => setSettingsOpen(false)} aria-label="Закрити"><X /></button></div>
-      {!call.observerOnly && <><p className="meet-settings-intro"><span><Check size={14} /></span>Камера і мікрофон перевіряються одразу після вибору.</p>
-      <DeviceFields devices={devices} cameraId={cameraId} microphoneId={microphoneId} speakerId={speakerId} outputSelectionSupported={outputSelectionSupported} disabled={busy} onCamera={id => void changeDevice('video', id)} onMicrophone={id => void changeDevice('audio', id)} onSpeaker={id => { setSpeakerId(id); rememberDevice('meet_speaker', id); }} /></>}
-      {isManager && <MeetDiagnostics stream={localStream.current} diagnostics={call.diagnostics} />}
+      <p className="meet-settings-intro"><span><Check size={14} /></span>Камера і мікрофон перевіряються одразу після вибору.</p>
+      <DeviceFields devices={devices} cameraId={cameraId} microphoneId={microphoneId} speakerId={speakerId} outputSelectionSupported={outputSelectionSupported} disabled={busy} onCamera={id => void changeDevice('video', id)} onMicrophone={id => void changeDevice('audio', id)} onSpeaker={id => { setSpeakerId(id); rememberDevice('meet_speaker', id); }} />
       <button className="meet-button meet-primary" type="button" onClick={() => setSettingsOpen(false)}>Готово</button>
     </section></div>}
   </main>;
-}
-
-function MeetDiagnostics({ stream, diagnostics }: {
-  stream: MediaStream;
-  diagnostics: ReturnType<typeof useMeetCall>['diagnostics'];
-}) {
-  const settings = stream.getVideoTracks()[0]?.getSettings?.();
-  const captured = settings?.width && settings?.height ? `${settings.width}×${settings.height} · ${Math.round(settings.frameRate || 0)} FPS` : 'Камера вимкнена';
-  return <details className="meet-diagnostics">
-    <summary><Activity size={17} /><span>Технічна діагностика WebRTC</span><small>Для розробника</small></summary>
-    <div className="meet-diagnostics-body">
-      <div className="meet-diagnostic-capture"><span>Захоплення камери</span><strong>{captured}</strong></div>
-      {!diagnostics.length && <p>Немає активних медіаз’єднань для аналізу.</p>}
-      {diagnostics.map(item => <article key={item.userId}>
-        <header><strong>{item.name}</strong><span>{item.connectionState} · {item.quality}</span></header>
-        <dl>
-          <div><dt>Відправка</dt><dd>{item.outboundWidth || '—'}{item.outboundHeight ? `×${item.outboundHeight}` : ''} · {item.outboundFps || 0} FPS · {item.outboundKbps || 0} кбіт/с</dd></div>
-          <div><dt>Отримання</dt><dd>{item.inboundWidth || '—'}{item.inboundHeight ? `×${item.inboundHeight}` : ''} · {item.inboundFps || 0} FPS · {item.inboundKbps || 0} кбіт/с</dd></div>
-          <div><dt>Мережа</dt><dd>втрати {item.packetLoss}% · RTT {item.rttMs || 0} мс · доступно {item.availableOutgoingKbps || '—'} кбіт/с</dd></div>
-          <div><dt>Кодек</dt><dd>{item.codec} · обмеження: {item.qualityLimitation}</dd></div>
-        </dl>
-      </article>)}
-    </div>
-  </details>;
 }
 
 function DeviceFields({ devices, cameraId, microphoneId, speakerId, outputSelectionSupported, disabled, onCamera, onMicrophone, onSpeaker }: {

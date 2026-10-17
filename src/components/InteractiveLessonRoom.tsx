@@ -3548,7 +3548,7 @@ export default function InteractiveLessonRoom({
             <button
               onClick={exitLesson}
               aria-label={copy.exit}
-              className="flex h-[clamp(2.35rem,4.5vw,2.85rem)] w-[clamp(2.35rem,4.5vw,2.85rem)] items-center justify-center rounded-full border border-white/80 bg-white/85 text-purple-500 shadow-lg shadow-purple-200/30 transition hover:-translate-y-0.5 hover:text-pink-500"
+              className="flex h-[clamp(2.35rem,4.5vw,2.85rem)] w-[clamp(2.35rem,4.5vw,2.85rem)] items-center justify-center rounded-full border border-white/80 bg-white/85 text-purple-500 shadow-lg shadow-purple-200/30 transition hover:-translate-y-0.5 hover:text-red-500"
             >
               <X className="h-5 w-5" />
             </button>

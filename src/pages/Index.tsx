@@ -17,7 +17,7 @@ import ForgotPassword from './ForgotPassword';
 import ResetPassword from './ResetPassword';
 import AccountSecurity from './AccountSecurity';
 import Dashboard from './Dashboard';
-import Classroom, { FinishedClassroom } from './Classroom';
+import Classroom from './Classroom';
 import Admin from './Admin';
 import TeacherDashboard from './TeacherDashboard';
 import Analytics from './Analytics';
@@ -108,7 +108,6 @@ export default function Index() {
         <Route path="/preview/conferences" element={<><Seo title="Vetoschool Meet Preview" description="Interactive preview of Vetoschool Meet conference management interfaces." path="/preview/conferences" noindex /><ConferenceManagementPreview /></>} />
         {import.meta.env.DEV && <Route path="/preview/loading" element={<AppLoadingScreen lang={lang} />} />}
         {import.meta.env.DEV && <Route path="/preview/meet-live" element={<MeetLivePreview />} />}
-        {import.meta.env.DEV && <Route path="/preview/meet-completed" element={<FinishedClassroom title="English lesson" minutes={45} studentCount={4} showSummary onExit={() => undefined} />} />}
         <Route path="*" element={<><Seo {...seo.notFound} /><NotFound lang={lang} /></>} />
       </Routes>
       <CookieConsentBanner lang={lang} />
