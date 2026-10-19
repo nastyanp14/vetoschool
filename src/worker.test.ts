@@ -125,3 +125,16 @@ describe('Meet room deep links', () => {
     expect(body).toContain('noindex,nofollow');
   });
 });
+
+describe('dictionary preview route', () => {
+  it('serves the noindex dictionary demo without requiring authentication', async () => {
+    const response = await worker.fetch(new Request('https://vetoschool.eu/preview/dictionary', {
+      headers: { accept: 'text/html' },
+    }), createSpaEnv());
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain('<title>Vetoschool Dictionary Preview</title>');
+    expect(body).toContain('<meta name="robots" content="noindex,nofollow" />');
+    expect(body).toContain('<link rel="canonical" href="https://vetoschool.eu/preview/dictionary" />');
+  });
+});

@@ -42,6 +42,7 @@ const VALID_SPA_ROUTES = new Set([
   '/pending-activation',
   '/account/security',
   '/dashboard',
+  '/preview/dictionary',
   '/admin',
   '/teacher',
   '/cookie-policy',

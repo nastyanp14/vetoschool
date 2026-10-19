@@ -32,6 +32,12 @@ export const routeMeta = {
     path: '/dashboard',
     noindex: true,
   },
+  dictionaryPreview: {
+    title: 'Vetoschool Dictionary Preview',
+    description: 'A safe demo of the Vetoschool student dictionary and learning progress.',
+    path: '/preview/dictionary',
+    noindex: true,
+  },
   classroom: {
     title: 'Vetoschool Meet',
     description: 'Private Vetoschool classroom.',
@@ -176,6 +182,7 @@ const STATIC_ROUTES: Record<string, RouteMeta> = {
   '/pending-activation': routeMeta.pendingActivation,
   '/account/security': routeMeta.accountSecurity,
   '/dashboard': routeMeta.dashboard,
+  '/preview/dictionary': routeMeta.dictionaryPreview,
   '/admin': routeMeta.admin,
   '/teacher': routeMeta.teacher,
   '/cookie-policy': routeMeta.cookiePolicy,

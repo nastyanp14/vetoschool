@@ -212,16 +212,19 @@ function ProgressPanel({ words, studiedIds, learnedIds, progressRows, lang }: { 
   </section>;
 }
 
-export default function DictionaryView({ userId, lang, previewWords, previewDailyReview = false }: { userId: string; lang: Lang; previewWords?: DictWord[]; previewDailyReview?: boolean }) {
+export default function DictionaryView({ userId, lang, previewWords, previewDailyReview = false, previewProgress }: { userId: string; lang: Lang; previewWords?: DictWord[]; previewDailyReview?: boolean; previewProgress?: DictionaryReviewProgress[] }) {
   const [words, setWords] = useState<DictWord[]>(previewWords || []);
   const [loading, setLoading] = useState(!previewWords);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [status, setStatus] = useState<Status>('all');
   const [layout, setLayout] = useState<Layout>('grid');
-  const [learnedIds, setLearnedIds] = useState<Set<string>>(() => new Set(previewDailyReview ? (previewWords || []).map(word => word.id) : []));
+  const [learnedIds, setLearnedIds] = useState<Set<string>>(() => new Set([
+    ...(previewDailyReview ? (previewWords || []).map(word => word.id) : []),
+    ...(previewProgress || []).filter(row => row.mastery >= 100).map(row => row.wordId),
+  ]));
   const [studiedIds, setStudiedIds] = useState<Set<string>>(() => new Set());
-  const [reviewProgress, setReviewProgress] = useState<DictionaryReviewProgress[]>([]);
+  const [reviewProgress, setReviewProgress] = useState<DictionaryReviewProgress[]>(previewProgress || []);
   const [studyDays, setStudyDays] = useState<Set<string>>(() => new Set());
   const [reviewOpen, setReviewOpen] = useState(previewDailyReview);
   const ui = copy[lang];
@@ -244,13 +247,18 @@ export default function DictionaryView({ userId, lang, previewWords, previewDail
     try {
       setStudiedIds(new Set(JSON.parse(localStorage.getItem(`dictionary-studied:${userId}`) || '[]')));
     } catch { setStudiedIds(new Set()); }
+    if (previewProgress) {
+      setReviewProgress(previewProgress);
+      setLearnedIds(new Set([...localLearned, ...previewProgress.filter(row => row.mastery >= 100).map(row => row.wordId)]));
+      return;
+    }
     void loadReviewProgress(userId, [...localLearned], Boolean(previewWords)).then(progress => {
       setReviewProgress(progress.rows);
       const merged = new Set([...localLearned, ...progress.rows.map(row => row.wordId)]);
       setLearnedIds(merged);
       localStorage.setItem(`dictionary-learned:${userId}`, JSON.stringify([...merged]));
     });
-  }, [previewDailyReview, previewWords, userId]);
+  }, [previewDailyReview, previewProgress, previewWords, userId]);
   useEffect(() => {
     if (reviewOpen) window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [reviewOpen]);
