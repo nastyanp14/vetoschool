@@ -346,6 +346,25 @@ export async function setDictionaryWordLearned(userId: string, wordId: string, l
   return !error;
 }
 
+export async function startDictionaryWordLearning(userId: string, wordId: string, localOnly = false) {
+  const localRows = readLocalProgress(userId);
+  const existing = localRows.find(row => row.wordId === wordId);
+  const progress = existing || legacyProgress(wordId);
+  if (!existing) writeLocalProgress(userId, [...localRows, progress]);
+  if (localOnly) return progress;
+
+  const startedAt = new Date().toISOString();
+  const firstReviewAt = new Date(Date.now() - 60_000).toISOString();
+  const { error } = await (supabase as any).from('dictionary_word_progress').upsert({
+    user_id: userId,
+    word_id: wordId,
+    learned_at: startedAt,
+    next_review_at: firstReviewAt,
+  }, { onConflict: 'user_id,word_id', ignoreDuplicates: true });
+  if (error && !isMissingReviewInfrastructure(error)) console.error('dictionary word learning was not persisted', error);
+  return progress;
+}
+
 export async function startReviewSession(userId: string, kind: ReviewSessionKind, localOnly = false): Promise<ReviewSessionHandle> {
   const localDay = localDayKey();
   const nonce = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;

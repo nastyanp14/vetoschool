@@ -2007,7 +2007,7 @@ export default function Dashboard({ lang: propLang }: { lang: Lang }) {
       <div className={activeTab === 'shop'
         ? 'mx-auto max-w-[100rem] px-2 py-2 sm:px-4'
         : activeTab === 'dictionary'
-          ? 'mx-auto max-w-[96rem] px-4 py-2 sm:px-6 lg:px-8'
+          ? 'mx-auto max-w-[100rem] px-2 py-2 sm:px-4'
           : 'max-w-7xl mx-auto px-4 py-6'}>
 
 	        {/* Welcome banner */}

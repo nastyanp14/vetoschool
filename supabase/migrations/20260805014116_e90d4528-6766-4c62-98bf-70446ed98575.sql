@@ -16,7 +16,7 @@ SELECT cron.schedule(
   '* * * * *',
   $$
   SELECT net.http_post(
-    url := 'https://teapriepxqctgjfhposm.supabase.co/functions/v1/telegram-notifications',
+    url := 'https://ggflcriakiudnejmiuwh.supabase.co/functions/v1/telegram-notifications',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'x-cron-secret', (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'telegram_cron_secret')
